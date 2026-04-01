@@ -7,7 +7,7 @@
         "withGlobalTauri": false
     },
     "package": {
-        "productName": "pot",
+        "productName": "Immersive Input",
         "version": "3.0.7"
     },
     "tauri": {
@@ -67,9 +67,9 @@
             "category": "Utility",
             "copyright": "GPLv3",
             "targets": "all",
-            "identifier": "com.pot-app.desktop",
-            "longDescription": "A cross-platform text translation and ocr software",
-            "shortDescription": "Pot App",
+            "identifier": "com.immersive-input.desktop",
+            "longDescription": "Immersive Input - AI-powered text enhancement tool",
+            "shortDescription": "Immersive Input",
             "externalBin": [],
             "resources": [],
             "icon": [
@@ -123,11 +123,8 @@
         "updater": {
             "active": true,
             "dialog": false,
-            "endpoints": [
-                "https://dl.pot-app.com/https://github.com/pot-app/pot-desktop/releases/download/updater/update.json",
-                "https://github.com/pot-app/pot-desktop/releases/download/updater/update.json"
-            ],
-            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBRTQxQTNDQjM5QzQzM0EKUldRNlE1eXpQQnJrV21mM1Bram5LRlF6UDA3K0Jab2FYL2lZSWhXTE5McWs2NUdJS0dtYkd5VGMK"
+            "endpoints": [],
+            "pubkey": ""
         }
     }
 }

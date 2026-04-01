@@ -11,7 +11,7 @@ pub fn system_ocr(app_handle: tauri::AppHandle, lang: &str) -> Result<String, St
 
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
 
     let path = app_cache_dir_path.to_string_lossy().replace("\\\\?\\", "");
 
@@ -65,7 +65,7 @@ pub fn system_ocr(app_handle: tauri::AppHandle, lang: &str) -> Result<String, St
 pub fn system_ocr(app_handle: tauri::AppHandle, lang: &str) -> Result<String, String> {
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
 
     let arch = std::env::consts::ARCH;
     let bin_path = match app_handle
@@ -108,7 +108,7 @@ pub fn system_ocr(app_handle: tauri::AppHandle, lang: &str) -> Result<String, St
 pub fn system_ocr(app_handle: tauri::AppHandle, lang: &str) -> Result<String, String> {
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
     let mut args = ["", ""];
     if lang != "auto" {
         args = ["-l", lang];

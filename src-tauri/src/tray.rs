@@ -1,7 +1,9 @@
 use crate::clipboard::*;
 use crate::config::{get, set};
+use crate::window::chat_window;
 use crate::window::config_window;
 use crate::window::input_translate;
+use crate::window::light_ai_window;
 use crate::window::ocr_recognize;
 use crate::window::ocr_translate;
 use crate::window::updater_window;
@@ -59,7 +61,7 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
         .unwrap();
     #[cfg(not(target_os = "linux"))]
     tray_handle
-        .set_tooltip(&format!("pot {}", app_handle.package_info().version))
+        .set_tooltip(&format!("Immersive Input {}", app_handle.package_info().version))
         .unwrap();
 
     let enable_clipboard_monitor = match get("clipboard_monitor") {
@@ -109,6 +111,8 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "copy_disable" => on_auto_copy_click(app, "disable"),
             "ocr_recognize" => on_ocr_recognize_click(),
             "ocr_translate" => on_ocr_translate_click(),
+            "light_ai" => light_ai_window(),
+            "chat" => chat_window(),
             "config" => on_config_click(),
             "check_update" => on_check_update_click(),
             "view_log" => on_view_log_click(app),
@@ -205,6 +209,8 @@ fn on_quit_click(app: &AppHandle) {
 
 fn tray_menu_en() -> tauri::SystemTrayMenu {
     let input_translate = CustomMenuItem::new("input_translate", "Input Translate");
+    let light_ai = CustomMenuItem::new("light_ai", "Light AI");
+    let chat = CustomMenuItem::new("chat", "AI Chat");
     let copy_source = CustomMenuItem::new("copy_source", "Source");
     let copy_target = CustomMenuItem::new("copy_target", "Target");
     let clipboard_monitor = CustomMenuItem::new("clipboard_monitor", "Clipboard Monitor");
@@ -219,6 +225,8 @@ fn tray_menu_en() -> tauri::SystemTrayMenu {
     let quit = CustomMenuItem::new("quit", "Quit");
     SystemTrayMenu::new()
         .add_item(input_translate)
+        .add_item(light_ai)
+        .add_item(chat)
         .add_item(clipboard_monitor)
         .add_submenu(SystemTraySubmenu::new(
             "Auto Copy",
@@ -243,6 +251,8 @@ fn tray_menu_en() -> tauri::SystemTrayMenu {
 
 fn tray_menu_zh_cn() -> tauri::SystemTrayMenu {
     let input_translate = CustomMenuItem::new("input_translate", "输入翻译");
+    let light_ai = CustomMenuItem::new("light_ai", "轻AI润色");
+    let chat = CustomMenuItem::new("chat", "AI 对话");
     let clipboard_monitor = CustomMenuItem::new("clipboard_monitor", "监听剪切板");
     let copy_source = CustomMenuItem::new("copy_source", "原文");
     let copy_target = CustomMenuItem::new("copy_target", "译文");
@@ -258,6 +268,8 @@ fn tray_menu_zh_cn() -> tauri::SystemTrayMenu {
     let quit = CustomMenuItem::new("quit", "退出");
     SystemTrayMenu::new()
         .add_item(input_translate)
+        .add_item(light_ai)
+        .add_item(chat)
         .add_item(clipboard_monitor)
         .add_submenu(SystemTraySubmenu::new(
             "自动复制",

@@ -1,4 +1,6 @@
-use crate::window::text_translate;
+use crate::config::get;
+use crate::window::{light_ai_window, text_translate};
+use crate::StringWrapper;
 use std::sync::Mutex;
 use tauri::{ClipboardManager, Manager};
 
@@ -16,7 +18,22 @@ pub fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
                         match result {
                             Some(v) => {
                                 if v != pre_text {
-                                    text_translate(v.clone());
+                                    // Check if # trigger is enabled and text ends with #
+                                    let hash_trigger = match get("light_ai_hash_trigger") {
+                                        Some(val) => val.as_bool().unwrap_or(false),
+                                        None => false,
+                                    };
+                                    if hash_trigger && v.trim_end().ends_with('#') {
+                                        // Strip trailing #, store text, open LightAI window
+                                        let clean = v.trim_end().trim_end_matches('#').trim().to_string();
+                                        if !clean.is_empty() {
+                                            let str_state: tauri::State<StringWrapper> = handle.state();
+                                            str_state.0.lock().unwrap().replace_range(.., &clean);
+                                            light_ai_window();
+                                        }
+                                    } else {
+                                        text_translate(v.clone());
+                                    }
                                     pre_text = v;
                                 }
                             }

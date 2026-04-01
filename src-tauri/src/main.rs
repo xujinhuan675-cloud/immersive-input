@@ -32,25 +32,36 @@ use tauri::Manager;
 use tauri_plugin_log::LogTarget;
 use tray::*;
 use updater::check_update;
+use window::chat_window;
 use window::config_window;
+use window::open_chat_window;
+use window::open_explain_window;
+use window::open_light_ai_window;
+use window::open_translate_from_toolbar;
 use window::updater_window;
+use cmd::paste_result;
+use cmd::write_clipboard;
 
 // Global AppHandle
 pub static APP: OnceCell<tauri::AppHandle> = OnceCell::new();
 
 // Text to be translated
 pub struct StringWrapper(pub Mutex<String>);
+// Previous foreground window handle (raw isize, Windows HWND)
+pub struct PrevForegroundWindow(pub Mutex<isize>);
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, cwd| {
-            Notification::new(&app.config().tauri.bundle.identifier)
-                .title("The program is already running. Please do not start it again!")
-                .body(cwd)
-                .icon("pot")
-                .show()
-                .unwrap();
-        }))
+        // tauri-plugin-single-instance has a null-pointer crash on some Windows configs.
+        // Disabled for now; re-enable when the upstream plugin is fixed.
+        // .plugin(tauri_plugin_single_instance::init(|app, _, cwd| {
+        //     Notification::new(&app.config().tauri.bundle.identifier)
+        //         .title("The program is already running. Please do not start it again!")
+        //         .body(cwd)
+        //         .icon("pot")
+        //         .show()
+        //         .unwrap();
+        // }))
         .plugin(
             tauri_plugin_log::Builder::default()
                 .targets([LogTarget::LogDir, LogTarget::Stdout])
@@ -85,6 +96,7 @@ fn main() {
                 config_window();
             }
             app.manage(StringWrapper(Mutex::new("".to_string())));
+            app.manage(PrevForegroundWindow(Mutex::new(0)));
             // Update Tray Menu
             update_tray(app.app_handle(), "".to_string(), "".to_string());
             // Start http server
@@ -95,7 +107,7 @@ fn main() {
                 Err(e) => Notification::new(app.config().tauri.bundle.identifier.clone())
                     .title("Failed to register global shortcut")
                     .body(&e)
-                    .icon("pot")
+                    .icon("immersive-input")
                     .show()
                     .unwrap(),
             }
@@ -147,7 +159,13 @@ fn main() {
             local,
             install_plugin,
             font_list,
-            aliyun
+            aliyun,
+            paste_result,
+            write_clipboard,
+            open_light_ai_window,
+            open_explain_window,
+            open_translate_from_toolbar,
+            open_chat_window
         ])
         .on_system_tray_event(tray_event_handler)
         .build(tauri::generate_context!())

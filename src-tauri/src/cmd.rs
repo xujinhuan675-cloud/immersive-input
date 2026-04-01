@@ -1,6 +1,7 @@
 use crate::config::get;
 use crate::config::StoreWrapper;
 use crate::error::Error;
+use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::APP;
 use log::{error, info};
@@ -27,7 +28,7 @@ pub fn cut_image(left: u32, top: u32, width: u32, height: u32, app_handle: tauri
     info!("Cut image: {}x{}+{}+{}", width, height, left, top);
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot.png");
+    app_cache_dir_path.push("immersive_screenshot.png");
     if !app_cache_dir_path.exists() {
         return;
     }
@@ -40,7 +41,7 @@ pub fn cut_image(left: u32, top: u32, width: u32, height: u32, app_handle: tauri
     };
     let img2 = img.sub_image(left, top, width, height);
     app_cache_dir_path.pop();
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
     match img2.to_image().save(&app_cache_dir_path) {
         Ok(_) => {}
         Err(e) => {
@@ -57,7 +58,7 @@ pub fn get_base64(app_handle: tauri::AppHandle) -> String {
     use std::io::Read;
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
     if !app_cache_dir_path.exists() {
         return "".to_string();
     }
@@ -83,7 +84,7 @@ pub fn copy_img(app_handle: tauri::AppHandle, width: usize, height: usize) -> Re
 
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
-    app_cache_dir_path.push("pot_screenshot_cut.png");
+    app_cache_dir_path.push("immersive_screenshot_cut.png");
     let data = ImageReader::open(app_cache_dir_path)?.decode()?;
 
     let img = ImageData {
@@ -224,4 +225,73 @@ pub fn open_devtools(window: tauri::Window) {
     } else {
         window.close_devtools();
     }
+}
+
+/// Write text to clipboard
+#[tauri::command]
+pub fn write_clipboard(text: String) -> Result<(), String> {
+    use arboard::Clipboard;
+    let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
+    cb.set_text(text).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Write text to clipboard, restore previous window focus, then simulate Ctrl+V
+#[tauri::command]
+pub fn paste_result(
+    text: String,
+    state: tauri::State<PrevForegroundWindow>,
+) -> Result<(), String> {
+    // 1. Write result text to clipboard
+    {
+        use arboard::Clipboard;
+        let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
+        cb.set_text(&text).map_err(|e| e.to_string())?;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(80));
+
+    // 2. On Windows: restore foreground window and simulate Ctrl+V
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+            KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+            VK_CONTROL, VK_V,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
+        let prev_hwnd = *state.0.lock().unwrap();
+        if prev_hwnd != 0 {
+            // Cast stored isize back to *mut c_void for HWND
+            unsafe { let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void)); }
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
+
+        // wScan expects u16, not VIRTUAL_KEY; wFlags is KEYBD_EVENT_FLAGS
+        let no_scan: u16 = 0;
+        let no_flags = KEYBD_EVENT_FLAGS(0);
+        let inputs = [
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+            },
+        ];
+        unsafe {
+            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+        }
+    }
+    Ok(())
 }

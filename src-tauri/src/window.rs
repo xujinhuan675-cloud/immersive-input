@@ -1,9 +1,13 @@
+// fs and cache_dir are only used in macOS OCR code
+#[cfg(target_os = "macos")]
 use std::fs;
 
 use crate::config::get;
 use crate::config::set;
+use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::APP;
+#[cfg(target_os = "macos")]
 use dirs::cache_dir;
 use log::{info, warn};
 use tauri::Manager;
@@ -223,8 +227,25 @@ fn translate_window() -> Window {
     window
 }
 
+// Save the currently focused window handle before we open our popup (Windows only)
+fn save_foreground_window() {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+        let app_handle = APP.get().unwrap();
+        let state: tauri::State<PrevForegroundWindow> = app_handle.state();
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            // HWND inner type is *mut c_void; cast to isize for storage
+            *state.0.lock().unwrap() = hwnd.0 as isize;
+        }
+    }
+}
+
 pub fn selection_translate() {
     use selection::get_text;
+    // Save foreground window before we open any popup
+    save_foreground_window();
     // Get Selected Text
     let text = get_text();
     if !text.trim().is_empty() {
@@ -233,9 +254,20 @@ pub fn selection_translate() {
         let state: tauri::State<StringWrapper> = app_handle.state();
         state.0.lock().unwrap().replace_range(.., &text);
     }
-
-    let window = translate_window();
-    window.emit("new_text", text).unwrap();
+    // Check config: show floating toolbar or go directly to translate window
+    let show_toolbar = match get("selection_show_toolbar") {
+        Some(v) => v.as_bool().unwrap_or(true),
+        None => {
+            set("selection_show_toolbar", true);
+            true
+        }
+    };
+    if show_toolbar && !text.trim().is_empty() {
+        float_toolbar_window();
+    } else {
+        let window = translate_window();
+        window.emit("new_text", text).unwrap();
+    }
 }
 
 pub fn input_translate() {
@@ -342,7 +374,7 @@ pub fn ocr_recognize() {
             // 创建目录
             fs::create_dir_all(&app_cache_dir_path).expect("Create Cache Dir Failed");
         }
-        app_cache_dir_path.push("pot_screenshot_cut.png");
+        app_cache_dir_path.push("immersive_screenshot_cut.png");
 
         let path = app_cache_dir_path.to_string_lossy().replace("\\\\?\\", "");
         println!("Screenshot path: {}", path);
@@ -375,7 +407,7 @@ pub fn ocr_translate() {
             // 创建目录
             fs::create_dir_all(&app_cache_dir_path).expect("Create Cache Dir Failed");
         }
-        app_cache_dir_path.push("pot_screenshot_cut.png");
+        app_cache_dir_path.push("immersive_screenshot_cut.png");
 
         let path = app_cache_dir_path.to_string_lossy().replace("\\\\?\\", "");
         println!("Screenshot path: {}", path);
@@ -398,6 +430,192 @@ pub fn ocr_translate() {
             window_.unlisten(event.id())
         });
     }
+}
+
+// ─────────────────────────────────────────────
+// Floating Toolbar
+// ─────────────────────────────────────────────
+pub fn float_toolbar_window() {
+    use mouse_position::mouse_position::{Mouse, Position};
+    let mouse_pos = match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => Position { x, y },
+        Mouse::Error => Position { x: 0, y: 0 },
+    };
+    let app_handle = APP.get().unwrap();
+    // If window already exists, just show it
+    if let Some(w) = app_handle.get_window("float_toolbar") {
+        let monitor = w.current_monitor().unwrap().unwrap();
+        let dpi = monitor.scale_factor();
+        let monitor_size = monitor.size();
+        let monitor_pos = monitor.position();
+        let w_width = (280.0 * dpi) as i32;
+        let w_height = (50.0 * dpi) as i32;
+        let mut x = mouse_pos.x - w_width / 2;
+        let mut y = mouse_pos.y - w_height - 12;
+        if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
+        if x < monitor_pos.x { x = monitor_pos.x; }
+        if y < monitor_pos.y { y = mouse_pos.y + 20; }
+        w.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+        w.show().unwrap_or_default();
+        return;
+    }
+    let window = match tauri::WindowBuilder::new(
+        app_handle,
+        "float_toolbar",
+        tauri::WindowUrl::App("index.html".into()),
+    )
+    .transparent(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(false)
+    .visible(false)
+    .inner_size(280.0, 50.0)
+    .additional_browser_args("--disable-web-security")
+    .build() {
+        Ok(w) => w,
+        Err(e) => { warn!("Failed to create float_toolbar window: {:?}", e); return; }
+    };
+    let monitor = window.current_monitor().unwrap().unwrap();
+    let dpi = monitor.scale_factor();
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    let w_width = (280.0 * dpi) as i32;
+    let w_height = (50.0 * dpi) as i32;
+    let mut x = mouse_pos.x - w_width / 2;
+    let mut y = mouse_pos.y - w_height - 12;
+    if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
+    if x < monitor_pos.x { x = monitor_pos.x; }
+    if y < monitor_pos.y { y = mouse_pos.y + 20; }
+    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.show().unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
+// LightAI Window
+// ─────────────────────────────────────────────
+pub fn light_ai_window() {
+    use mouse_position::mouse_position::{Mouse, Position};
+    let mouse_pos = match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => Position { x, y },
+        Mouse::Error => Position { x: 0, y: 0 },
+    };
+    let app_handle = APP.get().unwrap();
+    let text = {
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        let guard = state.0.lock().unwrap();
+        let s = guard.clone();
+        drop(guard);
+        s
+    };
+    let (window, exists) = build_window("light_ai", "Light AI");
+    window.set_skip_taskbar(true).unwrap_or_default();
+    if exists {
+        window.emit("new_text", text).unwrap_or_default();
+        return;
+    }
+    let monitor = window.current_monitor().unwrap().unwrap();
+    let dpi = monitor.scale_factor();
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    let w_width = 460.0_f64;
+    let w_height = 540.0_f64;
+    window.set_size(tauri::PhysicalSize::new((w_width * dpi) as u32, (w_height * dpi) as u32)).unwrap_or_default();
+    let mut x = mouse_pos.x;
+    let mut y = mouse_pos.y;
+    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x -= (w_width * dpi) as i32; }
+    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 { y -= (w_height * dpi) as i32; }
+    if x < monitor_pos.x { x = monitor_pos.x; }
+    if y < monitor_pos.y { y = monitor_pos.y; }
+    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.emit("new_text", text).unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
+// Explain Window
+// ─────────────────────────────────────────────
+pub fn explain_window() {
+    use mouse_position::mouse_position::{Mouse, Position};
+    let mouse_pos = match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => Position { x, y },
+        Mouse::Error => Position { x: 0, y: 0 },
+    };
+    let app_handle = APP.get().unwrap();
+    let text = {
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        let guard = state.0.lock().unwrap();
+        let s = guard.clone();
+        drop(guard);
+        s
+    };
+    let (window, exists) = build_window("explain", "Explain");
+    window.set_skip_taskbar(true).unwrap_or_default();
+    if exists {
+        window.emit("new_text", text).unwrap_or_default();
+        return;
+    }
+    let monitor = window.current_monitor().unwrap().unwrap();
+    let dpi = monitor.scale_factor();
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    let w_width = 400.0_f64;
+    let w_height = 500.0_f64;
+    window.set_size(tauri::PhysicalSize::new((w_width * dpi) as u32, (w_height * dpi) as u32)).unwrap_or_default();
+    let mut x = mouse_pos.x;
+    let mut y = mouse_pos.y;
+    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x -= (w_width * dpi) as i32; }
+    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 { y -= (w_height * dpi) as i32; }
+    if x < monitor_pos.x { x = monitor_pos.x; }
+    if y < monitor_pos.y { y = monitor_pos.y; }
+    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.emit("new_text", text).unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
+// Tauri commands for frontend to open windows
+// ─────────────────────────────────────────────
+#[tauri::command]
+pub fn open_light_ai_window() {
+    light_ai_window();
+}
+#[tauri::command]
+pub fn open_explain_window() {
+    explain_window();
+}
+// ─────────────────────────────────────────────
+// Chat Window
+// ─────────────────────────────────────────────
+pub fn chat_window() {
+    let app_handle = APP.get().unwrap();
+    if let Some(w) = app_handle.get_window("chat") {
+        w.show().unwrap_or_default();
+        w.set_focus().unwrap_or_default();
+        return;
+    }
+    let (window, _) = build_window("chat", "AI 对话");
+    window.set_min_size(Some(tauri::LogicalSize::new(400, 300))).unwrap_or_default();
+    window.set_size(tauri::LogicalSize::new(600, 800)).unwrap_or_default();
+    window.center().unwrap_or_default();
+    window.show().unwrap_or_default();
+}
+
+#[tauri::command]
+pub fn open_chat_window() {
+    chat_window();
+}
+
+#[tauri::command]
+pub fn open_translate_from_toolbar() {
+    let app_handle = APP.get().unwrap();
+    let text = {
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        let guard = state.0.lock().unwrap();
+        let s = guard.clone();
+        drop(guard);
+        s
+    };
+    let window = translate_window();
+    window.emit("new_text", text).unwrap_or_default();
 }
 
 #[tauri::command(async)]

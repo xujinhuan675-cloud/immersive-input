@@ -7,6 +7,10 @@ import { useTheme } from 'next-themes';
 
 import { invoke } from '@tauri-apps/api/tauri';
 import Screenshot from './window/Screenshot';
+import FloatToolbar from './window/FloatToolbar';
+import LightAI from './window/LightAI';
+import Explain from './window/Explain';
+import Chat from './window/Chat';
 import Translate from './window/Translate';
 import Recognize from './window/Recognize';
 import Updater from './window/Updater';
@@ -18,6 +22,10 @@ import './i18n';
 
 const windowMap = {
     translate: <Translate />,
+    float_toolbar: <FloatToolbar />,
+    light_ai: <LightAI />,
+    explain: <Explain />,
+    chat: <Chat />,
     screenshot: <Screenshot />,
     recognize: <Recognize />,
     config: <Config />,

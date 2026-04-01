@@ -8,6 +8,7 @@ import History from '../pages/History';
 import Hotkey from '../pages/Hotkey';
 import Backup from '../pages/Backup';
 import About from '../pages/About';
+import AIFeatures from '../pages/AIFeatures';
 
 const routes = [
     {
@@ -41,6 +42,10 @@ const routes = [
     {
         path: '/about',
         element: <About />,
+    },
+    {
+        path: '/ai',
+        element: <AIFeatures />,
     },
     {
         path: '/',

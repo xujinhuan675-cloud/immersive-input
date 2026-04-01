@@ -50,6 +50,7 @@ export default function Hotkey() {
     const [inputTranslate, setInputTranslate] = useConfig('hotkey_input_translate', '');
     const [ocrRecognize, setOcrRecognize] = useConfig('hotkey_ocr_recognize', '');
     const [ocrTranslate, setOcrTranslate] = useConfig('hotkey_ocr_translate', '');
+    const [lightAi, setLightAi] = useConfig('hotkey_light_ai', '');
 
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
@@ -234,6 +235,30 @@ export default function Hotkey() {
                                     onPress={() => {
                                         registerHandler('hotkey_ocr_translate', ocrTranslate);
                                     }}
+                                >
+                                    {t('common.ok')}
+                                </Button>
+                            }
+                        />
+                    )}
+                </div>
+                <div className='config-item'>
+                    <h3 className='my-auto'>轻AI快捷键</h3>
+                    {lightAi !== null && (
+                        <Input
+                            type='hotkey'
+                            variant='bordered'
+                            value={lightAi}
+                            label={t('config.hotkey.set_hotkey')}
+                            className='max-w-[50%]'
+                            onKeyDown={(e) => { keyDown(e, setLightAi); }}
+                            onFocus={() => { unregister(lightAi); setLightAi(''); }}
+                            endContent={
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={`${lightAi === '' && 'hidden'}`}
+                                    onPress={() => { registerHandler('hotkey_light_ai', lightAi); }}
                                 >
                                     {t('common.ok')}
                                 </Button>

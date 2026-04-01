@@ -1,10 +1,10 @@
 [package]
-name = "pot"
+name = "immersive-input"
 version = "0.0.0"
-description = "Pot App"
-authors = ["pot-app"]
+description = "Immersive Input"
+authors = ["immersive-input"]
 license = "GPL-3.0-only"
-repository = "https://github.com/pot-app/pot-desktop"
+repository = "https://github.com/immersive-input/immersive-input"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -46,7 +46,7 @@ macos-accessibility-client = "0.0.1"
 window-shadows = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-windows = {version="0.58.0",features= ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Graphics_Imaging", "Media_Ocr", "Foundation", "Globalization", "Storage", "Storage_Streams"] }
+windows = {version="0.58.0",features= ["Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Foundation", "Graphics_Imaging", "Media_Ocr", "Foundation", "Globalization", "Storage", "Storage_Streams"] }
 window-shadows = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
