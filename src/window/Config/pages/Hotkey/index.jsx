@@ -51,6 +51,8 @@ export default function Hotkey() {
     const [ocrRecognize, setOcrRecognize] = useConfig('hotkey_ocr_recognize', '');
     const [ocrTranslate, setOcrTranslate] = useConfig('hotkey_ocr_translate', '');
     const [lightAi, setLightAi] = useConfig('hotkey_light_ai', '');
+    const [vaultQuickAdd, setVaultQuickAdd] = useConfig('hotkey_vault_quick_add', '');
+    const [vaultQuickFill, setVaultQuickFill] = useConfig('hotkey_vault_quick_fill', '');
 
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
@@ -259,6 +261,54 @@ export default function Hotkey() {
                                     variant='flat'
                                     className={`${lightAi === '' && 'hidden'}`}
                                     onPress={() => { registerHandler('hotkey_light_ai', lightAi); }}
+                                >
+                                    {t('common.ok')}
+                                </Button>
+                            }
+                        />
+                    )}
+                </div>
+                <div className='config-item'>
+                    <h3 className='my-auto'>密码本快速录入</h3>
+                    {vaultQuickAdd !== null && (
+                        <Input
+                            type='hotkey'
+                            variant='bordered'
+                            value={vaultQuickAdd}
+                            label={t('config.hotkey.set_hotkey')}
+                            className='max-w-[50%]'
+                            onKeyDown={(e) => { keyDown(e, setVaultQuickAdd); }}
+                            onFocus={() => { unregister(vaultQuickAdd); setVaultQuickAdd(''); }}
+                            endContent={
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={`${vaultQuickAdd === '' && 'hidden'}`}
+                                    onPress={() => { registerHandler('hotkey_vault_quick_add', vaultQuickAdd); }}
+                                >
+                                    {t('common.ok')}
+                                </Button>
+                            }
+                        />
+                    )}
+                </div>
+                <div className='config-item'>
+                    <h3 className='my-auto'>密码本快速填写</h3>
+                    {vaultQuickFill !== null && (
+                        <Input
+                            type='hotkey'
+                            variant='bordered'
+                            value={vaultQuickFill}
+                            label={t('config.hotkey.set_hotkey')}
+                            className='max-w-[50%]'
+                            onKeyDown={(e) => { keyDown(e, setVaultQuickFill); }}
+                            onFocus={() => { unregister(vaultQuickFill); setVaultQuickFill(''); }}
+                            endContent={
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={`${vaultQuickFill === '' && 'hidden'}`}
+                                    onPress={() => { registerHandler('hotkey_vault_quick_fill', vaultQuickFill); }}
                                 >
                                     {t('common.ok')}
                                 </Button>

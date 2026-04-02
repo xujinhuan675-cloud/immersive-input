@@ -1,4 +1,5 @@
 use crate::config::{get, set};
+use crate::vault::{vault_quick_add_window, vault_quick_fill_window};
 use crate::window::{input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate};
 use crate::APP;
 use log::{info, warn};
@@ -58,6 +59,8 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         "hotkey_ocr_recognize" => register(app_handle, "hotkey_ocr_recognize", ocr_recognize, "")?,
         "hotkey_ocr_translate" => register(app_handle, "hotkey_ocr_translate", ocr_translate, "")?,
         "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", selection_light_ai, "")?,
+        "hotkey_vault_quick_add" => register(app_handle, "hotkey_vault_quick_add", vault_quick_add_window, "")?,
+        "hotkey_vault_quick_fill" => register(app_handle, "hotkey_vault_quick_fill", vault_quick_fill_window, "")?,
         "all" => {
             register(
                 app_handle,
@@ -69,6 +72,8 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
             register(app_handle, "hotkey_ocr_recognize", ocr_recognize, "")?;
             register(app_handle, "hotkey_ocr_translate", ocr_translate, "")?;
             register(app_handle, "hotkey_light_ai", selection_light_ai, "")?;
+            register(app_handle, "hotkey_vault_quick_add", vault_quick_add_window, "")?;
+            register(app_handle, "hotkey_vault_quick_fill", vault_quick_fill_window, "")?;
         }
         _ => {}
     }
@@ -98,6 +103,8 @@ pub fn register_shortcut_by_frontend(name: &str, shortcut: &str) -> Result<(), S
             register(app_handle, "hotkey_ocr_translate", ocr_translate, shortcut)?
         }
         "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", selection_light_ai, shortcut)?,
+        "hotkey_vault_quick_add" => register(app_handle, "hotkey_vault_quick_add", vault_quick_add_window, shortcut)?,
+        "hotkey_vault_quick_fill" => register(app_handle, "hotkey_vault_quick_fill", vault_quick_fill_window, shortcut)?,
         _ => {}
     }
     Ok(())

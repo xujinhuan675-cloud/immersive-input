@@ -14,6 +14,7 @@ mod server;
 mod system_ocr;
 mod tray;
 mod updater;
+mod vault;
 mod window;
 
 use backup::*;
@@ -22,6 +23,7 @@ use cmd::*;
 use config::*;
 use hotkey::*;
 use lang_detect::*;
+use vault::*;
 use log::info;
 use once_cell::sync::OnceCell;
 use screenshot::screenshot;
@@ -97,6 +99,7 @@ fn main() {
             }
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
+            app.manage(VaultModeWrapper(Mutex::new(String::new())));
             // Update Tray Menu
             update_tray(app.app_handle(), "".to_string(), "".to_string());
             // Start http server
@@ -167,7 +170,12 @@ fn main() {
             open_light_ai_window,
             open_explain_window,
             open_translate_from_toolbar,
-            open_chat_window
+            open_chat_window,
+            open_vault_window,
+            open_vault_quick_add,
+            open_vault_quick_fill,
+            get_vault_mode,
+            save_prev_window
         ])
         .on_system_tray_event(tray_event_handler)
         .build(tauri::generate_context!())

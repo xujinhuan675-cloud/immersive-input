@@ -229,7 +229,7 @@ fn translate_window() -> Window {
 }
 
 // Save the currently focused window handle before we open our popup (Windows only)
-pub(crate) fn save_foreground_window() {
+pub fn save_foreground_window() {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
@@ -642,6 +642,27 @@ pub fn open_translate_from_toolbar() {
     };
     let window = translate_window();
     window.emit("new_text", text).unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
+// Vault Window
+// ─────────────────────────────────────────────
+pub fn vault_window() {
+    let app_handle = APP.get().unwrap();
+    if let Some(w) = app_handle.get_window("vault") {
+        w.show().unwrap_or_default();
+        w.set_focus().unwrap_or_default();
+        return;
+    }
+    let (window, _) = build_window("vault", "密码本");
+    window
+        .set_min_size(Some(tauri::LogicalSize::new(600, 400)))
+        .unwrap_or_default();
+    window
+        .set_size(tauri::LogicalSize::new(800, 600))
+        .unwrap_or_default();
+    window.center().unwrap_or_default();
+    window.show().unwrap_or_default();
 }
 
 #[tauri::command(async)]
