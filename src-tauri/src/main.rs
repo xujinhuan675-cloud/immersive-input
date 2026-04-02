@@ -9,6 +9,7 @@ mod error;
 mod hotkey;
 mod lang_detect;
 mod mouse_hook;
+mod phrases;
 mod screenshot;
 mod server;
 mod system_ocr;
@@ -23,6 +24,7 @@ use cmd::*;
 use config::*;
 use hotkey::*;
 use lang_detect::*;
+use phrases::*;
 use vault::*;
 use log::info;
 use once_cell::sync::OnceCell;
@@ -39,6 +41,7 @@ use window::config_window;
 use window::open_chat_window;
 use window::open_explain_window;
 use window::open_light_ai_window;
+use window::open_login_window;
 use window::open_translate_from_toolbar;
 use window::updater_window;
 use cmd::paste_result;
@@ -171,11 +174,13 @@ fn main() {
             open_explain_window,
             open_translate_from_toolbar,
             open_chat_window,
+            open_phrases_window,
             open_vault_window,
             open_vault_quick_add,
             open_vault_quick_fill,
             get_vault_mode,
-            save_prev_window
+            save_prev_window,
+            open_login_window
         ])
         .on_system_tray_event(tray_event_handler)
         .build(tauri::generate_context!())

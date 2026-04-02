@@ -196,6 +196,14 @@
                 "backup_success": "备份成功",
                 "empty": "您还没有备份"
             },
+            "account": {
+                "label": "账号",
+                "title": "账号"
+            },
+            "ai": {
+                "label": "AI 功能",
+                "title": "AI 功能"
+            },
             "about": {
                 "label": "关于应用",
                 "title": "关于应用",

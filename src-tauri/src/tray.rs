@@ -8,6 +8,7 @@ use crate::window::ocr_recognize;
 use crate::window::ocr_translate;
 use crate::window::updater_window;
 use crate::window::vault_window;
+use crate::phrases::open_phrases_window;
 use log::info;
 use tauri::CustomMenuItem;
 use tauri::GlobalShortcutManager;
@@ -115,6 +116,7 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "light_ai" => selection_light_ai(),
             "chat" => chat_window(),
             "vault" => vault_window(),
+            "phrases" => open_phrases_window(),
             "config" => on_config_click(),
             "check_update" => on_check_update_click(),
             "view_log" => on_view_log_click(app),
@@ -214,6 +216,7 @@ fn tray_menu_en() -> tauri::SystemTrayMenu {
     let light_ai = CustomMenuItem::new("light_ai", "Light AI");
     let chat = CustomMenuItem::new("chat", "AI Chat");
     let vault = CustomMenuItem::new("vault", "Vault");
+    let phrases = CustomMenuItem::new("phrases", "Phrases");
     let copy_source = CustomMenuItem::new("copy_source", "Source");
     let copy_target = CustomMenuItem::new("copy_target", "Target");
     let clipboard_monitor = CustomMenuItem::new("clipboard_monitor", "Clipboard Monitor");
@@ -231,6 +234,7 @@ fn tray_menu_en() -> tauri::SystemTrayMenu {
         .add_item(light_ai)
         .add_item(chat)
         .add_item(vault)
+        .add_item(phrases)
         .add_item(clipboard_monitor)
         .add_submenu(SystemTraySubmenu::new(
             "Auto Copy",
@@ -258,6 +262,7 @@ fn tray_menu_zh_cn() -> tauri::SystemTrayMenu {
     let light_ai = CustomMenuItem::new("light_ai", "轻AI润色");
     let chat = CustomMenuItem::new("chat", "AI 对话");
     let vault = CustomMenuItem::new("vault", "密码本");
+    let phrases = CustomMenuItem::new("phrases", "常用语");
     let clipboard_monitor = CustomMenuItem::new("clipboard_monitor", "监听剪切板");
     let copy_source = CustomMenuItem::new("copy_source", "原文");
     let copy_target = CustomMenuItem::new("copy_target", "译文");
@@ -276,6 +281,7 @@ fn tray_menu_zh_cn() -> tauri::SystemTrayMenu {
         .add_item(light_ai)
         .add_item(chat)
         .add_item(vault)
+        .add_item(phrases)
         .add_item(clipboard_monitor)
         .add_submenu(SystemTraySubmenu::new(
             "自动复制",

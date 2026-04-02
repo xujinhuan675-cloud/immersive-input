@@ -53,6 +53,7 @@ export default function Hotkey() {
     const [lightAi, setLightAi] = useConfig('hotkey_light_ai', '');
     const [vaultQuickAdd, setVaultQuickAdd] = useConfig('hotkey_vault_quick_add', '');
     const [vaultQuickFill, setVaultQuickFill] = useConfig('hotkey_vault_quick_fill', '');
+    const [phrases, setPhrases] = useConfig('hotkey_phrases', '');
 
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
@@ -309,6 +310,30 @@ export default function Hotkey() {
                                     variant='flat'
                                     className={`${vaultQuickFill === '' && 'hidden'}`}
                                     onPress={() => { registerHandler('hotkey_vault_quick_fill', vaultQuickFill); }}
+                                >
+                                    {t('common.ok')}
+                                </Button>
+                            }
+                        />
+                    )}
+                </div>
+                <div className='config-item'>
+                    <h3 className='my-auto'>常用语</h3>
+                    {phrases !== null && (
+                        <Input
+                            type='hotkey'
+                            variant='bordered'
+                            value={phrases}
+                            label={t('config.hotkey.set_hotkey')}
+                            className='max-w-[50%]'
+                            onKeyDown={(e) => { keyDown(e, setPhrases); }}
+                            onFocus={() => { unregister(phrases); setPhrases(''); }}
+                            endContent={
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={`${phrases === '' && 'hidden'}`}
+                                    onPress={() => { registerHandler('hotkey_phrases', phrases); }}
                                 >
                                     {t('common.ok')}
                                 </Button>

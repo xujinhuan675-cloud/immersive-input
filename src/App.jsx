@@ -17,6 +17,8 @@ import Updater from './window/Updater';
 import { store } from './utils/store';
 import Config from './window/Config';
 import Vault from './window/Vault';
+import Phrases from './window/Phrases';
+import Login from './window/Login';
 import { useConfig } from './hooks';
 import './style.css';
 import './i18n';
@@ -32,6 +34,8 @@ const windowMap = {
     config: <Config />,
     updater: <Updater />,
     vault: <Vault />,
+    phrases: <Phrases />,
+    login: <Login />,
 };
 
 export default function App() {

@@ -645,6 +645,54 @@ pub fn open_translate_from_toolbar() {
 }
 
 // ─────────────────────────────────────────────
+// Phrases Window
+// ─────────────────────────────────────────────
+pub fn phrases_window() {
+    use mouse_position::mouse_position::{Mouse, Position};
+    let mouse_pos = match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => Position { x, y },
+        Mouse::Error => Position { x: 0, y: 0 },
+    };
+    let app_handle = APP.get().unwrap();
+    if let Some(w) = app_handle.get_window("phrases") {
+        // 已开窗口：更新位置后显示
+        let monitor = w.current_monitor().unwrap().unwrap();
+        let dpi = monitor.scale_factor();
+        let monitor_size = monitor.size();
+        let monitor_pos = monitor.position();
+        let w_w = (700.0 * dpi) as i32;
+        let w_h = (500.0 * dpi) as i32;
+        let mut x = mouse_pos.x - w_w / 2;
+        let mut y = mouse_pos.y - 40;
+        if x + w_w > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_w; }
+        if x < monitor_pos.x { x = monitor_pos.x; }
+        if y + w_h > monitor_pos.y + monitor_size.height as i32 { y = monitor_pos.y + monitor_size.height as i32 - w_h; }
+        if y < monitor_pos.y { y = monitor_pos.y; }
+        w.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+        w.show().unwrap_or_default();
+        w.set_focus().unwrap_or_default();
+        return;
+    }
+    let (window, _exists) = build_window("phrases", "常用语");
+    window.set_skip_taskbar(true).unwrap_or_default();
+    let monitor = window.current_monitor().unwrap().unwrap();
+    let dpi = monitor.scale_factor();
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    let w_w = 700.0_f64;
+    let w_h = 500.0_f64;
+    window.set_size(tauri::PhysicalSize::new((w_w * dpi) as u32, (w_h * dpi) as u32)).unwrap_or_default();
+    let mut x = mouse_pos.x - (w_w * dpi / 2.0) as i32;
+    let mut y = mouse_pos.y - 40;
+    if x as f64 + w_w * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x -= (w_w * dpi) as i32; }
+    if y as f64 + w_h * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 { y -= (w_h * dpi) as i32; }
+    if x < monitor_pos.x { x = monitor_pos.x; }
+    if y < monitor_pos.y { y = monitor_pos.y; }
+    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.show().unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
 // Vault Window
 // ─────────────────────────────────────────────
 pub fn vault_window() {
@@ -663,6 +711,56 @@ pub fn vault_window() {
         .unwrap_or_default();
     window.center().unwrap_or_default();
     window.show().unwrap_or_default();
+}
+
+// ─────────────────────────────────────────────
+// Login Window
+// ─────────────────────────────────────────────
+pub fn login_window() {
+    let app_handle = APP.get().unwrap();
+    info!("login_window called");
+    if let Some(w) = app_handle.get_window("login") {
+        w.show().unwrap_or_default();
+        w.set_focus().unwrap_or_default();
+        return;
+    }
+    // 登录窗口直接用 WindowBuilder 构建，避免 build_window 的鼠标定位逻辑
+    let mut builder = tauri::WindowBuilder::new(
+        app_handle,
+        "login",
+        tauri::WindowUrl::App("index.html".into()),
+    )
+    .title("无忧小助手")
+    .inner_size(500.0, 740.0)
+    .resizable(false)
+    .center()
+    .additional_browser_args("--disable-web-security")
+    .focused(true)
+    .visible(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.transparent(true).decorations(false);
+    }
+
+    let window = builder.build().unwrap();
+
+    #[cfg(not(target_os = "linux"))]
+    set_shadow(&window, true).unwrap_or_default();
+
+    window.show().unwrap_or_default();
+    window.set_focus().unwrap_or_default();
+}
+
+#[tauri::command(async)]
+pub fn open_login_window() {
+    login_window();
 }
 
 #[tauri::command(async)]

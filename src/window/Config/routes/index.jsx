@@ -9,6 +9,7 @@ import Hotkey from '../pages/Hotkey';
 import Backup from '../pages/Backup';
 import About from '../pages/About';
 import AIFeatures from '../pages/AIFeatures';
+import Account from '../pages/Account';
 
 const routes = [
     {
@@ -46,6 +47,10 @@ const routes = [
     {
         path: '/ai',
         element: <AIFeatures />,
+    },
+    {
+        path: '/account',
+        element: <Account />,
     },
     {
         path: '/',

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { PiTextboxFill } from 'react-icons/pi';
 import { MdKeyboardAlt } from 'react-icons/md';
 import { MdExtension } from 'react-icons/md';
+import { MdAccountCircle } from 'react-icons/md';
 import { AiFillCloud } from 'react-icons/ai';
 import { FaHistory } from 'react-icons/fa';
 import { TbBrain } from 'react-icons/tb';
@@ -23,6 +24,16 @@ export default function SideBar() {
 
     return (
         <div className='mx-[12px] overflow-y-auto'>
+            <Button
+                fullWidth
+                size='lg'
+                variant={setStyle('/account')}
+                className='mb-[5px]'
+                onPress={() => navigate('/account')}
+                startContent={<MdAccountCircle className='text-[24px]' />}
+            >
+                <div className='w-full'>{t('config.account.label')}</div>
+            </Button>
             <Button
                 fullWidth
                 size='lg'
@@ -115,7 +126,7 @@ export default function SideBar() {
                 onPress={() => { navigate('/ai'); }}
                 startContent={<TbBrain className='text-[24px]' />}
             >
-                <div className='w-full'>AI 功能</div>
+                <div className='w-full'>{t('config.ai.label')}</div>
             </Button>
             <Button
                 fullWidth
