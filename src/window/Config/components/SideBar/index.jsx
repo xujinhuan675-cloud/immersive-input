@@ -112,9 +112,7 @@ export default function SideBar() {
                 size='lg'
                 variant={setStyle('/ai')}
                 className='mb-[5px]'
-                onPress={() => {
-                    navigate('/ai');
-                }}
+                onPress={() => { navigate('/ai'); }}
                 startContent={<TbBrain className='text-[24px]' />}
             >
                 <div className='w-full'>AI 功能</div>

@@ -124,6 +124,7 @@ pub fn config_window() {
         .unwrap();
     window.set_size(tauri::LogicalSize::new(800, 600)).unwrap();
     window.center().unwrap();
+    window.show().unwrap();
 }
 
 fn translate_window() -> Window {
@@ -228,7 +229,7 @@ fn translate_window() -> Window {
 }
 
 // Save the currently focused window handle before we open our popup (Windows only)
-fn save_foreground_window() {
+pub(crate) fn save_foreground_window() {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
@@ -316,6 +317,7 @@ pub fn recognize_window() {
     let (window, exists) = build_window("recognize", "Recognize");
     if exists {
         window.emit("new_image", "").unwrap();
+        window.show().unwrap();
         return;
     }
     let width = match get("recognize_window_width") {
@@ -341,6 +343,7 @@ pub fn recognize_window() {
         ))
         .unwrap();
     window.center().unwrap();
+    window.show().unwrap();
     window.emit("new_image", "").unwrap();
 }
 
@@ -448,8 +451,8 @@ pub fn float_toolbar_window() {
         let dpi = monitor.scale_factor();
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
-        let w_width = (280.0 * dpi) as i32;
-        let w_height = (50.0 * dpi) as i32;
+    let w_width = (400.0 * dpi) as i32;
+        let w_height = (80.0 * dpi) as i32;
         let mut x = mouse_pos.x - w_width / 2;
         let mut y = mouse_pos.y - w_height - 12;
         if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
@@ -470,7 +473,7 @@ pub fn float_toolbar_window() {
     .skip_taskbar(true)
     .focused(false)
     .visible(false)
-    .inner_size(280.0, 50.0)
+    .inner_size(600.0, 100.0) // frontend will resize dynamically
     .additional_browser_args("--disable-web-security")
     .build() {
         Ok(w) => w,
@@ -480,8 +483,8 @@ pub fn float_toolbar_window() {
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_width = (280.0 * dpi) as i32;
-    let w_height = (50.0 * dpi) as i32;
+    let w_width = (400.0 * dpi) as i32;
+    let w_height = (80.0 * dpi) as i32;
     let mut x = mouse_pos.x - w_width / 2;
     let mut y = mouse_pos.y - w_height - 12;
     if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
@@ -494,6 +497,27 @@ pub fn float_toolbar_window() {
 // ─────────────────────────────────────────────
 // LightAI Window
 // ─────────────────────────────────────────────
+pub fn selection_light_ai() {
+    use selection::get_text;
+    info!("selection_light_ai called");
+    // Save foreground window before we open any popup
+    save_foreground_window();
+    // Get Selected Text
+    let text = get_text();
+    info!("Got text from selection: {:?}", text);
+    if !text.trim().is_empty() {
+        let app_handle = APP.get().unwrap();
+        // Write into State
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        state.0.lock().unwrap().replace_range(.., &text);
+        info!("Text saved to state");
+    } else {
+        info!("No text selected or text is empty");
+    }
+    // Open light AI window
+    light_ai_window();
+}
+
 pub fn light_ai_window() {
     use mouse_position::mouse_position::{Mouse, Position};
     let mouse_pos = match Mouse::get_mouse_position() {
@@ -528,6 +552,7 @@ pub fn light_ai_window() {
     if x < monitor_pos.x { x = monitor_pos.x; }
     if y < monitor_pos.y { y = monitor_pos.y; }
     window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.show().unwrap_or_default();  // 必须显示窗口
     window.emit("new_text", text).unwrap_or_default();
 }
 
@@ -568,6 +593,7 @@ pub fn explain_window() {
     if x < monitor_pos.x { x = monitor_pos.x; }
     if y < monitor_pos.y { y = monitor_pos.y; }
     window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    window.show().unwrap_or_default();  // 必须显示窗口
     window.emit("new_text", text).unwrap_or_default();
 }
 

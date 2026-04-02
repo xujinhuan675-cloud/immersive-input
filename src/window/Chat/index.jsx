@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { appWindow } from '@tauri-apps/api/window';
 import { store } from '../../utils/store';
+import { saveHistory } from '../../utils/aiHistory';
 
 // ─── 流式聊天请求 ────────────────────────────────────────────
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
@@ -107,11 +111,13 @@ export default function Chat() {
                     )
                 );
             },
-            (_full) => {
+            (full) => {
                 setMessages((prev) =>
                     prev.map((m) => (m.id === assistantId ? { ...m, pending: false } : m))
                 );
                 setLoading(false);
+                // Save to history
+                try { saveHistory('chat', text, full); } catch {}
             },
             (err) => {
                 if (err) {
@@ -136,6 +142,15 @@ export default function Chat() {
         header: {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '10px 16px', background: '#fff', borderBottom: '1px solid #e5e5e5', flexShrink: 0,
+            position: 'relative',
+        },
+        dragRegion: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '100%',
+            cursor: 'move',
         },
         msgList: { flex: 1, overflow: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '12px' },
         bubble: (isUser) => ({
@@ -171,14 +186,25 @@ export default function Chat() {
     return (
         <div style={s.root}>
             <div style={s.header}>
-                <span style={{ fontWeight: 700, fontSize: '15px' }}>💬 AI 对话</span>
-                <button
-                    style={{ ...s.btn(false), fontSize: '12px', padding: '4px 10px' }}
-                    onClick={() => setMessages([])}
-                    disabled={loading}
-                >
-                    清空对话
-                </button>
+                {/* 拖动区域 */}
+                <div style={s.dragRegion} data-tauri-drag-region='true' />
+                
+                <span style={{ fontWeight: 700, fontSize: '15px', position: 'relative', zIndex: 1 }}>💬 AI 对话</span>
+                <div style={{ display: 'flex', gap: '8px', position: 'relative', zIndex: 1 }}>
+                    <button
+                        style={{ ...s.btn(false), fontSize: '12px', padding: '4px 10px' }}
+                        onClick={() => setMessages([])}
+                        disabled={loading}
+                    >
+                        清空对话
+                    </button>
+                    <button
+                        style={{ ...s.btn(false), fontSize: '12px', padding: '4px 10px' }}
+                        onClick={() => appWindow.close()}
+                    >
+                        ✕
+                    </button>
+                </div>
             </div>
 
             <div style={s.msgList}>
@@ -194,7 +220,21 @@ export default function Chat() {
                     <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                         <div style={s.roleTag(m.role === 'user')}>{m.role === 'user' ? '你' : 'AI'}</div>
                         <div style={{ ...s.bubble(m.role === 'user'), color: m.error ? '#cc3333' : undefined }}>
-                            {m.content || (m.pending ? <span style={{ color: '#aaa' }}>▋</span> : '')}
+                            {m.role === 'user' ? (
+                                m.content || ''
+                            ) : m.content ? (
+                                <div style={{ lineHeight: 1.65 }}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            p: ({children}) => <p style={{ margin: '0 0 6px 0' }}>{children}</p>,
+                                            code: ({inline, children}) => inline
+                                                ? <code style={{ background: '#f3f4f6', padding: '1px 5px', borderRadius: 3, fontSize: '12px' }}>{children}</code>
+                                                : <pre style={{ background: '#f3f4f6', padding: '8px', borderRadius: 5, overflow: 'auto', fontSize: '12px' }}><code>{children}</code></pre>,
+                                        }}>
+                                        {m.content}
+                                    </ReactMarkdown>
+                                </div>
+                            ) : m.pending ? <span style={{ color: '#aaa' }}>▷</span> : ''}
                         </div>
                     </div>
                 ))}

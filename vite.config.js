@@ -17,6 +17,10 @@ export default defineConfig(async () => ({
     // to make use of `TAURI_DEBUG` and other env variables
     // https://tauri.studio/v1/api/config#buildconfig.beforedevcommand
     envPrefix: ['VITE_', 'TAURI_'],
+    // Pre-bundle ESM-only packages so Vite can resolve them in dev mode
+    optimizeDeps: {
+        include: ['react-markdown', 'remark-gfm'],
+    },
     build: {
         rollupOptions: {
             input: {

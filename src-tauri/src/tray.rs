@@ -3,7 +3,7 @@ use crate::config::{get, set};
 use crate::window::chat_window;
 use crate::window::config_window;
 use crate::window::input_translate;
-use crate::window::light_ai_window;
+use crate::window::selection_light_ai;
 use crate::window::ocr_recognize;
 use crate::window::ocr_translate;
 use crate::window::updater_window;
@@ -111,7 +111,7 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "copy_disable" => on_auto_copy_click(app, "disable"),
             "ocr_recognize" => on_ocr_recognize_click(),
             "ocr_translate" => on_ocr_translate_click(),
-            "light_ai" => light_ai_window(),
+            "light_ai" => selection_light_ai(),
             "chat" => chat_window(),
             "config" => on_config_click(),
             "check_update" => on_check_update_click(),

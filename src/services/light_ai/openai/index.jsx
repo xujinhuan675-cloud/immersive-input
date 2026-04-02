@@ -1,9 +1,11 @@
 /**
  * LightAI service — OpenAI-compatible streaming rewrite/polish
  * Supports 3 style variants: strict / structured / natural
+ * System prompts are read from store (user-customizable) with fallback to defaults.
  */
+import { store } from '../../../utils/store';
 
-const STYLE_PROMPTS = {
+export const DEFAULT_STYLE_PROMPTS = {
     strict: {
         name: '严谨审慎',
         system: '你是一名专业文字润色专家。请对用户提供的文本进行润色改写，风格要求：避免夸张与绝对化措辞；必要时补充前提/边界；逻辑严密；用词克制精准。仅输出润色后的文本，不要任何解释或前缀。',
@@ -18,10 +20,30 @@ const STYLE_PROMPTS = {
     },
 };
 
-export const STYLE_KEYS = Object.keys(STYLE_PROMPTS);
+export const STYLE_KEYS = Object.keys(DEFAULT_STYLE_PROMPTS);
 export const STYLE_NAMES = Object.fromEntries(
-    Object.entries(STYLE_PROMPTS).map(([k, v]) => [k, v.name])
+    Object.entries(DEFAULT_STYLE_PROMPTS).map(([k, v]) => [k, v.name])
 );
+
+/** Load system prompt from store (user-customized) or fall back to default */
+async function getSystemPrompt(styleKey) {
+    try {
+        await store.load();
+        const custom = await store.get(`ai_prompt_${styleKey}`);
+        if (custom && custom.trim()) return custom.trim();
+    } catch {}
+    return DEFAULT_STYLE_PROMPTS[styleKey]?.system ?? DEFAULT_STYLE_PROMPTS.strict.system;
+}
+
+/** Load user's writing preference text from store */
+async function getUserPreference() {
+    try {
+        await store.load();
+        const pref = await store.get('ai_user_preference');
+        return pref && pref.trim() ? pref.trim() : '';
+    } catch {}
+    return '';
+}
 
 /**
  * Stream-based LightAI rewrite
@@ -42,7 +64,13 @@ export async function lightAiStream(text, style, extraPrompt, apiConfig, onChunk
         return;
     }
 
-    const styleInfo = STYLE_PROMPTS[style] || STYLE_PROMPTS.strict;
+    // Load system prompt (user-customized or default) + personal preference
+    let systemPrompt = await getSystemPrompt(style);
+    const preference = await getUserPreference();
+    if (preference) {
+        systemPrompt += `\n\n【个人写作偏好】\n${preference}`;
+    }
+
     const userMessage = extraPrompt
         ? `${text}\n\n附加要求：${extraPrompt}`
         : text;
@@ -50,7 +78,7 @@ export async function lightAiStream(text, style, extraPrompt, apiConfig, onChunk
     const body = JSON.stringify({
         model,
         messages: [
-            { role: 'system', content: styleInfo.system },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage },
         ],
         temperature: Number(temperature),

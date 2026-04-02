@@ -1,0 +1,123 @@
+use crate::config::{get, set};
+use crate::window::{float_toolbar_window, save_foreground_window};
+use crate::StringWrapper;
+use crate::APP;
+use log::{info, warn};
+use tauri::Manager;
+use rdev::{listen, Button, Event, EventType};
+use selection::get_text;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+
+// Atomic state shared between the rdev callback and spawned threads
+static MOUSE_DOWN: AtomicBool = AtomicBool::new(false);
+static LAST_X: AtomicI64 = AtomicI64::new(0);
+static LAST_Y: AtomicI64 = AtomicI64::new(0);
+static PRESS_X: AtomicI64 = AtomicI64::new(0);
+static PRESS_Y: AtomicI64 = AtomicI64::new(0);
+
+/// Start the global mouse hook in a background thread.
+/// Detects left-button drag → release events and (in "auto" mode) shows the float toolbar.
+pub fn start_mouse_hook() {
+    std::thread::Builder::new()
+        .name("mouse_hook".to_string())
+        .spawn(|| {
+            if let Err(e) = listen(handle_event) {
+                warn!("Mouse hook stopped with error: {:?}", e);
+            }
+        })
+        .expect("Failed to spawn mouse_hook thread");
+    info!("Mouse hook thread started");
+}
+
+fn handle_event(event: Event) {
+    match event.event_type {
+        // Track mouse position continuously
+        EventType::MouseMove { x, y } => {
+            LAST_X.store(x as i64, Ordering::Relaxed);
+            LAST_Y.store(y as i64, Ordering::Relaxed);
+        }
+
+        // Record press position
+        EventType::ButtonPress(Button::Left) => {
+            MOUSE_DOWN.store(true, Ordering::SeqCst);
+            PRESS_X.store(LAST_X.load(Ordering::Relaxed), Ordering::SeqCst);
+            PRESS_Y.store(LAST_Y.load(Ordering::Relaxed), Ordering::SeqCst);
+        }
+
+        // On release, check if it was a drag and trigger toolbar if configured
+        EventType::ButtonRelease(Button::Left) => {
+            if !MOUSE_DOWN.swap(false, Ordering::SeqCst) {
+                return;
+            }
+
+            // Check text_select_enabled (default: true)
+            let enabled = match get("text_select_enabled") {
+                Some(v) => v.as_bool().unwrap_or(true),
+                None => {
+                    set("text_select_enabled", true);
+                    true
+                }
+            };
+            if !enabled {
+                return;
+            }
+
+            // Only trigger in "auto" mode
+            let mode = match get("text_select_trigger_mode") {
+                Some(v) => v.as_str().unwrap_or("auto").to_string(),
+                None => "auto".to_string(),
+            };
+            if mode != "auto" {
+                return;
+            }
+
+            // Calculate drag distance (squared, avoid sqrt for perf)
+            let dx = LAST_X.load(Ordering::Relaxed) - PRESS_X.load(Ordering::SeqCst);
+            let dy = LAST_Y.load(Ordering::Relaxed) - PRESS_Y.load(Ordering::SeqCst);
+            let drag_sq = dx * dx + dy * dy;
+            const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
+            if drag_sq < MIN_DRAG_SQ {
+                return;
+            }
+
+            // Read timing config
+            let delay_ms: u64 = match get("text_select_delay_ms") {
+                Some(v) => v.as_i64().unwrap_or(300).clamp(50, 3000) as u64,
+                None => 300,
+            };
+            let min_len: usize = match get("text_select_min_length") {
+                Some(v) => v.as_i64().unwrap_or(2).max(1) as usize,
+                None => 2,
+            };
+
+            // Save foreground window BEFORE showing toolbar so paste_result can restore it
+            save_foreground_window();
+
+            // Off-load the slow selection.get_text() to a thread so we don't block rdev
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+
+                let text = get_text();
+                let trimmed = text.trim().to_string();
+
+                if trimmed.len() < min_len {
+                    return;
+                }
+
+                // Write text into shared state
+                if let Some(app) = APP.get() {
+                    let state: tauri::State<StringWrapper> = app.state();
+                    state.0.lock().unwrap().replace_range(.., &trimmed);
+                }
+
+                float_toolbar_window();
+                info!(
+                    "Auto-select toolbar triggered ({}chars)",
+                    trimmed.len()
+                );
+            });
+        }
+
+        _ => {}
+    }
+}

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { store } from '../../utils/store';
+import { saveHistory } from '../../utils/aiHistory';
 
 const SYSTEM_PROMPT =
     '你是一位知识渊博的助手。请详细解释用户提供的内容，包括：核心含义、背景知识、关键概念、实际用法和延伸拓展。' +
@@ -108,6 +109,10 @@ export default function Explain() {
             (full) => {
                 setHistory((h) => [...h, { role: 'user', content: text }, { role: 'assistant', content: full }]);
                 setLoading(false);
+                // Save to history (only initial source text + full AI response)
+                if (extraHistory.length === 0) {
+                    try { saveHistory('explain', text, full); } catch {}
+                }
             },
             (err) => { setOutput((prev) => prev + '\n' + err); setLoading(false); },
             ctrl.signal
@@ -139,7 +144,8 @@ export default function Explain() {
 
     const s = {
         root: { display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: '-apple-system,"Microsoft YaHei",sans-serif', fontSize: '13px', background: '#fafafa', color: '#333' },
-        header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderBottom: '1px solid #e5e5e5', flexShrink: 0 },
+        header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderBottom: '1px solid #e5e5e5', flexShrink: 0, position: 'relative' },
+        dragRegion: { position: 'absolute', top: 0, left: 0, right: 0, height: '100%', cursor: 'move' },
         sourceBox: { padding: '6px 12px', background: '#fff8e1', borderBottom: '1px solid #ffe082', fontSize: '12px', color: '#666', maxHeight: '56px', overflow: 'hidden', flexShrink: 0, lineHeight: 1.5 },
         outputArea: { flex: 1, overflow: 'auto', padding: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '13px' },
         footer: { display: 'flex', gap: '6px', padding: '6px 10px', background: '#fff', borderTop: '1px solid #e5e5e5', flexShrink: 0 },
@@ -150,8 +156,11 @@ export default function Explain() {
     return (
         <div style={s.root}>
             <div style={s.header}>
-                <span style={{ fontWeight: 700, fontSize: '14px' }}>❓ 解析</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                {/* 拖动区域 */}
+                <div style={s.dragRegion} data-tauri-drag-region='true' />
+                
+                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>❓ 解析</span>
+                <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 1 }}>
                     {loading
                         ? <button style={s.btn(false)} onClick={() => { abortRef.current?.abort(); setLoading(false); }}>⏹ 停止</button>
                         : <button style={s.btn(true)} onClick={() => { setOutput(''); setHistory([]); startExplain(sourceText); }}>▶ 重新解析</button>

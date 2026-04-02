@@ -1,113 +1,65 @@
-import toast, { Toaster } from 'react-hot-toast';
-import { CardBody, Input, Switch, Select, SelectItem, Slider, Button } from '@nextui-org/react';
+﻿import { Toaster } from 'react-hot-toast';
+import { CardBody, Switch, Slider, Button, Textarea } from '@nextui-org/react';
 import { Card } from '@nextui-org/react';
-import React from 'react';
-import { invoke } from '@tauri-apps/api';
+import React, { useState } from 'react';
 
 import { useConfig } from '../../../../hooks/useConfig';
-import { useToastStyle } from '../../../../hooks';
+import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
 
 export default function AIFeatures() {
-    const toastStyle = useToastStyle();
-
-    const [apiUrl, setApiUrl] = useConfig('ai_api_url', 'https://api.openai.com/v1/chat/completions');
-    const [apiKey, setApiKey] = useConfig('ai_api_key', '');
-    const [model, setModel] = useConfig('ai_model', 'gpt-4o-mini');
-    const [temperature, setTemperature] = useConfig('ai_temperature', 0.7);
     const [hashTrigger, setHashTrigger] = useConfig('light_ai_hash_trigger', false);
     const [showToolbar, setShowToolbar] = useConfig('selection_show_toolbar', true);
     const [versionCount, setVersionCount] = useConfig('light_ai_version_count', 3);
+    const [userPref, setUserPref] = useConfig('ai_user_preference', '');
+    const [promptStrict, setPromptStrict] = useConfig('ai_prompt_strict', '');
+    const [promptStructured, setPromptStructured] = useConfig('ai_prompt_structured', '');
+    const [promptNatural, setPromptNatural] = useConfig('ai_prompt_natural', '');
+    const [showPromptEditor, setShowPromptEditor] = useState(false);
+    const [textSelectEnabled, setTextSelectEnabled] = useConfig('text_select_enabled', true);
+    const [triggerMode, setTriggerMode] = useConfig('text_select_trigger_mode', 'auto');
+    const [delayMs, setDelayMs] = useConfig('text_select_delay_ms', 300);
+    const [autoHideMs, setAutoHideMs] = useConfig('text_select_auto_hide_ms', 6000);
+    const [minLen, setMinLen] = useConfig('text_select_min_length', 2);
+    const [btnTranslate, setBtnTranslate] = useConfig('toolbar_btn_translate', true);
+    const [btnExplain, setBtnExplain] = useConfig('toolbar_btn_explain', true);
+    const [btnFormat, setBtnFormat] = useConfig('toolbar_btn_format', true);
+    const [btnLightai, setBtnLightai] = useConfig('toolbar_btn_lightai', true);
 
-    const testConnection = async () => {
-        if (!apiUrl || !apiKey || !model) {
-            toast.error('请先填写 API URL、API Key 和模型名称', { style: toastStyle });
-            return;
-        }
-        const id = toast.loading('测试中...', { style: toastStyle });
-        try {
-            let url = apiUrl;
-            if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
-            const res = await window.fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: '请回复"OK"' }],
-                    temperature: 0.1,
-                    stream: false,
-                }),
-            });
-            const data = await res.json();
-            if (res.ok && data?.choices?.[0]?.message?.content) {
-                toast.success(`连接成功：${data.choices[0].message.content.slice(0, 30)}`, {
-                    id,
-                    style: toastStyle,
-                });
-            } else {
-                toast.error(`失败：${JSON.stringify(data).slice(0, 80)}`, { id, style: toastStyle });
-            }
-        } catch (e) {
-            toast.error(`连接异常：${e.message}`, { id, style: toastStyle });
-        }
-    };
+    const modeBtn = (val, label) => (
+        <button key={val} onClick={() => setTriggerMode(val)} style={{
+            padding: '5px 14px', borderRadius: '6px', fontSize: '13px', cursor: 'pointer',
+            border: triggerMode === val ? '2px solid #4a7cfa' : '1px solid #ddd',
+            background: triggerMode === val ? '#eff4ff' : '#fff',
+            color: triggerMode === val ? '#4a7cfa' : '#555',
+            fontWeight: triggerMode === val ? 600 : 400,
+        }}>{label}</button>
+    );
+
+    const toggleBtn = (val, setter, label) => (
+        <button key={label} onClick={() => setter(!val)} style={{
+            padding: '4px 12px', borderRadius: '20px', fontSize: '12px', cursor: 'pointer',
+            border: val !== false ? '1.5px solid #4a7cfa' : '1px solid #ddd',
+            background: val !== false ? '#eff4ff' : '#f5f5f5',
+            color: val !== false ? '#4a7cfa' : '#888',
+        }}>{label}</button>
+    );
 
     return (
         <div className='p-[10px] max-w-[800px]'>
             <Toaster />
-            {/* API 配置 */}
+            <p className='text-[12px] text-default-400 mb-[10px]'>
+                API 配置已移至 <b>服务 &rarr; AI API</b> 标签页
+            </p>
             <Card className='mb-[10px]'>
                 <CardBody>
-                    <h3 className='text-[16px] font-bold mb-[12px]'>API 配置</h3>
-                    <div className='space-y-[10px]'>
-                        <Input
-                            label='API URL'
-                            placeholder='https://api.openai.com/v1/chat/completions'
-                            value={apiUrl ?? ''}
-                            onValueChange={(v) => setApiUrl(v)}
-                            size='sm'
-                            variant='bordered'
-                            description='兼容 OpenAI 接口格式（硅基流动、DeepSeek 等均可）'
-                        />
-                        <Input
-                            label='API Key'
-                            placeholder='sk-...'
-                            value={apiKey ?? ''}
-                            onValueChange={(v) => setApiKey(v)}
-                            size='sm'
-                            variant='bordered'
-                            type='password'
-                        />
-                        <Input
-                            label='模型'
-                            placeholder='gpt-4o-mini'
-                            value={model ?? ''}
-                            onValueChange={(v) => setModel(v)}
-                            size='sm'
-                            variant='bordered'
-                            description='例：gpt-4o-mini、Qwen/Qwen2.5-7B-Instruct、deepseek-chat'
-                        />
-                        <div>
-                            <div className='text-[13px] text-default-500 mb-1'>
-                                温度（Temperature）：{Number(temperature ?? 0.7).toFixed(1)}
-                            </div>
-                            <Slider
-                                size='sm'
-                                step={0.1}
-                                minValue={0}
-                                maxValue={2}
-                                value={Number(temperature ?? 0.7)}
-                                onChange={(v) => setTemperature(v)}
-                                className='max-w-md'
-                            />
-                        </div>
-                        <Button size='sm' variant='bordered' onPress={testConnection}>
-                            测试连接
-                        </Button>
-                    </div>
+                    <h3 className='text-[16px] font-bold mb-[6px]'>个人写作偏好</h3>
+                    <p className='text-[12px] text-default-400 mb-[10px]'>
+                        这段文字会附加到每次轻AI的 System Prompt，让 AI 更贴合你的表达风格。
+                    </p>
+                    <Textarea placeholder='在此填写你的写作风格偏好...' value={userPref ?? ''}
+                        onValueChange={(v) => setUserPref(v)} size='sm' variant='bordered' minRows={2} maxRows={5} />
                 </CardBody>
             </Card>
-
-            {/* 轻AI设置 */}
             <Card className='mb-[10px]'>
                 <CardBody>
                     <h3 className='text-[16px] font-bold mb-[12px]'>轻AI（文本润色）</h3>
@@ -115,40 +67,92 @@ export default function AIFeatures() {
                         <div className='flex items-center justify-between'>
                             <div>
                                 <div className='text-[14px]'># 符号触发轻AI</div>
-                                <div className='text-[12px] text-default-400'>
-                                    复制以 # 结尾的文本时自动触发轻AI润色窗口
-                                </div>
+                                <div className='text-[12px] text-default-400'>复制以 # 结尾的文本时自动触发轻AI润色窗口</div>
                             </div>
-                            <Switch
-                                isSelected={hashTrigger ?? false}
-                                onValueChange={(v) => setHashTrigger(v)}
-                                size='sm'
-                            />
+                            <Switch isSelected={hashTrigger ?? false} onValueChange={(v) => setHashTrigger(v)} size='sm' />
                         </div>
                         <div className='flex items-center justify-between'>
                             <div>
                                 <div className='text-[14px]'>划词后先显示工具栏</div>
-                                <div className='text-[12px] text-default-400'>
-                                    关闭则划词后直接弹出翻译窗口（pot 原始行为）
-                                </div>
+                                <div className='text-[12px] text-default-400'>关闭则划词后直接弹出翻译窗口</div>
                             </div>
-                            <Switch
-                                isSelected={showToolbar ?? true}
-                                onValueChange={(v) => setShowToolbar(v)}
-                                size='sm'
-                            />
+                            <Switch isSelected={showToolbar ?? true} onValueChange={(v) => setShowToolbar(v)} size='sm' />
                         </div>
                         <div>
                             <div className='text-[13px] text-default-500 mb-1'>同时生成版本数：{versionCount ?? 3}</div>
-                            <Slider
-                                size='sm'
-                                step={1}
-                                minValue={1}
-                                maxValue={3}
-                                value={Number(versionCount ?? 3)}
-                                onChange={(v) => setVersionCount(v)}
-                                className='max-w-[160px]'
-                            />
+                            <Slider size='sm' step={1} minValue={1} maxValue={3} value={Number(versionCount ?? 3)}
+                                onChange={(v) => setVersionCount(v)} className='max-w-[160px]' />
+                        </div>
+                        <Button size='sm' variant='light' onPress={() => setShowPromptEditor(!showPromptEditor)}>
+                            {showPromptEditor ? '收起' : '自定义润色风格 Prompt'}
+                        </Button>
+                        {showPromptEditor && (
+                            <div className='space-y-[10px] mt-[4px]'>
+                                {[
+                                    { key: 'strict', label: '严谨审慎', val: promptStrict, set: setPromptStrict },
+                                    { key: 'structured', label: '结构清晰', val: promptStructured, set: setPromptStructured },
+                                    { key: 'natural', label: '口语自然', val: promptNatural, set: setPromptNatural },
+                                ].map(({ key, label, val, set }) => (
+                                    <div key={key}>
+                                        <div className='text-[12px] font-medium text-default-600 mb-1'>{label}</div>
+                                        <Textarea placeholder={DEFAULT_STYLE_PROMPTS[key]?.system ?? ''} value={val ?? ''}
+                                            onValueChange={(v) => set(v)} size='sm' variant='bordered' minRows={2} maxRows={6}
+                                            description='留空则使用默认 prompt' />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </CardBody>
+            </Card>
+            <Card className='mb-[10px]'>
+                <CardBody>
+                    <h3 className='text-[16px] font-bold mb-[12px]'>划词工具栏</h3>
+                    <div className='space-y-[14px]'>
+                        <div className='flex items-center justify-between'>
+                            <div>
+                                <div className='text-[14px]'>启用划词工具栏</div>
+                                <div className='text-[12px] text-default-400'>关闭后划词不会出现任何提示</div>
+                            </div>
+                            <Switch isSelected={textSelectEnabled ?? true} onValueChange={setTextSelectEnabled} size='sm' />
+                        </div>
+                        <div>
+                            <div className='text-[13px] text-default-600 mb-[6px]'>触发方式</div>
+                            <div className='flex gap-[10px]'>
+                                {modeBtn('auto', '划词即弹出（自动）')}
+                                {modeBtn('hotkey', '快捷键触发')}
+                            </div>
+                            {triggerMode === 'hotkey' && (
+                                <p className='text-[11px] text-default-400 mt-[5px]'>
+                                    在偏好设置 → 快捷键中配置「划词翻译」快捷键，即可指定工具栏触发键。
+                                </p>
+                            )}
+                        </div>
+                        <div className='grid grid-cols-2 gap-[12px]'>
+                            <div>
+                                <div className='text-[12px] text-default-500 mb-1'>显示延迟 {delayMs ?? 300} ms</div>
+                                <Slider size='sm' step={50} minValue={50} maxValue={2000}
+                                    value={Number(delayMs ?? 300)} onChange={setDelayMs} />
+                            </div>
+                            <div>
+                                <div className='text-[12px] text-default-500 mb-1'>自动隐藏 {autoHideMs ?? 6000} ms</div>
+                                <Slider size='sm' step={500} minValue={1000} maxValue={30000}
+                                    value={Number(autoHideMs ?? 6000)} onChange={setAutoHideMs} />
+                            </div>
+                        </div>
+                        <div>
+                            <div className='text-[12px] text-default-500 mb-1'>最少选中 {minLen ?? 2} 个字符才触发</div>
+                            <Slider size='sm' step={1} minValue={1} maxValue={10}
+                                value={Number(minLen ?? 2)} onChange={setMinLen} className='max-w-[200px]' />
+                        </div>
+                        <div>
+                            <div className='text-[13px] text-default-600 mb-[6px]'>工具栏按钮</div>
+                            <div className='flex flex-wrap gap-[8px]'>
+                                {toggleBtn(btnTranslate, setBtnTranslate, '翻译')}
+                                {toggleBtn(btnExplain,   setBtnExplain,   '解析')}
+                                {toggleBtn(btnFormat,    setBtnFormat,    '格式化')}
+                                {toggleBtn(btnLightai,   setBtnLightai,   '轻AI')}
+                            </div>
                         </div>
                     </div>
                 </CardBody>

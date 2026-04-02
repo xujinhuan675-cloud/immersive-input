@@ -1,5 +1,5 @@
 use crate::config::{get, set};
-use crate::window::{input_translate, light_ai_window, ocr_recognize, ocr_translate, selection_translate};
+use crate::window::{input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate};
 use crate::APP;
 use log::{info, warn};
 use tauri::{AppHandle, GlobalShortcutManager};
@@ -23,6 +23,9 @@ where
     };
 
     if !hotkey.is_empty() {
+        // Try to unregister the old shortcut first (ignore errors if it doesn't exist)
+        let _ = app_handle.global_shortcut_manager().unregister(hotkey.as_str());
+        
         match app_handle
             .global_shortcut_manager()
             .register(hotkey.as_str(), handler)
@@ -54,7 +57,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
         }
         "hotkey_ocr_recognize" => register(app_handle, "hotkey_ocr_recognize", ocr_recognize, "")?,
         "hotkey_ocr_translate" => register(app_handle, "hotkey_ocr_translate", ocr_translate, "")?,
-        "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", light_ai_window, "")?,
+        "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", selection_light_ai, "")?,
         "all" => {
             register(
                 app_handle,
@@ -65,7 +68,7 @@ pub fn register_shortcut(shortcut: &str) -> Result<(), String> {
             register(app_handle, "hotkey_input_translate", input_translate, "")?;
             register(app_handle, "hotkey_ocr_recognize", ocr_recognize, "")?;
             register(app_handle, "hotkey_ocr_translate", ocr_translate, "")?;
-            register(app_handle, "hotkey_light_ai", light_ai_window, "")?;
+            register(app_handle, "hotkey_light_ai", selection_light_ai, "")?;
         }
         _ => {}
     }
@@ -94,7 +97,7 @@ pub fn register_shortcut_by_frontend(name: &str, shortcut: &str) -> Result<(), S
         "hotkey_ocr_translate" => {
             register(app_handle, "hotkey_ocr_translate", ocr_translate, shortcut)?
         }
-        "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", light_ai_window, shortcut)?,
+        "hotkey_light_ai" => register(app_handle, "hotkey_light_ai", selection_light_ai, shortcut)?,
         _ => {}
     }
     Ok(())

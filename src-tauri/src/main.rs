@@ -8,6 +8,7 @@ mod config;
 mod error;
 mod hotkey;
 mod lang_detect;
+mod mouse_hook;
 mod screenshot;
 mod server;
 mod system_ocr;
@@ -32,7 +33,6 @@ use tauri::Manager;
 use tauri_plugin_log::LogTarget;
 use tray::*;
 use updater::check_update;
-use window::chat_window;
 use window::config_window;
 use window::open_chat_window;
 use window::open_explain_window;
@@ -137,6 +137,8 @@ fn main() {
                 clipboard_monitor.to_string(),
             )));
             start_clipboard_monitor(app.handle());
+            // Start global mouse hook for auto text-select toolbar
+            mouse_hook::start_mouse_hook();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

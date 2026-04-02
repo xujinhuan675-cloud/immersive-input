@@ -9,6 +9,7 @@ import Translate from './Translate';
 import Recognize from './Recognize';
 import Collection from './Collection';
 import Tts from './Tts';
+import AIConfig from './AIConfig';
 import { ServiceType } from '../../../../utils/service_instance';
 
 let unlisten = null;
@@ -86,6 +87,12 @@ export default function Service() {
                     title={t(`config.service.collection`)}
                 >
                     <Collection pluginList={pluginList[ServiceType.COLLECTION]} />
+                </Tab>
+                <Tab
+                    key='ai_api'
+                    title='AI API'
+                >
+                    <AIConfig />
                 </Tab>
             </Tabs>
         )
