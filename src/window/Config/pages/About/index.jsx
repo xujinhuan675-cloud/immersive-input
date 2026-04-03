@@ -1,9 +1,7 @@
-import { Divider, Button, Popover, PopoverTrigger, PopoverContent, Tooltip } from '@nextui-org/react';
+import { Divider, Button } from '@nextui-org/react';
 import { appLogDir, appConfigDir } from '@tauri-apps/api/path';
 import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/api/shell';
-import { BsTencentQq } from 'react-icons/bs';
-import { BsTelegram } from 'react-icons/bs';
 import { BsGithub } from 'react-icons/bs';
 import { invoke } from '@tauri-apps/api';
 import React from 'react';
@@ -16,144 +14,26 @@ export default function About() {
     return (
         <div className='h-full w-full py-[80px] px-[100px]'>
             <img
-                src='icon.png'
+                src='icon.svg'
                 className='mx-auto h-[100px] mb-[5px]'
                 draggable={false}
             />
             <div className='content-center'>
-                <h1 className='font-bold text-2xl text-center'>Pot</h1>
+                <h1 className='font-bold text-2xl text-center'>Immersive Input</h1>
                 <p className='text-center text-sm text-gray-500 mb-[5px]'>{appVersion}</p>
                 <Divider />
-                <div className='flex justify-between'>
+                <div className='flex justify-center gap-4'>
                     <Button
                         variant='light'
                         className='my-[5px]'
                         size='sm'
+                        startContent={<BsGithub />}
                         onPress={() => {
-                            open('https://pot-app.com');
+                            open('https://github.com/IOTO-Doc/Immersive-Input');
                         }}
                     >
-                        {t('config.about.website')}
+                        GitHub
                     </Button>
-                    <Button
-                        variant='light'
-                        className='my-[5px]'
-                        size='sm'
-                        onPress={() => {
-                            open('https://github.com/pot-app/pot-desktop');
-                        }}
-                    >
-                        {t('config.about.github')}
-                    </Button>
-                    <Popover
-                        placement='top'
-                        offset={10}
-                    >
-                        <PopoverTrigger>
-                            <Button
-                                variant='light'
-                                className='my-[5px]'
-                                size='sm'
-                            >
-                                {t('config.about.feedback')}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent>
-                            <div className='flex justify-between'>
-                                <Button
-                                    variant='light'
-                                    className='my-[5px]'
-                                    size='sm'
-                                    onPress={() => {
-                                        open('https://github.com/pot-app/pot-desktop/issues');
-                                    }}
-                                >
-                                    {t('config.about.issue')}
-                                </Button>
-                                <Button
-                                    variant='light'
-                                    className='my-[5px]'
-                                    size='sm'
-                                    onPress={() => {
-                                        open('mailto:support@pot-app.com');
-                                    }}
-                                >
-                                    {t('config.about.email')}
-                                </Button>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-
-                    <Popover
-                        placement='top'
-                        offset={10}
-                    >
-                        <PopoverTrigger>
-                            <Button
-                                variant='light'
-                                className='my-[5px]'
-                                size='sm'
-                            >
-                                {t('config.about.community')}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent>
-                            <div className='flex justify-between'>
-                                <Tooltip content={t('config.about.qq_channel')}>
-                                    <Button
-                                        isIconOnly
-                                        variant='light'
-                                        className='my-[5px]'
-                                        size='lg'
-                                        onPress={() => {
-                                            open('https://pd.qq.com/s/akns94e1r');
-                                        }}
-                                    >
-                                        <BsTencentQq />
-                                    </Button>
-                                </Tooltip>
-                                <Tooltip content={t('config.about.qq_group')}>
-                                    <Button
-                                        isIconOnly
-                                        variant='light'
-                                        className='my-[5px]'
-                                        size='lg'
-                                        onPress={() => {
-                                            open('https://pot-app.com/img/qq_group.png');
-                                        }}
-                                    >
-                                        <BsTencentQq />
-                                    </Button>
-                                </Tooltip>
-                                <Tooltip content={t('config.about.telegram')}>
-                                    <Button
-                                        isIconOnly
-                                        variant='light'
-                                        className='my-[5px]'
-                                        size='lg'
-                                        onPress={() => {
-                                            open('https://t.me/pot_app');
-                                        }}
-                                    >
-                                        <BsTelegram />
-                                    </Button>
-                                </Tooltip>
-                                <Tooltip content={t('config.about.discussion')}>
-                                    <Button
-                                        isIconOnly
-                                        variant='light'
-                                        className='my-[5px]'
-                                        size='lg'
-                                        onPress={() => {
-                                            open('https://github.com/pot-app/pot-desktop/discussions');
-                                        }}
-                                    >
-                                        <BsGithub />
-                                    </Button>
-                                </Tooltip>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
                 </div>
                 <Divider />
             </div>

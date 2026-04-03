@@ -116,17 +116,11 @@ export default function Recognize(props) {
                 </DragDropContext>
                 <Spacer y={2} />
                 <div className='flex'>
-                    <Button
-                        fullWidth
-                        onPress={onSelectOpen}
-                    >
+                    <Button fullWidth variant='flat' onPress={onSelectOpen}>
                         {t('config.service.add_builtin_service')}
                     </Button>
                     <Spacer x={2} />
-                    <Button
-                        fullWidth
-                        onPress={onSelectPluginOpen}
-                    >
+                    <Button fullWidth variant='flat' onPress={onSelectPluginOpen}>
                         {t('config.service.add_external_service')}
                     </Button>
                 </div>

@@ -246,7 +246,7 @@ export default function Hotkey() {
                     )}
                 </div>
                 <div className='config-item'>
-                    <h3 className='my-auto'>轻AI快捷键</h3>
+                    <h3 className='my-auto'>{t('config.hotkey.light_ai')}</h3>
                     {lightAi !== null && (
                         <Input
                             type='hotkey'
@@ -270,7 +270,7 @@ export default function Hotkey() {
                     )}
                 </div>
                 <div className='config-item'>
-                    <h3 className='my-auto'>密码本快速录入</h3>
+                    <h3 className='my-auto'>{t('config.hotkey.vault_quick_add')}</h3>
                     {vaultQuickAdd !== null && (
                         <Input
                             type='hotkey'
@@ -294,7 +294,7 @@ export default function Hotkey() {
                     )}
                 </div>
                 <div className='config-item'>
-                    <h3 className='my-auto'>密码本快速填写</h3>
+                    <h3 className='my-auto'>{t('config.hotkey.vault_quick_fill')}</h3>
                     {vaultQuickFill !== null && (
                         <Input
                             type='hotkey'
@@ -318,7 +318,7 @@ export default function Hotkey() {
                     )}
                 </div>
                 <div className='config-item'>
-                    <h3 className='my-auto'>常用语</h3>
+                    <h3 className='my-auto'>{t('config.hotkey.phrases')}</h3>
                     {phrases !== null && (
                         <Input
                             type='hotkey'

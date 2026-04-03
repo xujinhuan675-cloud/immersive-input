@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Input, Button, Checkbox } from '@nextui-org/react';
 import { HiEye, HiEyeOff } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
 import { loginWithPassword, getRememberedEmail } from '../../../utils/auth';
 
 export default function LoginForm({ onSuccess }) {
+    const { t } = useTranslation();
     const [email, setEmail] = useState(getRememberedEmail());
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(!!getRememberedEmail());
@@ -13,25 +15,15 @@ export default function LoginForm({ onSuccess }) {
     const [loading, setLoading] = useState(false);
 
     async function handleLogin() {
-        if (!email.trim()) {
-            toast.error('请输入用户名或邮箱');
-            return;
-        }
-        if (!password) {
-            toast.error('请输入密码');
-            return;
-        }
+        if (!email.trim()) { toast.error(t('login.error_email')); return; }
+        if (!password) { toast.error(t('login.error_password')); return; }
         setLoading(true);
         try {
-            const result = await loginWithPassword({
-                email: email.trim(),
-                password,
-                rememberMe,
-            });
-            toast.success('登录成功');
+            const result = await loginWithPassword({ email: email.trim(), password, rememberMe });
+            toast.success(t('login.success'));
             onSuccess?.(result);
         } catch (e) {
-            toast.error(e.message ?? '登录失败，请重试');
+            toast.error(e.message ?? t('login.error_default'));
         } finally {
             setLoading(false);
         }
@@ -42,14 +34,14 @@ export default function LoginForm({ onSuccess }) {
     }
 
     function handleForgotPassword() {
-        toast('密码重置功能即将推出', { icon: '🔧' });
+        toast(t('login.forgot_coming'), { icon: '\uD83D\uDD27' });
     }
 
     return (
         <div className='flex flex-col gap-4'>
             <Input
-                label='用户名 / 邮箱'
-                placeholder='请输入用户名或邮箱'
+                label={t('login.email_label')}
+                placeholder={t('login.email_placeholder')}
                 value={email}
                 onValueChange={setEmail}
                 onKeyDown={handleKeyDown}
@@ -63,8 +55,8 @@ export default function LoginForm({ onSuccess }) {
             />
 
             <Input
-                label='密码'
-                placeholder='请输入密码'
+                label={t('login.password_label')}
+                placeholder={t('login.password_placeholder')}
                 value={password}
                 onValueChange={setPassword}
                 onKeyDown={handleKeyDown}
@@ -103,25 +95,25 @@ export default function LoginForm({ onSuccess }) {
                         wrapper: 'mr-1.5',
                     }}
                 >
-                    记住账号
+                    {t('login.remember')}
                 </Checkbox>
                 <button
                     type='button'
                     className='text-xs text-primary hover:underline cursor-pointer'
                     onClick={handleForgotPassword}
                 >
-                    忘记密码
+                    {t('login.forgot')}
                 </button>
             </div>
 
             <Button
-                className='w-full bg-gradient-to-r from-[#7C3AED] to-[#A855F7] text-white font-medium shadow-md mt-1'
+                className='w-full bg-gradient-to-r from-[#3b82f6] to-[#8b5cf6] text-white font-medium shadow-sm mt-1'
                 size='md'
                 isLoading={loading}
                 onPress={handleLogin}
                 radius='lg'
             >
-                登录
+                {t('login.submit')}
             </Button>
 
             {/* 预留：第三方登录入口 */}

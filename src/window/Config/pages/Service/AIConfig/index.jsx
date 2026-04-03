@@ -5,8 +5,10 @@ import React from 'react';
 
 import { useConfig } from '../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../hooks';
+import { useTranslation } from 'react-i18next';
 
 export default function AIConfig() {
+    const { t } = useTranslation();
     const toastStyle = useToastStyle();
     const [apiUrl, setApiUrl] = useConfig('ai_api_url', 'https://api.openai.com/v1/chat/completions');
     const [apiKey, setApiKey] = useConfig('ai_api_key', '');
@@ -15,10 +17,10 @@ export default function AIConfig() {
 
     const testConnection = async () => {
         if (!apiUrl || !apiKey || !model) {
-            toast.error('请先填写 API URL、API Key 和模型名称', { style: toastStyle });
+            toast.error(t('ai_config.test_error_fields'), { style: toastStyle });
             return;
         }
-        const id = toast.loading('测试中...', { style: toastStyle });
+        const id = toast.loading(t('ai_config.test_loading'), { style: toastStyle });
         try {
             let url = apiUrl;
             if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
@@ -27,19 +29,19 @@ export default function AIConfig() {
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                 body: JSON.stringify({
                     model,
-                    messages: [{ role: 'user', content: '请回复"OK"' }],
+                    messages: [{ role: 'user', content: 'Reply with "OK"' }],
                     temperature: 0.1,
                     stream: false,
                 }),
             });
             const data = await res.json();
             if (res.ok && data?.choices?.[0]?.message?.content) {
-                toast.success(`连接成功：${data.choices[0].message.content.slice(0, 30)}`, { id, style: toastStyle });
+                toast.success(t('ai_config.test_success', { msg: data.choices[0].message.content.slice(0, 30) }), { id, style: toastStyle });
             } else {
-                toast.error(`失败：${JSON.stringify(data).slice(0, 80)}`, { id, style: toastStyle });
+                toast.error(t('ai_config.test_failed', { msg: JSON.stringify(data).slice(0, 80) }), { id, style: toastStyle });
             }
         } catch (e) {
-            toast.error(`连接异常：${e.message}`, { id, style: toastStyle });
+            toast.error(t('ai_config.test_error', { msg: e.message }), { id, style: toastStyle });
         }
     };
 
@@ -48,7 +50,7 @@ export default function AIConfig() {
             <Toaster />
             <Card>
                 <CardBody>
-                    <h3 className='text-[15px] font-bold mb-[14px]'>AI API 配置</h3>
+                    <h3 className='text-[15px] font-bold mb-[14px]'>{t('ai_config.title')}</h3>
                     <div className='space-y-[12px]'>
                         <Input
                             label='API URL'
@@ -57,7 +59,7 @@ export default function AIConfig() {
                             onValueChange={(v) => setApiUrl(v)}
                             size='sm'
                             variant='bordered'
-                            description='兼容 OpenAI 接口格式（硅基流动、DeepSeek 等均可）'
+                            description={t('ai_config.url_desc')}
                         />
                         <Input
                             label='API Key'
@@ -69,17 +71,17 @@ export default function AIConfig() {
                             type='password'
                         />
                         <Input
-                            label='模型'
+                            label={t('ai_config.model_label')}
                             placeholder='gpt-4o-mini'
                             value={model ?? ''}
                             onValueChange={(v) => setModel(v)}
                             size='sm'
                             variant='bordered'
-                            description='例：gpt-4o-mini、Qwen/Qwen2.5-7B-Instruct、deepseek-chat'
+                            description={t('ai_config.model_desc')}
                         />
                         <div>
                             <div className='text-[13px] text-default-500 mb-1'>
-                                温度（Temperature）：{Number(temperature ?? 0.7).toFixed(1)}
+                                {t('ai_config.temperature', { n: Number(temperature ?? 0.7).toFixed(1) })}
                             </div>
                             <Slider
                                 size='sm'
@@ -92,7 +94,7 @@ export default function AIConfig() {
                             />
                         </div>
                         <Button size='sm' variant='bordered' onPress={testConnection}>
-                            测试连接
+                            {t('ai_config.test_btn')}
                         </Button>
                     </div>
                 </CardBody>

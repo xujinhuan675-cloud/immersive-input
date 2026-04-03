@@ -730,7 +730,7 @@ pub fn login_window() {
         "login",
         tauri::WindowUrl::App("index.html".into()),
     )
-    .title("无忧小助手")
+    .title("Immersive Input")
     .inner_size(500.0, 740.0)
     .resizable(false)
     .center()

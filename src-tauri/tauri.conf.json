@@ -117,8 +117,8 @@
             }
         ],
         "systemTray": {
-            "iconPath": "icons/icon.png",
-            "iconAsTemplate": true
+            "iconPath": "icons/icon.ico",
+            "iconAsTemplate": false
         },
         "updater": {
             "active": true,

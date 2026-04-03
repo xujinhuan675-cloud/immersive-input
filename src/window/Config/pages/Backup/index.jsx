@@ -282,19 +282,10 @@ export default function Backup() {
                     )}
                 </div>
                 <div className='flex justify-around'>
-                    <Button
-                        color='success'
-                        variant='flat'
-                        isLoading={uploading}
-                        onPress={onBackup}
-                    >
+                    <Button variant='flat' isLoading={uploading} onPress={onBackup}>
                         {t('config.backup.backup')}
                     </Button>
-                    <Button
-                        color='secondary'
-                        variant='flat'
-                        onPress={onBackupListOpen}
-                    >
+                    <Button variant='flat' onPress={onBackupListOpen}>
                         {t('config.backup.restore')}
                     </Button>
                 </div>

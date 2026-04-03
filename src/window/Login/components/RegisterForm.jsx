@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button } from '@nextui-org/react';
 import { HiEye, HiEyeOff } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
 import { registerWithEmail, sendEmailCode } from '../../../utils/auth';
@@ -20,6 +21,7 @@ const INPUT_WRAPPER =
     'border-1 border-default-200 hover:border-primary focus-within:!border-primary data-[hover=true]:border-primary';
 
 export default function RegisterForm({ onSuccess }) {
+    const { t } = useTranslation();
     const [username, setUsername] = useState('');
     const [emailPrefix, setEmailPrefix] = useState('');
     const [emailDomain, setEmailDomain] = useState('qq.com');
@@ -53,59 +55,35 @@ export default function RegisterForm({ onSuccess }) {
     }
 
     async function handleSendCode() {
-        if (!emailPrefix.trim()) {
-            toast.error('请先输入邮箱前缀');
-            return;
-        }
+        if (!emailPrefix.trim()) { toast.error(t('login.error_email_prefix')); return; }
         setCodeSending(true);
         try {
             await sendEmailCode({ email: fullEmail });
             startCountdown(60);
-            toast.success('验证码已发送，请查收邮件');
+            toast.success(t('login.send_success'));
         } catch (e) {
-            toast.error(e.message ?? '发送失败，请重试');
+            toast.error(e.message ?? t('login.error_sending'));
         } finally {
             setCodeSending(false);
         }
     }
 
     async function handleRegister() {
-        if (!username.trim()) {
-            toast.error('请输入用户名');
-            return;
-        }
-        if (!emailPrefix.trim()) {
-            toast.error('请输入邮箱');
-            return;
-        }
-        if (!password) {
-            toast.error('请输入密码');
-            return;
-        }
-        if (password.length < 8) {
-            toast.error('密码至少 8 位');
-            return;
-        }
-        if (password !== confirmPassword) {
-            toast.error('两次密码不一致');
-            return;
-        }
-        if (!code.trim()) {
-            toast.error('请输入验证码');
-            return;
-        }
+        if (!username.trim()) { toast.error(t('login.error_username')); return; }
+        if (!emailPrefix.trim()) { toast.error(t('login.error_email_required')); return; }
+        if (!password) { toast.error(t('login.error_password_required')); return; }
+        if (password.length < 8) { toast.error(t('login.error_password_length')); return; }
+        if (password !== confirmPassword) { toast.error(t('login.error_password_mismatch')); return; }
+        if (!code.trim()) { toast.error(t('login.error_code')); return; }
         setLoading(true);
         try {
             const result = await registerWithEmail({
-                username: username.trim(),
-                email: fullEmail,
-                password,
-                code: code.trim(),
+                username: username.trim(), email: fullEmail, password, code: code.trim(),
             });
-            toast.success('注册成功，欢迎加入！');
+            toast.success(t('login.success_register'));
             onSuccess?.(result);
         } catch (e) {
-            toast.error(e.message ?? '注册失败，请重试');
+            toast.error(e.message ?? t('login.error_register_default'));
         } finally {
             setLoading(false);
         }
@@ -115,8 +93,8 @@ export default function RegisterForm({ onSuccess }) {
         <div className='flex flex-col gap-3'>
             {/* 用户名 */}
             <Input
-                label='用户名'
-                placeholder='输入用户名'
+                label={t('login.username_label')}
+                placeholder={t('login.username_placeholder')}
                 value={username}
                 onValueChange={setUsername}
                 variant='bordered'
@@ -129,10 +107,10 @@ export default function RegisterForm({ onSuccess }) {
 
             {/* 邮箱 + 域名选择 */}
             <div className='flex flex-col gap-1'>
-                <span className='text-xs text-default-500 pl-1'>邮箱</span>
+                <span className='text-xs text-default-500 pl-1'>{t('login.email_section')}</span>
                 <div className='flex items-center gap-1.5'>
                     <Input
-                        placeholder='邮箱前缀'
+                        placeholder={t('login.email_prefix')}
                         value={emailPrefix}
                         onValueChange={setEmailPrefix}
                         variant='bordered'
@@ -159,14 +137,14 @@ export default function RegisterForm({ onSuccess }) {
                         ))}
                     </select>
                 </div>
-                <p className='text-[11px] text-default-400 pl-1'>仅支持主流邮箱注册，将用于找回密码</p>
+                <p className='text-[11px] text-default-400 pl-1'>{t('login.email_hint')}</p>
             </div>
 
             {/* 密码 */}
             <div className='flex flex-col gap-1'>
                 <Input
-                    label='密码'
-                    placeholder='输入密码'
+                    label={t('login.password_label')}
+                    placeholder={t('login.password_placeholder')}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onValueChange={setPassword}
@@ -191,15 +169,13 @@ export default function RegisterForm({ onSuccess }) {
                         </button>
                     }
                 />
-                <p className='text-[11px] text-default-400 pl-1'>
-                    密码要求：8 位以上，包含数字、小写字母、大写字母
-                </p>
+                <p className='text-[11px] text-default-400 pl-1'>{t('login.reg_password_hint')}</p>
             </div>
 
             {/* 确认密码 */}
             <Input
-                label='确认密码'
-                placeholder='再次输入密码'
+                label={t('login.confirm_password_label')}
+                placeholder={t('login.confirm_password_placeholder')}
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
                 onValueChange={setConfirmPassword}
@@ -227,10 +203,10 @@ export default function RegisterForm({ onSuccess }) {
 
             {/* 验证码 */}
             <div className='flex flex-col gap-1'>
-                <span className='text-xs text-default-500 pl-1'>验证码</span>
+                <span className='text-xs text-default-500 pl-1'>{t('login.code_label')}</span>
                 <div className='flex gap-2'>
                     <Input
-                        placeholder='输入验证码'
+                        placeholder={t('login.code_placeholder')}
                         value={code}
                         onValueChange={setCode}
                         variant='bordered'
@@ -244,25 +220,25 @@ export default function RegisterForm({ onSuccess }) {
                         size='sm'
                         variant='bordered'
                         radius='lg'
-                        className='h-[36px] px-3 whitespace-nowrap text-xs border-[#A855F7] text-[#A855F7] hover:bg-[#A855F7]/10'
+                        className='h-[36px] px-3 whitespace-nowrap text-xs border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6]/10'
                         isDisabled={countdown > 0 || codeSending}
                         isLoading={codeSending}
                         onPress={handleSendCode}
                     >
-                        {countdown > 0 ? `${countdown}s 后重发` : '发送验证码'}
+                        {countdown > 0 ? t('login.resend', { n: countdown }) : t('login.send_code')}
                     </Button>
                 </div>
             </div>
 
             {/* 注册按钮 */}
             <Button
-                className='w-full mt-1 bg-gradient-to-r from-[#7C3AED] to-[#A855F7] text-white font-medium shadow-md'
+                className='w-full mt-1 bg-gradient-to-r from-[#3b82f6] to-[#8b5cf6] text-white font-medium shadow-sm'
                 size='md'
                 isLoading={loading}
                 onPress={handleRegister}
                 radius='lg'
             >
-                注册并登录
+                {t('login.register_btn')}
             </Button>
 
             {/* 预留：注册协议 / 邀请码 / 会员激活码 入口 */}

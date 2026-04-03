@@ -23,6 +23,9 @@ import he_IL from './locales/he_IL.json';
 // http://www.lingoes.net/zh/translator/langcode.htm
 
 i18n.use(initReactI18next).init({
+    // 初始语言：默认英文，App.jsx 中会根据用户设置切换
+    // 设置此属性防止首次渲染时 t() 返回山名而非译文
+    lng: 'en',
     fallbackLng: {
         zh_tw: ['zh_cn'],
         zh_cn: ['zh_tw'],

@@ -5,7 +5,7 @@ import { Textarea, Button, ButtonGroup, Tabs, Tab, Card, CardBody, Pagination } 
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { save } from '@tauri-apps/api/dialog';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Database from 'tauri-plugin-sql-api';
@@ -26,12 +26,11 @@ import {
     whetherAvailableService,
 } from '../../../../utils/service_instance';
 
-// ─── AI 历史分析流式请求 ───
-const AI_TYPE_LABELS = { lightai: '轻AI润色', explain: '解析', chat: '对话' };
+// AI_TYPE_LABELS is now built inside the component using t()
 
 async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
-    if (!apiUrl || !apiKey) { onError('请先配置 API Key'); return; }
+    if (!apiUrl || !apiKey) { onError('API Key is required'); return; }
     let url = apiUrl;
     if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
     const maxPerField = 500, maxTotal = 20000;
@@ -74,105 +73,6 @@ async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, 
     } catch (e) { onError(e.name === 'AbortError' ? null : e.message); }
 }
 
-// ─── AI 历史子组件 ───
-function AIHistoryPanel({ typeKey }) {
-    const toastStyle = useToastStyle();
-    const [records, setRecords] = useState([]);
-    const [counts, setCounts] = useState({ lightai: 0, explain: 0, chat: 0 });
-    const [report, setReport] = useState('');
-    const [generating, setGenerating] = useState(false);
-    const abortRef = useRef(null);
-
-    const loadRecords = useCallback(async () => {
-        const data = await getHistory(typeKey, 100);
-        setRecords(data);
-        const c = {};
-        for (const k of Object.keys(AI_TYPE_LABELS)) c[k] = await countHistory(k);
-        setCounts(c);
-    }, [typeKey]);
-
-    useEffect(() => { loadRecords(); }, [loadRecords]);
-
-    const handleClear = async () => {
-        if (!window.confirm(`确定清空「${AI_TYPE_LABELS[typeKey]}」的全部历史？`)) return;
-        await clearHistory(typeKey);
-        toast.success('已清空', { style: toastStyle });
-        loadRecords();
-    };
-
-    const handleExport = async () => {
-        const md = await exportHistoryMd(typeKey);
-        try {
-            const path = await save({ filters: [{ name: 'Markdown', extensions: ['md'] }], defaultPath: `AI历史-${typeKey}-${Date.now()}.md` });
-            if (path) { await writeTextFile(path, md); toast.success('导出成功', { style: toastStyle }); }
-        } catch (e) { toast.error('导出失败: ' + e.message, { style: toastStyle }); }
-    };
-
-    const handleReport = async () => {
-        if (records.length < 3) { toast.error('至少需要 3 条记录才能生成分析报告', { style: toastStyle }); return; }
-        try { abortRef.current?.abort(); } catch {}
-        const ctrl = new AbortController();
-        abortRef.current = ctrl;
-        setGenerating(true);
-        setReport('');
-        await store.load();
-        const apiConfig = {
-            apiUrl: (await store.get('ai_api_url')) || '',
-            apiKey: (await store.get('ai_api_key')) || '',
-            model: (await store.get('ai_model')) || 'gpt-4o-mini',
-            temperature: (await store.get('ai_temperature')) ?? 0.7,
-        };
-        await streamAnalysis(records, apiConfig,
-            (chunk) => setReport((p) => p + chunk),
-            () => setGenerating(false),
-            (err) => { if (err) toast.error(err, { style: toastStyle }); setGenerating(false); },
-            ctrl.signal
-        );
-    };
-
-    return (
-        <div className='p-[10px]'>
-            <div className='flex gap-[8px] mb-[10px]'>
-                <Button size='sm' variant='bordered' onPress={handleExport} isDisabled={records.length === 0}>导出 Markdown</Button>
-                <Button size='sm' variant='bordered' color='danger' onPress={handleClear} isDisabled={records.length === 0}>清空</Button>
-                <Button size='sm' color='primary' onPress={handleReport} isLoading={generating} isDisabled={records.length < 3}>
-                    {generating ? '生成中…' : '生成分析报告'}
-                </Button>
-                {generating && <Button size='sm' variant='flat' onPress={() => { abortRef.current?.abort(); setGenerating(false); }}>停止</Button>}
-            </div>
-            {(report || generating) && (
-                <Card className='mb-[10px]'>
-                    <CardBody>
-                        <div className='flex items-center justify-between mb-[8px]'>
-                            <span className='text-[14px] font-bold'>分析报告</span>
-                            <Button size='sm' variant='flat' onPress={() => setReport('')}>关闭</Button>
-                        </div>
-                        <Textarea value={report || (generating ? '▷ 生成中…' : '')} readOnly minRows={6} maxRows={18} variant='bordered' className='font-mono text-[12px]' />
-                    </CardBody>
-                </Card>
-            )}
-            <Card>
-                <CardBody>
-                    <div className='text-[13px] font-medium mb-[8px]'>最近 {records.length} 条记录</div>
-                    {records.length === 0 ? (
-                        <div className='text-default-400 text-[13px]'>暂无记录。使用轻AI/解析/对话功能后会自动保存。</div>
-                    ) : (
-                        <div className='space-y-[8px] max-h-[350px] overflow-auto'>
-                            {records.map((r) => (
-                                <div key={r.id} className='border border-default-200 rounded-[6px] p-[8px] text-[12px]'>
-                                    <div className='text-default-400 mb-[3px]'>{r.ts}</div>
-                                    <div className='mb-[3px]'><span className='font-medium'>原文：</span>{(r.source || '').slice(0, 120)}{(r.source || '').length > 120 ? '…' : ''}</div>
-                                    <div><span className='font-medium'>结果：</span>{(r.result || '').slice(0, 120)}{(r.result || '').length > 120 ? '…' : ''}</div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardBody>
-            </Card>
-        </div>
-    );
-}
-
 // ─── 主组件 ───
 export default function History() {
     const [collectionServiceList] = useConfig('collection_service_list', []);
@@ -183,16 +83,47 @@ export default function History() {
     const [total, setTotal] = useState(0);
     const [items, setItems] = useState([]);
     const [activeTab, setActiveTab] = useState('translate');
+    const pageSize = 12;
+    const [aiRefreshSeq, setAiRefreshSeq] = useState(0);
+    const [aiPage, setAiPage] = useState(1);
+    const [aiTotal, setAiTotal] = useState(0);
+    const [aiItems, setAiItems] = useState([]);
+    const [aiReport, setAiReport] = useState('');
+    const [aiGenerating, setAiGenerating] = useState(false);
+    const aiAbortRef = useRef(null);
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
+    // AI tab labels 使用 t() 动态生成，随语言切换
+    const AI_TYPE_LABELS = {
+        lightai: t('history.ai_lightai'),
+        explain: t('history.ai_explain'),
+        chat: t('history.ai_chat'),
+    };
     useEffect(() => {
         init();
         loadPluginList();
     }, []);
 
     useEffect(() => {
-        getData();
-    }, [total, page]);
+        if (activeTab === 'translate') {
+            getData();
+        }
+    }, [total, page, activeTab]);
+
+    useEffect(() => {
+        if (activeTab !== 'translate') {
+            getAiData();
+        }
+    }, [activeTab, aiPage, aiTotal]);
+
+    useEffect(() => {
+        setAiReport('');
+        setAiGenerating(false);
+        try {
+            aiAbortRef.current?.abort();
+        } catch {}
+        aiAbortRef.current = null;
+    }, [activeTab]);
 
     const init = async () => {
         const db = await Database.load('sqlite:history.db');
@@ -203,8 +134,24 @@ export default function History() {
     };
     const getData = async () => {
         const db = await Database.load('sqlite:history.db');
-        let result = await db.select('SELECT * FROM history ORDER BY id DESC LIMIT 20 OFFSET $1', [20 * (page - 1)]);
+        let result = await db.select('SELECT * FROM history ORDER BY id DESC LIMIT $1 OFFSET $2', [pageSize, pageSize * (page - 1)]);
         setItems(result);
+    };
+
+    const initAi = async (typeKey) => {
+        const cnt = await countHistory(typeKey);
+        setAiTotal(cnt);
+        setAiPage(1);
+    };
+
+    const getAiData = async () => {
+        if (!AI_TYPE_LABELS[activeTab]) return;
+        const db = await Database.load('sqlite:ai_history.db');
+        let result = await db.select(
+            'SELECT * FROM ai_history WHERE type = $1 ORDER BY id DESC LIMIT $2 OFFSET $3',
+            [activeTab, pageSize, pageSize * (aiPage - 1)]
+        );
+        setAiItems(result);
     };
 
     const getSelectedData = async (id) => {
@@ -219,6 +166,62 @@ export default function History() {
         setItems([]);
         setTotal(0);
         setPage(1);
+    };
+
+    const clearActiveTab = async () => {
+        if (activeTab === 'translate') {
+            if (!window.confirm(t('history.confirm_clear_translate'))) return;
+            await clearData();
+            toast.success(t('history.cleared'), { style: toastStyle });
+            return;
+        }
+        if (!AI_TYPE_LABELS[activeTab]) return;
+        if (!window.confirm(t('history.confirm_clear_ai', { name: AI_TYPE_LABELS[activeTab] }))) return;
+        await clearHistory(activeTab);
+        toast.success(t('history.cleared'), { style: toastStyle });
+        setAiRefreshSeq((v) => v + 1);
+        setAiItems([]);
+        setAiTotal(0);
+        setAiPage(1);
+    };
+
+    const exportTranslateMd = async () => {
+        const db = await Database.load('sqlite:history.db');
+        const rows = await db.select('SELECT * FROM history ORDER BY id DESC LIMIT 500');
+        if (!rows?.length) return t('history.empty');
+        const lines = [`# ${t('history.export_translate_title')}\n${t('history.export_time')}${new Date().toISOString().replace('T', ' ').substring(0, 19)}\n\n---\n`];
+        rows.forEach((r, i) => {
+            lines.push(`## ${i + 1}. ${formatDate(new Date(r.timestamp))}`);
+            lines.push(`**${t('history.export_service')}** ${r.service ?? ''}`);
+            lines.push(`**${t('history.export_source_lang')}** ${r.source ?? ''}`);
+            lines.push(`**${t('history.export_target_lang')}** ${r.target ?? ''}`);
+            lines.push(`**${t('history.export_source')}**\n${r.text ?? ''}`);
+            lines.push(`**${t('history.export_result')}**\n${r.result ?? ''}`);
+            lines.push('\n---\n');
+        });
+        return lines.join('\n');
+    };
+
+    const exportActiveTab = async () => {
+        try {
+            const md =
+                activeTab === 'translate'
+                    ? await exportTranslateMd()
+                    : await exportHistoryMd(activeTab);
+            const path = await save({
+                filters: [{ name: 'Markdown', extensions: ['md'] }],
+                defaultPath:
+                    activeTab === 'translate'
+                ? `${t('history.export_translate_filename')}-${Date.now()}.md`
+                        : `AI-${activeTab}-${Date.now()}.md`,
+            });
+            if (path) {
+                await writeTextFile(path, md);
+                toast.success(t('history.export_success'), { style: toastStyle });
+            }
+        } catch (e) {
+            toast.error(t('history.export_failed') + (e?.message ?? e), { style: toastStyle });
+        }
     };
     const updateData = async () => {
         const db = await Database.load('sqlite:history.db');
@@ -269,6 +272,45 @@ export default function History() {
         setPluginList({ ...temp });
     };
 
+    const generateAiReport = async () => {
+        if (aiGenerating) return;
+        const apiUrl = (await store.get('ai_api_url')) ?? 'https://api.openai.com/v1/chat/completions';
+        const apiKey = (await store.get('ai_api_key')) ?? '';
+        const model = (await store.get('ai_model')) ?? 'gpt-4o-mini';
+        const temperature = (await store.get('ai_temperature')) ?? 0.7;
+        if (!apiKey) {
+            toast.error(t('history.error_no_api_key'), { style: toastStyle });
+            return;
+        }
+        const records = await getHistory(activeTab, 200);
+        if (records.length < 3) {
+            toast.error(t('history.error_insufficient'), { style: toastStyle });
+            return;
+        }
+        setAiReport('');
+        setAiGenerating(true);
+        const controller = new AbortController();
+        aiAbortRef.current = controller;
+        await streamAnalysis(
+            records,
+            { apiUrl, apiKey, model, temperature },
+            (chunk) => setAiReport((prev) => prev + chunk),
+            (_full) => { setAiGenerating(false); aiAbortRef.current = null; },
+            (err) => {
+                setAiGenerating(false);
+                aiAbortRef.current = null;
+                if (err) toast.error(t('history.error_generate') + err, { style: toastStyle });
+            },
+            controller.signal
+        );
+    };
+
+    const stopAiReport = () => {
+        try { aiAbortRef.current?.abort(); } catch {}
+        aiAbortRef.current = null;
+        setAiGenerating(false);
+    };
+
     return (
         pluginList !== null && (
             <>
@@ -276,17 +318,22 @@ export default function History() {
                 {/* 历史类型 Tab */}
                 <Tabs
                     selectedKey={activeTab}
-                    onSelectionChange={(k) => setActiveTab(k)}
+                    onSelectionChange={(k) => {
+                        setActiveTab(k);
+                        if (k === 'translate') {
+                            setPage(1);
+                            return;
+                        }
+                        initAi(k);
+                    }}
                     size='sm'
                     className='px-0 mb-[6px]'
                 >
-                    <Tab key='translate' title={`翻译 (${total})`}>
+                    <Tab key='translate' title={`${t('history.translate_tab')} (${total})`}>
                     {/* 翻译历史内容在下方 */}
                     </Tab>
                     {Object.entries(AI_TYPE_LABELS).map(([k, v]) => (
-                        <Tab key={k} title={v}>
-                            <AIHistoryPanel typeKey={k} />
-                        </Tab>
+                        <Tab key={k} title={v} />
                     ))}
                 </Tabs>
                 {/* 只有翻译 Tab 显示以下内容 */}
@@ -299,7 +346,7 @@ export default function History() {
                     aria-label='History Table'
                     classNames={{
                         base: `${
-                            osType === 'Linux' ? 'h-[calc(100vh-130px)]' : 'h-[calc(100vh-100px)]'
+                            osType === 'Linux' ? 'h-[calc(100vh-170px)]' : 'h-[calc(100vh-140px)]'
                         } overflow-y-auto`,
                         td: 'px-0',
                     }}
@@ -379,25 +426,131 @@ export default function History() {
                         }
                     </TableBody>
                 </Table>
-                <div className='mt-[8px] flex justify-around'>
-                    <Pagination
-                        showControls
-                        isCompact
-                        total={Math.ceil(total / 20)}
-                        page={page}
-                        onChange={setPage}
-                    />
-                    <Button
-                        size='sm'
-                        className='my-auto'
-                        onPress={clearData}
-                    >
-                        {t('common.clear')}
-                    </Button>
-                </div>
-
                 </>
                 )}
+
+                {activeTab !== 'translate' && AI_TYPE_LABELS[activeTab] && (
+                    <>
+                        {(aiReport || aiGenerating) && (
+                            <Card className='mb-[10px]'>
+                                <CardBody>
+                                    <div className='flex items-center justify-between mb-[8px]'>
+                        <span className='text-[14px] font-bold'>{t('history.report_title')}</span>
+                                        <Button size='sm' variant='flat' onPress={() => setAiReport('')}>{t('common.close')}</Button>
+                                    </div>
+                                    <Textarea
+                                        value={aiReport || (aiGenerating ? t('history.generating_placeholder') : '')}
+                                        readOnly
+                                        minRows={6}
+                                        maxRows={18}
+                                        variant='bordered'
+                                        className='font-mono text-[12px]'
+                                    />
+                                </CardBody>
+                            </Card>
+                        )}
+                        <Table
+                            fullWidth
+                            hideHeader
+                            selectionMode='single'
+                            selectionBehavior='toggle'
+                            aria-label='AI History Table'
+                            classNames={{
+                                base: `${
+                                    osType === 'Linux' ? 'h-[calc(100vh-170px)]' : 'h-[calc(100vh-140px)]'
+                                } overflow-y-auto`,
+                                td: 'px-0',
+                            }}
+                            onRowAction={(id) => {
+                                const found = aiItems.find((x) => String(x.id) === String(id));
+                                if (!found) return;
+                                setSelectItem({ ...found, __type: 'ai' });
+                                onOpen();
+                            }}
+                        >
+                            <TableHeader>
+                                <TableColumn key='icon' />
+                                <TableColumn key='source' />
+                                <TableColumn key='result' />
+                                <TableColumn key='ts' />
+                            </TableHeader>
+                            <TableBody emptyContent={'No History to display.'} items={aiItems}>
+                                {(item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>
+                                            <div className='h-[18px] w-[18px] my-auto mr-[8px] rounded-[4px] bg-default-200' />
+                                        </TableCell>
+                                        <TableCell>
+                                            <p
+                                                className={`whitespace-nowrap ${
+                                                    osType === 'Linux'
+                                                        ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
+                                                        : 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
+                                                } text-ellipsis overflow-hidden`}
+                                            >
+                                                {item.source}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell>
+                                            <p
+                                                className={`whitespace-nowrap ${
+                                                    osType === 'Linux'
+                                                        ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
+                                                        : 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
+                                                } text-ellipsis overflow-hidden`}
+                                            >
+                                                {item.result}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell>
+                                            <p className='text-center whitespace-nowrap w-[140px]'>{item.ts}</p>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </>
+                )}
+
+                <div className='mt-[4px] flex justify-around'>
+                    {activeTab === 'translate' ? (
+                        <Pagination
+                            showControls
+                            isCompact
+                            total={Math.ceil(total / pageSize)}
+                            page={page}
+                            onChange={setPage}
+                        />
+                    ) : AI_TYPE_LABELS[activeTab] ? (
+                        <Pagination
+                            showControls
+                            isCompact
+                            total={Math.ceil(aiTotal / pageSize)}
+                            page={aiPage}
+                            onChange={setAiPage}
+                        />
+                    ) : (
+                        <div />
+                    )}
+                    <ButtonGroup className='my-auto'>
+                        {AI_TYPE_LABELS[activeTab] && (
+                            <Button
+                                size='sm'
+                                color='primary'
+                                isLoading={aiGenerating}
+                                onPress={generateAiReport}
+                                isDisabled={aiTotal < 3}
+                            >
+                                {aiGenerating ? t('history.generating_btn') : t('history.generate_report')}
+                            </Button>
+                        )}
+                        {AI_TYPE_LABELS[activeTab] && aiGenerating && (
+                            <Button size='sm' variant='flat' onPress={stopAiReport}>{t('history.stop')}</Button>
+                        )}
+                        <Button size='sm' variant='flat' onPress={exportActiveTab}>{t('history.export')}</Button>
+                        <Button size='sm' variant='flat' onPress={clearActiveTab}>{t('common.clear')}</Button>
+                    </ButtonGroup>
+                </div>
                 <Modal
                     isOpen={isOpen}
                     onOpenChange={onOpenChange}
@@ -409,7 +562,9 @@ export default function History() {
                                 <>
                                     <ModalHeader>
                                         <div className='flex justify-start'>
-                                            {getServiceSouceType(selectedItem.service) === ServiceSourceType.PLUGIN ? (
+                                            {selectedItem.__type === 'ai' ? (
+                                        <span className='text-[14px] font-bold'>{AI_TYPE_LABELS[activeTab]}</span>
+                                            ) : getServiceSouceType(selectedItem.service) === ServiceSourceType.PLUGIN ? (
                                                 <img
                                                     src={
                                                         pluginList['translate'][getServiceName(selectedItem.service)]
@@ -429,84 +584,56 @@ export default function History() {
                                     </ModalHeader>
                                     <ModalBody>
                                         <Textarea
-                                            value={selectedItem.text}
+                                            label={t('history.modal_before')}
+                                            value={selectedItem.__type === 'ai' ? selectedItem.source : selectedItem.text}
+                                            readOnly={selectedItem.__type === 'ai'}
                                             onChange={(e) => {
+                                                if (selectedItem.__type === 'ai') return;
                                                 setSelectItem({ ...selectedItem, text: e.target.value });
                                             }}
                                         />
                                         <Textarea
+                                            label={t('history.modal_after')}
                                             value={selectedItem.result}
+                                            readOnly={selectedItem.__type === 'ai'}
                                             onChange={(e) => {
+                                                if (selectedItem.__type === 'ai') return;
                                                 setSelectItem({ ...selectedItem, result: e.target.value });
                                             }}
                                         />
                                     </ModalBody>
-                                    <ModalFooter className='flex justify-between'>
-                                        <Button
-                                            color='primary'
-                                            onPress={async () => {
-                                                await updateData();
-                                                onClose();
-                                            }}
-                                        >
-                                            {t('common.save')}
-                                        </Button>
-                                        <ButtonGroup>
-                                            {collectionServiceList &&
-                                                collectionServiceList.map((instanceKey) => {
-                                                    return (
-                                                        <Button
-                                                            key={instanceKey}
-                                                            isIconOnly
-                                                            variant='light'
-                                                            onPress={async () => {
-                                                                if (
-                                                                    getServiceSouceType(instanceKey) ===
-                                                                    ServiceSourceType.PLUGIN
-                                                                ) {
-                                                                    const pluginConfig =
-                                                                        (await store.get(instanceKey)) ?? {};
-                                                                    let [func, utils] = await invoke_plugin(
-                                                                        'collection',
-                                                                        getServiceName(instanceKey)
-                                                                    );
-                                                                    func(selectedItem.text, selectedItem.result, {
-                                                                        config: pluginConfig,
-                                                                        utils,
-                                                                    }).then(
-                                                                        (_) => {
-                                                                            toast.success(
-                                                                                t('translate.add_collection_success'),
-                                                                                {
-                                                                                    style: toastStyle,
-                                                                                }
-                                                                            );
-                                                                        },
-                                                                        (e) => {
-                                                                            toast.error(e.toString(), {
-                                                                                style: toastStyle,
-                                                                            });
-                                                                        }
-                                                                    );
-                                                                } else {
-                                                                    const instanceConfig =
-                                                                        (await store.get(instanceKey)) ?? {};
-                                                                    builtinCollectionServices[
-                                                                        getServiceName(instanceKey)
-                                                                    ]
-                                                                        .collection(
-                                                                            selectedItem.text,
-                                                                            selectedItem.result,
-                                                                            {
-                                                                                config: instanceConfig,
-                                                                            }
-                                                                        )
-                                                                        .then(
+                                    {selectedItem.__type === 'ai' ? (
+                                        <ModalFooter className='flex justify-end'>
+                                            <Button onPress={onClose}>{t('common.close')}</Button>
+                                        </ModalFooter>
+                                    ) : (
+                                        <ModalFooter className='flex justify-end'>
+                                            <ButtonGroup>
+                                                {collectionServiceList &&
+                                                    collectionServiceList.map((instanceKey) => {
+                                                        return (
+                                                            <Button
+                                                                key={instanceKey}
+                                                                isIconOnly
+                                                                variant='light'
+                                                                onPress={async () => {
+                                                                    if (
+                                                                        getServiceSouceType(instanceKey) ===
+                                                                        ServiceSourceType.PLUGIN
+                                                                    ) {
+                                                                        const pluginConfig =
+                                                                            (await store.get(instanceKey)) ?? {};
+                                                                        let [func, utils] = await invoke_plugin(
+                                                                            'collection',
+                                                                            getServiceName(instanceKey)
+                                                                        );
+                                                                        func(selectedItem.text, selectedItem.result, {
+                                                                            config: pluginConfig,
+                                                                            utils,
+                                                                        }).then(
                                                                             (_) => {
                                                                                 toast.success(
-                                                                                    t(
-                                                                                        'translate.add_collection_success'
-                                                                                    ),
+                                                                                    t('translate.add_collection_success'),
                                                                                     {
                                                                                         style: toastStyle,
                                                                                     }
@@ -518,27 +645,67 @@ export default function History() {
                                                                                 });
                                                                             }
                                                                         );
-                                                                }
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={
-                                                                    getServiceSouceType(instanceKey) ===
-                                                                    ServiceSourceType.PLUGIN
-                                                                        ? pluginList['collection'][
-                                                                              getServiceName(instanceKey)
-                                                                          ].icon
-                                                                        : builtinCollectionServices[
-                                                                              getServiceName(instanceKey)
-                                                                          ].info.icon
-                                                                }
-                                                                className='h-[24px] w-[24px]'
-                                                            />
-                                                        </Button>
-                                                    );
-                                                })}
-                                        </ButtonGroup>
-                                    </ModalFooter>
+                                                                    } else {
+                                                                        const instanceConfig =
+                                                                            (await store.get(instanceKey)) ?? {};
+                                                                        builtinCollectionServices[
+                                                                            getServiceName(instanceKey)
+                                                                        ]
+                                                                            .collection(
+                                                                                selectedItem.text,
+                                                                                selectedItem.result,
+                                                                                {
+                                                                                    config: instanceConfig,
+                                                                                }
+                                                                            )
+                                                                            .then(
+                                                                                (_) => {
+                                                                                    toast.success(
+                                                                                        t(
+                                                                                            'translate.add_collection_success'
+                                                                                        ),
+                                                                                        {
+                                                                                            style: toastStyle,
+                                                                                        }
+                                                                                    );
+                                                                                },
+                                                                                (e) => {
+                                                                                    toast.error(e.toString(), {
+                                                                                        style: toastStyle,
+                                                                                    });
+                                                                                }
+                                                                            );
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <img
+                                                                    src={
+                                                                        getServiceSouceType(instanceKey) ===
+                                                                        ServiceSourceType.PLUGIN
+                                                                            ? pluginList['collection'][
+                                                                                  getServiceName(instanceKey)
+                                                                              ].icon
+                                                                            : builtinCollectionServices[
+                                                                                  getServiceName(instanceKey)
+                                                                              ].info.icon
+                                                                    }
+                                                                    className='h-[24px] w-[24px]'
+                                                                />
+                                                            </Button>
+                                                        );
+                                                    })}
+                                            </ButtonGroup>
+                                            <Button
+                                                color='primary'
+                                                onPress={async () => {
+                                                    await updateData();
+                                                    onClose();
+                                                }}
+                                            >
+                                                {t('common.save')}
+                                            </Button>
+                                        </ModalFooter>
+                                    )}
                                 </>
                             )
                         }

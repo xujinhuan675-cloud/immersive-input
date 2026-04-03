@@ -1,145 +1,62 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BsInfoSquareFill } from 'react-icons/bs';
-import { PiTranslateFill } from 'react-icons/pi';
-import { AiFillAppstore } from 'react-icons/ai';
+import { PiTranslateFill, PiTextboxFill } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
-import { PiTextboxFill } from 'react-icons/pi';
-import { MdKeyboardAlt } from 'react-icons/md';
-import { MdExtension } from 'react-icons/md';
-import { MdAccountCircle } from 'react-icons/md';
-import { AiFillCloud } from 'react-icons/ai';
-import { FaHistory } from 'react-icons/fa';
+import {
+    MdKeyboardAlt, MdExtension, MdAccountCircle,
+    MdSettings, MdCloudUpload, MdInfo, MdHistory,
+} from 'react-icons/md';
 import { TbBrain } from 'react-icons/tb';
 import { Button } from '@nextui-org/react';
 import React from 'react';
+
+const MENU = [
+    { path: '/account',  Icon: MdAccountCircle, key: 'account'  },
+    { path: '/general',  Icon: MdSettings,      key: 'general'  },
+    { path: '/translate',Icon: PiTranslateFill, key: 'translate'},
+    { path: '/recognize',Icon: PiTextboxFill,   key: 'recognize'},
+    { path: '/hotkey',   Icon: MdKeyboardAlt,   key: 'hotkey'  },
+    { path: '/service',  Icon: MdExtension,     key: 'service' },
+    { path: '/history',  Icon: MdHistory,       key: 'history' },
+    { path: '/backup',   Icon: MdCloudUpload,   key: 'backup'  },
+    { path: '/ai',       Icon: TbBrain,         key: 'ai'      },
+    { path: '/about',    Icon: MdInfo,          key: 'about'   },
+];
 
 export default function SideBar() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
 
-    function setStyle(pathname) {
-        return location.pathname.includes(pathname) ? 'flat' : 'light';
-    }
+    const isActive = (path) => location.pathname.includes(path);
 
     return (
         <div className='mx-[12px] overflow-y-auto'>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/account')}
-                className='mb-[5px]'
-                onPress={() => navigate('/account')}
-                startContent={<MdAccountCircle className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.account.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/general')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/general');
-                }}
-                startContent={<AiFillAppstore className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.general.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/translate')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/translate');
-                }}
-                startContent={<PiTranslateFill className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.translate.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/recognize')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/recognize');
-                }}
-                startContent={<PiTextboxFill className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.recognize.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/hotkey')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/hotkey');
-                }}
-                startContent={<MdKeyboardAlt className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.hotkey.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/service')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/service');
-                }}
-                startContent={<MdExtension className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.service.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/history')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/history');
-                }}
-                startContent={<FaHistory className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.history.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/backup')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/backup');
-                }}
-                startContent={<AiFillCloud className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.backup.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/ai')}
-                className='mb-[5px]'
-                onPress={() => { navigate('/ai'); }}
-                startContent={<TbBrain className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.ai.label')}</div>
-            </Button>
-            <Button
-                fullWidth
-                size='lg'
-                variant={setStyle('/about')}
-                className='mb-[5px]'
-                onPress={() => {
-                    navigate('/about');
-                }}
-                startContent={<BsInfoSquareFill className='text-[24px]' />}
-            >
-                <div className='w-full'>{t('config.about.label')}</div>
-            </Button>
+            {MENU.map(({ path, Icon, key }) => (
+                <Button
+                    key={path}
+                    fullWidth
+                    size='lg'
+                    variant={isActive(path) ? 'flat' : 'light'}
+                    className='mb-[5px]'
+                    onPress={() => navigate(path)}
+                    startContent={
+                        <Icon
+                            className={isActive(path) ? 'text-primary' : 'text-default-400'}
+                            style={{ fontSize: 20, transition: 'color 0.15s' }}
+                        />
+                    }
+                >
+                    <div
+                        className={`w-full text-sm ${
+                            isActive(path)
+                                ? 'font-semibold text-foreground'
+                                : 'font-normal text-default-600'
+                        }`}
+                    >
+                        {t(`config.${key}.label`)}
+                    </div>
+                </Button>
+            ))}
         </div>
     );
 }

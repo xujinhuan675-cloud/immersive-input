@@ -1,5 +1,5 @@
 import { useLocation, useRoutes } from 'react-router-dom';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { appWindow } from '@tauri-apps/api/window';
 import { Card, Divider } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
@@ -38,14 +38,17 @@ export default function Config() {
                         data-tauri-drag-region='true'
                     />
                 </div>
-                <div className='p-[5px]'>
-                    <div data-tauri-drag-region='true'>
+                <div className='px-[5px] pt-[2px] pb-[10px]'>
+                    <div data-tauri-drag-region='true' className='flex flex-col items-center gap-[6px]'>
                         <img
                             alt='Immersive Input'
                             src='icon.svg'
-                            className='h-[60px] w-[60px] m-auto mb-[30px]'
+                            className='h-[52px] w-[52px]'
                             draggable={false}
                         />
+                        <span className='text-[13px] font-semibold text-default-600 tracking-wide select-none'>
+                            Immersive Input
+                        </span>
                     </div>
                 </div>
                 <SideBar />
