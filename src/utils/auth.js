@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 /**
  * Auth 工具层
  *
@@ -31,30 +33,30 @@ const STORAGE_KEYS = {
     REMEMBER_EMAIL: 'auth_remember_email',
 };
 
-// ── Mock 用户数据库（仅开发阶段使用） ───────────────────────────────
-const MOCK_USERS = [
-    {
-        id: 'mock-user-001',
-        email: 'demo@example.com',
-        display_name: 'Demo User',
-        password: 'Demo@123456',
-        membership_tier: 'free',
-        membership_status: 'active',
-        points_balance: 100,
-        points_total_earned: 100,
-        subscription_expires_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    },
-];
+function getAuthApiBase() {
+    const base = import.meta.env.VITE_AUTH_API_BASE;
+    if (!base) return '';
+    return String(base).replace(/\/$/, '');
+}
+
+async function postJson(path, payload) {
+    const res = await fetch(`${getAuthApiBase()}${path}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload ?? {}),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+        throw new Error(data?.message || '请求失败');
+    }
+    return data;
+}
 
 // ── 工具函数 ─────────────────────────────────────────────────────────
 function delay(ms = 800) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function mockToken(userId) {
-    return `mock_token_${userId}_${Date.now()}`;
 }
 
 // ── 核心认证接口 ─────────────────────────────────────────────────────
@@ -70,21 +72,25 @@ function mockToken(userId) {
  * return { user: data.user, token: data.session.access_token };
  */
 export async function loginWithPassword({ email, password, rememberMe = false }) {
-    await delay();
-    const user = MOCK_USERS.find((u) => u.email === email && u.password === password);
-    if (!user) {
-        throw new Error('邮箱或密码错误');
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    const user = data.user;
+    const token = data.session?.access_token;
+    if (!user || !token) {
+        throw new Error('登录失败');
     }
-    const { password: _, ...safeUser } = user;
-    const token = mockToken(user.id);
     localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(safeUser));
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
+        id: user.id,
+        email: user.email,
+        display_name: user.user_metadata?.display_name,
+    }));
     if (rememberMe) {
         localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, email);
     } else {
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
     }
-    return { user: safeUser, token };
+    return { user, token };
 }
 
 /**
@@ -101,33 +107,27 @@ export async function loginWithPassword({ email, password, rememberMe = false })
  * return { user: data.user, token: data.session?.access_token };
  */
 export async function registerWithEmail({ username, email, password, code }) {
-    await delay();
-    // Mock 验证码校验（正式接入后由后端校验）
-    if (code !== '123456') {
-        throw new Error('验证码错误');
-    }
-    const exists = MOCK_USERS.find((u) => u.email === email);
-    if (exists) {
-        throw new Error('该邮箱已被注册');
-    }
-    const newUser = {
-        id: `mock-user-${Date.now()}`,
+    await postJson('/api/auth/register', {
+        username,
         email,
-        display_name: username,
-        // 预留会员与积分字段
-        membership_tier: 'free',
-        membership_status: 'active',
-        points_balance: 0,
-        points_total_earned: 0,
-        subscription_expires_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    };
-    MOCK_USERS.push({ ...newUser, password });
-    const token = mockToken(newUser.id);
+        password,
+        code,
+    });
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    const user = data.user;
+    const token = data.session?.access_token;
+    if (!user || !token) {
+        throw new Error('登录失败');
+    }
     localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-    return { user: newUser, token };
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
+        id: user.id,
+        email: user.email,
+        display_name: user.user_metadata?.display_name,
+    }));
+    return { user, token };
 }
 
 /**
@@ -144,12 +144,8 @@ export async function registerWithEmail({ username, email, password, code }) {
  * if (!res.ok) throw new Error((await res.json()).message);
  */
 export async function sendEmailCode({ email }) {
-    await delay(600);
-    if (!email || !email.includes('@')) {
-        throw new Error('请输入有效的邮箱地址');
-    }
-    // Mock: 固定验证码 123456，控制台提示
-    console.log(`[Mock] 验证码已发送至 ${email}，固定验证码: 123456`);
+    const data = await postJson('/api/auth/send-register-code', { email });
+    return data;
 }
 
 /**
@@ -162,11 +158,8 @@ export async function sendEmailCode({ email }) {
  * if (error) throw new Error(error.message);
  */
 export async function forgotPassword({ email }) {
-    await delay();
-    if (!email || !email.includes('@')) {
-        throw new Error('请输入有效的邮箱地址');
-    }
-    console.log(`[Mock] 密码重置邮件已发送至 ${email}`);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw new Error(error.message);
 }
 
 /**
@@ -176,7 +169,8 @@ export async function forgotPassword({ email }) {
  * await supabase.auth.signOut();
  */
 export async function logout() {
-    await delay(200);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new Error(error.message);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Input, Button } from '@nextui-org/react';
 import { HiEye, HiEyeOff } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
@@ -25,9 +25,9 @@ export default function RegisterForm({ onSuccess }) {
     const [username, setUsername] = useState('');
     const [emailPrefix, setEmailPrefix] = useState('');
     const [emailDomain, setEmailDomain] = useState('qq.com');
+    const [code, setCode] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [code, setCode] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -37,30 +37,41 @@ export default function RegisterForm({ onSuccess }) {
 
     const fullEmail = emailPrefix.trim() ? `${emailPrefix.trim()}@${emailDomain}` : '';
 
-    // 清理计时器
-    useEffect(() => () => clearInterval(timerRef.current), []);
-
-    function startCountdown(seconds = 60) {
-        setCountdown(seconds);
-        clearInterval(timerRef.current);
-        timerRef.current = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    }
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+        };
+    }, []);
 
     async function handleSendCode() {
         if (!emailPrefix.trim()) { toast.error(t('login.error_email_prefix')); return; }
+        if (!fullEmail.includes('@')) { toast.error(t('login.error_email_required')); return; }
+        if (countdown > 0 || codeSending) return;
+
         setCodeSending(true);
         try {
-            await sendEmailCode({ email: fullEmail });
-            startCountdown(60);
+            const resp = await sendEmailCode({ email: fullEmail });
+            const cd = Number(resp?.cooldown_seconds ?? 60);
             toast.success(t('login.send_success'));
+            setCountdown(cd);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+            }
+            timerRef.current = setInterval(() => {
+                setCountdown((c) => {
+                    if (c <= 1) {
+                        if (timerRef.current) {
+                            clearInterval(timerRef.current);
+                            timerRef.current = null;
+                        }
+                        return 0;
+                    }
+                    return c - 1;
+                });
+            }, 1000);
         } catch (e) {
             toast.error(e.message ?? t('login.error_sending'));
         } finally {
@@ -71,14 +82,17 @@ export default function RegisterForm({ onSuccess }) {
     async function handleRegister() {
         if (!username.trim()) { toast.error(t('login.error_username')); return; }
         if (!emailPrefix.trim()) { toast.error(t('login.error_email_required')); return; }
+        if (!code.trim()) { toast.error(t('login.error_code')); return; }
         if (!password) { toast.error(t('login.error_password_required')); return; }
         if (password.length < 8) { toast.error(t('login.error_password_length')); return; }
         if (password !== confirmPassword) { toast.error(t('login.error_password_mismatch')); return; }
-        if (!code.trim()) { toast.error(t('login.error_code')); return; }
         setLoading(true);
         try {
             const result = await registerWithEmail({
-                username: username.trim(), email: fullEmail, password, code: code.trim(),
+                username: username.trim(),
+                email: fullEmail,
+                password,
+                code: code.trim(),
             });
             toast.success(t('login.success_register'));
             onSuccess?.(result);
@@ -203,9 +217,9 @@ export default function RegisterForm({ onSuccess }) {
 
             {/* 验证码 */}
             <div className='flex flex-col gap-1'>
-                <span className='text-xs text-default-500 pl-1'>{t('login.code_label')}</span>
-                <div className='flex gap-2'>
+                <div className='flex items-center gap-2'>
                     <Input
+                        label={t('login.code_label')}
                         placeholder={t('login.code_placeholder')}
                         value={code}
                         onValueChange={setCode}
@@ -214,16 +228,16 @@ export default function RegisterForm({ onSuccess }) {
                         classNames={{
                             base: 'flex-1',
                             inputWrapper: INPUT_WRAPPER,
+                            label: 'text-default-500 text-xs',
                         }}
                     />
                     <Button
                         size='sm'
-                        variant='bordered'
                         radius='lg'
-                        className='h-[36px] px-3 whitespace-nowrap text-xs border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6]/10'
-                        isDisabled={countdown > 0 || codeSending}
                         isLoading={codeSending}
+                        isDisabled={countdown > 0}
                         onPress={handleSendCode}
+                        className='shrink-0'
                     >
                         {countdown > 0 ? t('login.resend', { n: countdown }) : t('login.send_code')}
                     </Button>
