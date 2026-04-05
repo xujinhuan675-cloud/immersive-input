@@ -11,7 +11,8 @@
         "tauri": "tauri",
         "updater": "node updater/updater.mjs",
         "updater:fixRuntime": "node updater/updater-for-fix-runtime.mjs",
-        "gen-icon": "node scripts/gen-icon.mjs"
+        "gen-icon": "node scripts/gen-icon.mjs",
+        "generate-update": "node scripts/generate-update-manifest.mjs"
     },
     "dependencies": {
         "@nextui-org/react": "^2.4.8",

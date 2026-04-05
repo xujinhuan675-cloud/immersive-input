@@ -123,8 +123,10 @@
         "updater": {
             "active": true,
             "dialog": false,
-            "endpoints": [],
-            "pubkey": ""
+            "endpoints": [
+                "https://github.com/xujinhuan675-cloud/immersive-input/releases/latest/download/latest.json"
+            ],
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJCNDY4NjhGNTVFRjZFNjMKUldSamJ1OVZqNFpHSzFmV01Db0JCbXJzY2JpZmoyYmpDN0RMTlRZOENlWk1jUG1kdzM4VFYvem0K"
         }
     }
 }

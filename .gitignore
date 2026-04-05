@@ -17,6 +17,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Tauri updater files (sensitive)
+*.key
+latest.json
+
 # Editor directories and files
 .idea
 .DS_Store
