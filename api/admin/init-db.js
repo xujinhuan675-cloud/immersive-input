@@ -33,6 +33,7 @@ export default async function handler(req, res) {
         const pool = getDbPool();
         const client = await pool.connect();
         try {
+            // 创建表
             await client.query(`
                 create table if not exists public.email_otps (
                   email text primary key,
@@ -44,7 +45,12 @@ export default async function handler(req, res) {
                 );
             `);
 
+            // 启用 RLS（幂等操作）
             await client.query('alter table public.email_otps enable row level security;');
+
+            // 创建索引（幂等操作）
+            await client.query('create index if not exists idx_email_otps_expires_at on public.email_otps(expires_at);');
+            await client.query('create index if not exists idx_email_otps_cooldown_until on public.email_otps(cooldown_until);');
         } finally {
             client.release();
             await pool.end();
