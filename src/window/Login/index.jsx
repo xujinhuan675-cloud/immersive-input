@@ -3,22 +3,37 @@ import { appWindow } from '@tauri-apps/api/window';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { HiGlobeAlt } from 'react-icons/hi';
 
 import WindowControl from '../../components/WindowControl';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ResetPasswordForm from './components/ResetPasswordForm';
+import { getLanguagePreference, saveLanguagePreference } from '../../utils/auth';
 import { osType } from '../../utils/env';
 
 export default function Login({ embedded = false, onSuccess }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [tab, setTab] = useState('login'); // 'login' | 'register' | 'reset'
 
     useEffect(() => {
+        // 读取保存的语言偏好，如果没有则默认英文
+        const savedLanguage = getLanguagePreference();
+        if (i18n.language !== savedLanguage) {
+            i18n.changeLanguage(savedLanguage);
+        }
+        
         if (!embedded && appWindow.label === 'login') {
             appWindow.show();
         }
-    }, [embedded]);
+    }, [embedded, i18n]);
+
+    function toggleLanguage() {
+        const newLang = i18n.language === 'zh_cn' ? 'en' : 'zh_cn';
+        i18n.changeLanguage(newLang);
+        // 保存语言偏好
+        saveLanguagePreference(newLang);
+    }
 
     function handleSuccess({ user }) {
         // 登录/注册成功后的处理
@@ -77,6 +92,16 @@ export default function Login({ embedded = false, onSuccess }) {
                         <p className='text-xs text-default-400 mt-1 tracking-widest'>
                             {t('login.subtitle')}
                         </p>
+                        
+                        {/* 语言切换按钮 */}
+                        <button
+                            onClick={toggleLanguage}
+                            className='mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs text-default-600 hover:text-primary hover:bg-default-100 rounded-lg transition-colors'
+                            title={i18n.language === 'zh_cn' ? 'Switch to English' : '切换到中文'}
+                        >
+                            <HiGlobeAlt className='text-base' />
+                            <span>{i18n.language === 'zh_cn' ? 'English' : '中文'}</span>
+                        </button>
                     </div>
 
                     {/* Tab 切换 */}

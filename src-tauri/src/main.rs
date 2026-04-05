@@ -95,12 +95,9 @@ fn main() {
             // Init Config
             info!("Init Config Store");
             init_config(app);
-            // Check First Run
-            if is_first_run() {
-                // Open Config Window
-                info!("First Run, opening config window");
-                config_window();
-            }
+            // Always open Config Window on startup (for login check)
+            info!("Opening config window for authentication");
+            config_window();
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
             app.manage(VaultModeWrapper(Mutex::new(String::new())));

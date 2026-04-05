@@ -19,9 +19,13 @@ import Config from './window/Config';
 import Vault from './window/Vault';
 import Phrases from './window/Phrases';
 import Login from './window/Login';
+import AuthGuard from './components/AuthGuard';
 import { useConfig } from './hooks';
 import './style.css';
 import './i18n';
+
+// 需要认证的窗口列表
+const authRequiredWindows = ['config', 'translate', 'light_ai', 'explain', 'chat', 'recognize', 'vault', 'phrases'];
 
 const windowMap = {
     translate: <Translate />,
@@ -127,5 +131,15 @@ export default function App() {
         }
     }, [appFont, appFallbackFont, appFontSize]);
 
-    return <BrowserRouter>{windowMap[appWindow.label]}</BrowserRouter>;
+    return (
+        <BrowserRouter>
+            {authRequiredWindows.includes(appWindow.label) ? (
+                <AuthGuard showWelcome={appWindow.label === 'config'}>
+                    {windowMap[appWindow.label]}
+                </AuthGuard>
+            ) : (
+                windowMap[appWindow.label]
+            )}
+        </BrowserRouter>
+    );
 }

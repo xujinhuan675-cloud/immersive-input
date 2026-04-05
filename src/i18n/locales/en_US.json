@@ -209,8 +209,8 @@
                 "login_btn": "Sign In / Register",
                 "logout": "Logout",
                 "logout_success": "Logged out",
-                "tier_free": "Free",
-                "tier_basic": "Basic",
+                "tier_free": "Basic",
+                "tier_basic": "Standard",
                 "tier_pro": "Pro",
                 "tier_enterprise": "Enterprise"
             },
@@ -268,6 +268,8 @@
             }
         },
         "login": {
+            "welcome_title": "Welcome to Immersive Input",
+            "welcome_subtitle": "Please sign in to continue",
             "subtitle": "Text Selection \u00b7 AI Analysis",
             "tab_login": "Sign In",
             "tab_register": "Register",

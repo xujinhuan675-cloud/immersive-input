@@ -31,7 +31,28 @@ const STORAGE_KEYS = {
     USER: 'auth_user',
     TOKEN: 'auth_token',
     REMEMBER_EMAIL: 'auth_remember_email',
+    REMEMBER_PASSWORD: 'auth_remember_password',
+    LANGUAGE_PREFERENCE: 'auth_language_preference',
 };
+
+// 简单的加密/解密函数（使用 Base64 + 简单混淆）
+// 注意：这不是强加密，只是防止明文存储
+function encryptPassword(password) {
+    if (!password) return '';
+    const encoded = btoa(unescape(encodeURIComponent(password)));
+    // 添加简单混淆
+    return encoded.split('').reverse().join('');
+}
+
+function decryptPassword(encrypted) {
+    if (!encrypted) return '';
+    try {
+        const decoded = encrypted.split('').reverse().join('');
+        return decodeURIComponent(escape(atob(decoded)));
+    } catch {
+        return '';
+    }
+}
 
 function getAuthApiBase() {
     const base = import.meta.env.VITE_AUTH_API_BASE;
@@ -87,8 +108,10 @@ export async function loginWithPassword({ email, password, rememberMe = false })
     }));
     if (rememberMe) {
         localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, email);
+        localStorage.setItem(STORAGE_KEYS.REMEMBER_PASSWORD, encryptPassword(password));
     } else {
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
+        localStorage.removeItem(STORAGE_KEYS.REMEMBER_PASSWORD);
     }
     return { user, token };
 }
@@ -194,6 +217,7 @@ export async function logout() {
     if (error) throw new Error(error.message);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
+    // 注意：不删除记住的邮箱和密码，以便下次登录使用
 }
 
 // ── 用户信息接口 ─────────────────────────────────────────────────────
@@ -223,6 +247,31 @@ export function getCurrentUser() {
  */
 export function getRememberedEmail() {
     return localStorage.getItem(STORAGE_KEYS.REMEMBER_EMAIL) || '';
+}
+
+/**
+ * 获取已记住的密码（解密后）
+ * @returns {string}
+ */
+export function getRememberedPassword() {
+    const encrypted = localStorage.getItem(STORAGE_KEYS.REMEMBER_PASSWORD) || '';
+    return decryptPassword(encrypted);
+}
+
+/**
+ * 保存语言偏好
+ * @param {string} language - 语言代码（如 'en', 'zh_cn'）
+ */
+export function saveLanguagePreference(language) {
+    localStorage.setItem(STORAGE_KEYS.LANGUAGE_PREFERENCE, language);
+}
+
+/**
+ * 获取保存的语言偏好
+ * @returns {string} 语言代码，如果没有保存则返回 'en'（默认英文）
+ */
+export function getLanguagePreference() {
+    return localStorage.getItem(STORAGE_KEYS.LANGUAGE_PREFERENCE) || 'en';
 }
 
 // ── 扩展接口预留（会员 & 积分） ──────────────────────────────────────

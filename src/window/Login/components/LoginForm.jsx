@@ -4,12 +4,12 @@ import { HiEye, HiEyeOff } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
-import { loginWithPassword, getRememberedEmail } from '../../../utils/auth';
+import { loginWithPassword, getRememberedEmail, getRememberedPassword } from '../../../utils/auth';
 
 export default function LoginForm({ onSuccess, onForgotPassword }) {
     const { t } = useTranslation();
     const [email, setEmail] = useState(getRememberedEmail());
-    const [password, setPassword] = useState('');
+    const [password, setPassword] = useState(getRememberedPassword());
     const [rememberMe, setRememberMe] = useState(!!getRememberedEmail());
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
