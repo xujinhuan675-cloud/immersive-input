@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 
 import { loginWithPassword, getRememberedEmail } from '../../../utils/auth';
 
-export default function LoginForm({ onSuccess }) {
+export default function LoginForm({ onSuccess, onForgotPassword }) {
     const { t } = useTranslation();
     const [email, setEmail] = useState(getRememberedEmail());
     const [password, setPassword] = useState('');
@@ -34,7 +34,7 @@ export default function LoginForm({ onSuccess }) {
     }
 
     function handleForgotPassword() {
-        toast(t('login.forgot_coming'), { icon: '\uD83D\uDD27' });
+        onForgotPassword?.();
     }
 
     return (

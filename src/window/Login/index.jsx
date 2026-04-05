@@ -7,11 +7,12 @@ import { useTranslation } from 'react-i18next';
 import WindowControl from '../../components/WindowControl';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
+import ResetPasswordForm from './components/ResetPasswordForm';
 import { osType } from '../../utils/env';
 
 export default function Login({ embedded = false, onSuccess }) {
     const { t } = useTranslation();
-    const [tab, setTab] = useState('login'); // 'login' | 'register'
+    const [tab, setTab] = useState('login'); // 'login' | 'register' | 'reset'
 
     useEffect(() => {
         if (!embedded && appWindow.label === 'login') {
@@ -29,6 +30,11 @@ export default function Login({ embedded = false, onSuccess }) {
                 appWindow.close();
             }, 1200);
         }
+    }
+
+    function handleResetSuccess() {
+        toast.success(t('reset.success'));
+        setTab('login');
     }
 
     return (
@@ -74,34 +80,44 @@ export default function Login({ embedded = false, onSuccess }) {
                     </div>
 
                     {/* Tab 切换 */}
-                    <div className='flex bg-default-100 rounded-xl p-1 mb-5'>
-                        <button
-                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                tab === 'login'
-                                    ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
-                                    : 'text-default-500 hover:text-default-700'
-                            }`}
-                            onClick={() => setTab('login')}
-                        >
-                            {t('login.tab_login')}
-                        </button>
-                        <button
-                            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                tab === 'register'
-                                    ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
-                                    : 'text-default-500 hover:text-default-700'
-                            }`}
-                            onClick={() => setTab('register')}
-                        >
-                            {t('login.tab_register')}
-                        </button>
-                    </div>
+                    {tab !== 'reset' && (
+                        <div className='flex bg-default-100 rounded-xl p-1 mb-5'>
+                            <button
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                    tab === 'login'
+                                        ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
+                                        : 'text-default-500 hover:text-default-700'
+                                }`}
+                                onClick={() => setTab('login')}
+                            >
+                                {t('login.tab_login')}
+                            </button>
+                            <button
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                    tab === 'register'
+                                        ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
+                                        : 'text-default-500 hover:text-default-700'
+                                }`}
+                                onClick={() => setTab('register')}
+                            >
+                                {t('login.tab_register')}
+                            </button>
+                        </div>
+                    )}
 
                     {/* 表单区 */}
                     {tab === 'login' ? (
-                        <LoginForm onSuccess={handleSuccess} />
-                    ) : (
+                        <LoginForm
+                            onSuccess={handleSuccess}
+                            onForgotPassword={() => setTab('reset')}
+                        />
+                    ) : tab === 'register' ? (
                         <RegisterForm onSuccess={handleSuccess} />
+                    ) : (
+                        <ResetPasswordForm
+                            onBack={() => setTab('login')}
+                            onSuccess={handleResetSuccess}
+                        />
                     )}
                 </div>
             </div>

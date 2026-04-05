@@ -149,6 +149,26 @@ export async function sendEmailCode({ email }) {
 }
 
 /**
+ * 发送密码重置验证码
+ * @param {{ email: string }} payload
+ * @returns {Promise<void>}
+ */
+export async function sendResetCode({ email }) {
+    const data = await postJson('/api/auth/send-reset-code', { email });
+    return data;
+}
+
+/**
+ * 重置密码
+ * @param {{ email: string, code: string, password: string }} payload
+ * @returns {Promise<void>}
+ */
+export async function resetPassword({ email, code, password }) {
+    const data = await postJson('/api/auth/reset-password', { email, code, password });
+    return data;
+}
+
+/**
  * 找回密码（发送重置邮件）
  * @param {{ email: string }} payload
  * @returns {Promise<void>}
@@ -158,8 +178,9 @@ export async function sendEmailCode({ email }) {
  * if (error) throw new Error(error.message);
  */
 export async function forgotPassword({ email }) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    if (error) throw new Error(error.message);
+    // 使用自定义验证码方式，不使用 Supabase 的邮件链接
+    const data = await sendResetCode({ email });
+    return data;
 }
 
 /**
