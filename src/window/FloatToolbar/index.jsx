@@ -130,14 +130,15 @@ export default function FloatToolbar() {
     const [colorVal,    setColorVal]    = useState(null);
 
     // ── 自适应窗口尺寸 ────────────────────────────────────────────
-    const BTN_W   = 58;
-    const PAD     = 18;
-    const ROW_H   = 50;
-    const EXTRA_H = 30;
+    const BTN_W   = 56;   // 按鈕宽度
+    const PAD     = 12;   // 左右内边距合计
+    const ROW_H   = 56;   // 按鈕行高度
+    const EXTRA_H = 36;   // 内联面板高度
+    const SHADOW  = 0;    // 窗口大小与卡片相同，不预留阴影空间
 
     const resizeWindow = useCallback((btns, hasExtra) => {
-        const w = Math.max(120, PAD + btns.length * BTN_W);
-        const h = ROW_H + (hasExtra ? EXTRA_H : 0);
+        const w = Math.max(120 + SHADOW * 2, PAD + btns.length * BTN_W + SHADOW * 2);
+        const h = ROW_H + SHADOW * 2 + (hasExtra ? EXTRA_H : 0);
         appWindow.setSize(new LogicalSize(w, h)).catch(() => {});
     }, []);
 
@@ -178,6 +179,20 @@ export default function FloatToolbar() {
     }, [smartBtns, baseVisible, calcResult, colorVal, resizeWindow]);
 
     useEffect(() => { loadConfig(); }, [loadConfig]);
+
+    // ── 强制透明背景 ─────────────────────────────────────────
+    // JS inline style setProperty('!important') 优先级最高，覆盖 NextUI 主题注入的白色背景
+    // 确保圆角外区域对应 WebView2 的 alpha=0，最终由 DWM 透明显示后方内容
+    useEffect(() => {
+        const force = (el) => {
+            if (!el) return;
+            el.style.setProperty('background',       'transparent', 'important');
+            el.style.setProperty('background-color', 'transparent', 'important');
+        };
+        force(document.documentElement);
+        force(document.body);
+        force(document.getElementById('root'));
+    }, []);
 
     // ── 隐藏 & 计时器 ────────────────────────────────────────────
     const hide = useCallback(() => {
@@ -220,90 +235,110 @@ export default function FloatToolbar() {
     // ── 渲染 ─────────────────────────────────────────────────────────
     const allButtons = [...smartBtns, ...baseVisible];
 
-    const btnStyle = {
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minWidth: '52px', height: '40px',
-        border: 'none', borderRadius: '7px', background: 'transparent',
-        cursor: 'pointer', fontSize: '11px', color: '#333',
-        gap: '1px', transition: 'background 0.12s', padding: '0 4px',
-    };
-
+    // 内联面板平享的复制按鈕样式
     const copyBtnStyle = {
-        ...btnStyle,
-        minWidth: 'auto', height: '24px', fontSize: '11px',
-        padding: '2px 8px', background: '#4a7cfa', color: '#fff', borderRadius: '4px',
+        flexShrink: 0, height: '22px', padding: '0 10px',
+        background: '#3b82f6', color: '#fff', border: 'none',
+        borderRadius: '5px', fontSize: '11px', fontWeight: 500,
+        cursor: 'pointer', transition: 'background 0.1s',
     };
 
     return (
+        // 窗口大小 = 卡片大小，卡片直接充满窗口，圆角外区域透明显示后方内容
         <div
             style={{
-                display: 'flex', flexDirection: 'column',
+                display: 'flex',
+                flexDirection: 'column',
                 background: 'rgba(255,255,255,0.97)',
                 borderRadius: '10px',
-                boxShadow: '0 2px 14px rgba(0,0,0,0.20)',
-                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
                 userSelect: 'none',
                 overflow: 'hidden',
+                width: '100%',
+                height: '100%',
             }}
             onMouseEnter={resetTimer}
             onMouseMove={resetTimer}
         >
             {/* 按鈕行 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '4px 8px' }}>
-                {allButtons.map((btn) => (
-                    <button
-                        key={btn.id}
-                        title={btn.label}
-                        style={btnStyle}
-                        onClick={() => handleClick(btn.id)}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#f0f0f0')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                    >
-                        <span style={{ fontSize: '16px', lineHeight: 1 }}>{btn.emoji}</span>
-                        <span style={{ fontSize: '10px', lineHeight: 1, color: '#555' }}>{btn.label}</span>
-                    </button>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', gap: '2px' }}>
+                {allButtons.map((btn, idx) => (
+                    <React.Fragment key={btn.id}>
+                        {/* 按鈕间分隔线 */}
+                        {idx > 0 && (
+                            <div style={{
+                                width: '1px', height: '20px', flexShrink: 0,
+                                background: 'rgba(0,0,0,0.07)', margin: '0 1px',
+                            }} />
+                        )}
+                        <button
+                            title={btn.label}
+                            style={{
+                                display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center',
+                                minWidth: '50px', height: '46px',
+                                border: 'none', borderRadius: '9px',
+                                background: 'transparent',
+                                cursor: 'pointer', padding: '4px 6px',
+                                gap: '3px', transition: 'background 0.1s ease',
+                            }}
+                            onClick={() => handleClick(btn.id)}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            onMouseDown={(e)  => (e.currentTarget.style.background = 'rgba(0,0,0,0.1)')}
+                            onMouseUp={(e)    => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+                        >
+                            <span style={{ fontSize: '18px', lineHeight: 1 }}>{btn.emoji}</span>
+                            <span style={{ fontSize: '10px', lineHeight: 1, color: '#555', fontWeight: 500 }}>
+                                {btn.label}
+                            </span>
+                        </button>
+                    </React.Fragment>
                 ))}
             </div>
 
-            {/* 计算结果面板 */}
+            {/* 计算结果内联面板 */}
             {calcResult != null && (
                 <div style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '4px 12px', borderTop: '1px solid #eee', background: '#f7f7f7',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '5px 12px',
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    background: 'rgba(0,0,0,0.03)',
                 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#333', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151', fontFamily: 'monospace', flex: 1 }}>
                         = {calcResult}
                     </span>
-                    <button
-                        style={copyBtnStyle}
+                    <button style={copyBtnStyle}
                         onClick={() => handleClick('copy_calc')}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#3a6ae0')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '#4a7cfa')}
-                    >
-                        复制
-                    </button>
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#2563eb')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '#3b82f6')}
+                    >复制</button>
                 </div>
             )}
 
-            {/* 颜色预览面板 */}
+            {/* 颜色预览内联面板 */}
             {colorVal != null && (
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '4px 12px', borderTop: '1px solid #eee', background: '#f7f7f7',
+                    padding: '5px 12px',
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    background: 'rgba(0,0,0,0.03)',
                 }}>
                     <div style={{
-                        width: '20px', height: '20px', borderRadius: '4px',
-                        background: colorVal, border: '1px solid rgba(0,0,0,0.15)', flexShrink: 0,
+                        width: '18px', height: '18px', borderRadius: '4px',
+                        background: colorVal,
+                        border: '1px solid rgba(0,0,0,0.12)',
+                        flexShrink: 0,
+                        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.3)',
                     }} />
-                    <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#333' }}>{colorVal}</span>
-                    <button
-                        style={copyBtnStyle}
+                    <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#374151', flex: 1 }}>
+                        {colorVal}
+                    </span>
+                    <button style={copyBtnStyle}
                         onClick={() => handleClick('copy_color')}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#3a6ae0')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '#4a7cfa')}
-                    >
-                        复制
-                    </button>
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#2563eb')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '#3b82f6')}
+                    >复制</button>
                 </div>
             )}
         </div>

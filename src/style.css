@@ -13,6 +13,12 @@ html {
     overflow: hidden;
 }
 
+/* body 默认透明，防止 NextUI Tailwind base 注入白色背景导致透明窗口四角渗色 */
+body {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
 *::-webkit-scrollbar {
     width: 5px;
 }

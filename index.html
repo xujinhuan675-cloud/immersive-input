@@ -9,7 +9,9 @@
         <style>
             /* 启动 loading 递层：React 挂载前立即可见，消除透明空白期 */
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            html, body { height: 100%; }
+            /* 全层透明，确保透明窗口四角显示桌面
+               !important 覆盖 NextUI 主题 class 注入的背景色 */
+            html, body, #root { height: 100%; background: transparent !important; }
 
             #app-loading {
                 position: fixed;
@@ -53,8 +55,9 @@
     </head>
 
     <body>
-        <!-- 在 React 加载前显示，避免用户看到窗口黑屏/透明期 -->
-        <div id="app-loading">
+        <!-- loading 递层默认隐藏，仅 config 窗口需要 -->
+        <!-- 对透明窗口（float_toolbar/translate 等）不展示，防止白色背景在 WebView2 合成层残留 -->
+        <div id="app-loading" style="display:none">
             <img src="/icon.svg" alt="" />
             <span class="app-name">Immersive Input</span>
             <div class="app-spinner"></div>

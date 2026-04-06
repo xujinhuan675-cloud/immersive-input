@@ -14,6 +14,12 @@ if (import.meta.env.PROD) {
     });
 }
 
+// 仅 config 窗口需要 loading 递层
+if (appWindow.label === 'config') {
+    const el = document.getElementById('app-loading');
+    if (el) el.style.display = 'flex';
+}
+
 initStore().then(async () => {
     await initEnv();
     const rootElement = document.getElementById('root');

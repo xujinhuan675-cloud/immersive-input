@@ -247,7 +247,7 @@
                 "btn_translate": "翻译",
                 "btn_explain": "解析",
                 "btn_format": "格式化",
-                "btn_lightai": "载AI"
+                "btn_lightai": "轻AI"
             },
             "text_selection": {
                 "label": "划词设置",
@@ -260,7 +260,7 @@
                 "btn_translate": "翻译",
                 "btn_explain": "解析",
                 "btn_format": "格式化",
-                "btn_lightai": "载AI"
+                "btn_lightai": "轻AI"
             },
             "about": {
                 "label": "关于应用",

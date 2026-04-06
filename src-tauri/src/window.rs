@@ -140,13 +140,8 @@ pub fn config_window() {
         return;
     }
 
-    // ── Config 窗口不使用 transparent(true) ──
-    //
-    // 根本原因：transparent(true) 会把 WebView2 的 DefaultBackgroundColor 设为 alpha=0，
-    // 导致在首帧渲染前窗口完全透明（用户看到空白期）。
-    // 不设置 transparent(true) 时，WebView2 默认背景为白色，window.show() 后立即
-    // 显示白色背景，index.html 的 #app-loading 层平滑覆盖在上面，用户看不到任何空白期。
-    // 视觉影响：Config 窗口内容本身几乎全不透明，表现与之前基本一致。
+    // Config 窗口不使用透明：已移除透明效果功能。
+    // WebView2 白色实底 + #app-loading 遮罩保证无白屏问题。
     let mut builder = tauri::WindowBuilder::new(
         app_handle,
         "config",
@@ -165,7 +160,6 @@ pub fn config_window() {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        // decorations(false) 保留自定义外边框，但不设置 transparent(true)
         builder = builder.decorations(false);
     }
 
@@ -535,6 +529,7 @@ pub fn float_toolbar_window() {
         "float_toolbar",
         tauri::WindowUrl::App("index.html".into()),
     )
+    // transparent(true) + CSS box-shadow 实现悬浮卡片效果，圆角外区域透明显示后方内容
     .transparent(true)
     .decorations(false)
     .always_on_top(true)

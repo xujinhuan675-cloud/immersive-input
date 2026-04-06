@@ -1,5 +1,5 @@
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Card, CardBody, Spacer, Switch, Select, SelectItem } from '@nextui-org/react';
+import { Card, CardBody, Spacer, Switch, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from '@nextui-org/react';
 import { RxDragHandleHorizontal } from 'react-icons/rx';
 import { useTranslation } from 'react-i18next';
 import React from 'react';
@@ -8,7 +8,7 @@ import { useConfig } from '../../../../hooks/useConfig';
 
 const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai'];
 
-function ToolbarButtonItem({ label, cfgKey, dragHandleProps }) {
+function ToolbarButtonItem({ label, emoji, cfgKey, dragHandleProps }) {
     const [enabled, setEnabled] = useConfig(cfgKey, true);
     return (
         <div className='bg-content2 rounded-md px-[10px] py-[20px] flex justify-between'>
@@ -19,6 +19,8 @@ function ToolbarButtonItem({ label, cfgKey, dragHandleProps }) {
                 >
                     <RxDragHandleHorizontal />
                 </div>
+                <Spacer x={2} />
+                <span className='text-[20px] my-auto leading-none'>{emoji}</span>
                 <Spacer x={2} />
                 <h2 className='my-auto'>{label}</h2>
             </div>
@@ -39,10 +41,10 @@ export default function TextSelection() {
     const [btnOrder, setBtnOrder] = useConfig('toolbar_btn_order', DEFAULT_BTN_ORDER);
 
     const ALL_BUTTONS = [
-        { id: 'translate', label: t('config.text_selection.btn_translate'), cfgKey: 'toolbar_btn_translate' },
-        { id: 'explain',   label: t('config.text_selection.btn_explain'),   cfgKey: 'toolbar_btn_explain'   },
-        { id: 'format',    label: t('config.text_selection.btn_format'),    cfgKey: 'toolbar_btn_format'    },
-        { id: 'lightai',   label: t('config.text_selection.btn_lightai'),   cfgKey: 'toolbar_btn_lightai'   },
+        { id: 'translate', emoji: '🌐', label: t('config.text_selection.btn_translate'), cfgKey: 'toolbar_btn_translate' },
+        { id: 'explain',   emoji: '❓',     label: t('config.text_selection.btn_explain'),   cfgKey: 'toolbar_btn_explain'   },
+        { id: 'format',    emoji: '✨',     label: t('config.text_selection.btn_format'),    cfgKey: 'toolbar_btn_format'    },
+        { id: 'lightai',   emoji: '⚡',     label: t('config.text_selection.btn_lightai'),   cfgKey: 'toolbar_btn_lightai'   },
     ];
 
     const orderedButtons = (Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER)
@@ -68,26 +70,30 @@ export default function TextSelection() {
             <Card className='mb-[10px]'>
                 <CardBody>
                     <div className='flex items-center justify-between'>
-                        <div className='text-[14px] font-medium'>
-                            {t('config.text_selection.behavior_label')}
-                        </div>
-                        <Select
-                            size='sm'
-                            selectedKeys={behavior ? [behavior] : ['toolbar']}
-                            onSelectionChange={(keys) => setBehavior([...keys][0])}
-                            className='max-w-[160px]'
-                            aria-label={t('config.text_selection.behavior_label')}
-                        >
-                            <SelectItem key='toolbar'>
-                                {t('config.text_selection.behavior_toolbar')}
-                            </SelectItem>
-                            <SelectItem key='direct_translate'>
-                                {t('config.text_selection.behavior_direct')}
-                            </SelectItem>
-                            <SelectItem key='disabled'>
-                                {t('config.text_selection.behavior_disabled')}
-                            </SelectItem>
-                        </Select>
+                        <h3 className='my-auto'>{t('config.text_selection.behavior_label')}</h3>
+                        {behavior !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>
+                                        {t(`config.text_selection.behavior_${behavior ?? 'toolbar'}`)}
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='text selection behavior'
+                                    onAction={(key) => setBehavior(key)}
+                                >
+                                    <DropdownItem key='toolbar'>
+                                        {t('config.text_selection.behavior_toolbar')}
+                                    </DropdownItem>
+                                    <DropdownItem key='direct_translate'>
+                                        {t('config.text_selection.behavior_direct')}
+                                    </DropdownItem>
+                                    <DropdownItem key='disabled'>
+                                        {t('config.text_selection.behavior_disabled')}
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
                     </div>
                 </CardBody>
             </Card>
@@ -113,6 +119,7 @@ export default function TextSelection() {
                                                 >
                                                     <ToolbarButtonItem
                                                         dragHandleProps={provided.dragHandleProps}
+                                                        emoji={btn.emoji}
                                                         label={btn.label}
                                                         cfgKey={btn.cfgKey}
                                                     />
