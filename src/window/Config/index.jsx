@@ -16,11 +16,7 @@ export default function Config() {
     const location = useLocation();
     const page = useRoutes(routes);
 
-    useEffect(() => {
-        if (appWindow.label === 'config') {
-            appWindow.show();
-        }
-    }, []);
+    // loading 递层由 main.jsx 的 requestAnimationFrame 负责移除，无需在组件内处理
 
     return (
         <>

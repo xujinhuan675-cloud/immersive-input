@@ -130,13 +130,57 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
 }
 
 pub fn config_window() {
-    let (window, _exists) = build_window("config", "Config");
+    let t0 = std::time::Instant::now();
+    let app_handle = APP.get().unwrap();
+
+    // 如果窗口已存在，直接激活
+    if let Some(w) = app_handle.get_window("config") {
+        w.show().unwrap_or_default();
+        w.set_focus().unwrap_or_default();
+        return;
+    }
+
+    // ── Config 窗口不使用 transparent(true) ──
+    //
+    // 根本原因：transparent(true) 会把 WebView2 的 DefaultBackgroundColor 设为 alpha=0，
+    // 导致在首帧渲染前窗口完全透明（用户看到空白期）。
+    // 不设置 transparent(true) 时，WebView2 默认背景为白色，window.show() 后立即
+    // 显示白色背景，index.html 的 #app-loading 层平滑覆盖在上面，用户看不到任何空白期。
+    // 视觉影响：Config 窗口内容本身几乎全不透明，表现与之前基本一致。
+    let mut builder = tauri::WindowBuilder::new(
+        app_handle,
+        "config",
+        tauri::WindowUrl::App("index.html".into()),
+    )
+    .additional_browser_args("--disable-web-security")
+    .focused(true)
+    .title("Config")
+    .visible(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        // decorations(false) 保留自定义外边框，但不设置 transparent(true)
+        builder = builder.decorations(false);
+    }
+
+    let window = builder.build().unwrap();
+
+    #[cfg(not(target_os = "linux"))]
+    set_shadow(&window, true).unwrap_or_default();
+
     window
         .set_min_size(Some(tauri::LogicalSize::new(800, 400)))
         .unwrap();
     window.set_size(tauri::LogicalSize::new(800, 600)).unwrap();
     window.center().unwrap();
     window.show().unwrap();
+    info!("[startup] config window shown at {}ms (no transparent flash)", t0.elapsed().as_millis());
 }
 
 fn translate_window() -> Window {

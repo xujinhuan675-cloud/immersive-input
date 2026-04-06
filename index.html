@@ -2,26 +2,65 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <link
-            rel="icon"
-            type="image/png"
-            href="/icon.png"
-        />
-        <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0"
-        />
-        <script>
-            var Module;
-        </script>
-        <title>Pot</title>
+        <link rel="icon" type="image/png" href="/icon.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script>var Module;</script>
+        <title>Immersive Input</title>
+        <style>
+            /* 启动 loading 递层：React 挂载前立即可见，消除透明空白期 */
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            html, body { height: 100%; }
+
+            #app-loading {
+                position: fixed;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                background: #ffffff;
+                z-index: 9999;
+                opacity: 1;
+                transition: opacity 0.18s ease;
+            }
+            #app-loading.fade-out {
+                opacity: 0;
+                pointer-events: none;
+            }
+            #app-loading img {
+                width: 56px;
+                height: 56px;
+                border-radius: 12px;
+            }
+            #app-loading .app-name {
+                font-family: -apple-system, 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                color: #444;
+                letter-spacing: 0.02em;
+            }
+            .app-spinner {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #e5e5e5;
+                border-top-color: #9b9b9b;
+                border-radius: 50%;
+                animation: _spin 0.75s linear infinite;
+            }
+            @keyframes _spin { to { transform: rotate(360deg); } }
+        </style>
     </head>
 
     <body>
+        <!-- 在 React 加载前显示，避免用户看到窗口黑屏/透明期 -->
+        <div id="app-loading">
+            <img src="/icon.svg" alt="" />
+            <span class="app-name">Immersive Input</span>
+            <div class="app-spinner"></div>
+        </div>
+
         <div id="root"></div>
-        <script
-            type="module"
-            src="/src/main.jsx"
-        ></script>
+        <script type="module" src="/src/main.jsx"></script>
     </body>
 </html>

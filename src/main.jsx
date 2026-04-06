@@ -17,6 +17,8 @@ if (import.meta.env.PROD) {
 initStore().then(async () => {
     await initEnv();
     const rootElement = document.getElementById('root');
+    const loadingEl = document.getElementById('app-loading');
+    const t0 = performance.now();
     const root = ReactDOM.createRoot(rootElement);
     root.render(
         <NextUIProvider>
@@ -25,4 +27,22 @@ initStore().then(async () => {
             </NextThemesProvider>
         </NextUIProvider>
     );
+    // 双帧 rAF：确保 React 首次渲染已提交到 DOM
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const elapsed = Math.round(performance.now() - t0);
+            console.log(`[startup] React first paint: ${elapsed}ms after store init`);
+            if (loadingEl) {
+                const label = appWindow.label;
+                if (label === 'config') {
+                    // Config 窗口：淡出过渡（展示 loading 过程更平滑）
+                    loadingEl.classList.add('fade-out');
+                    setTimeout(() => loadingEl.remove(), 200);
+                } else {
+                    // 其他窗口（工具栏、翻译等透明窗口）：立即移除，避免白色闪烁
+                    loadingEl.remove();
+                }
+            }
+        });
+    });
 });
