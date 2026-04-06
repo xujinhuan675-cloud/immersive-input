@@ -38,6 +38,18 @@ fn get_daemon_window() -> Window {
     }
 }
 
+/// Safely get the monitor associated with a window.
+/// If current_monitor() returns None (e.g. window is invisible / not yet shown),
+/// falls back to primary monitor so we never panic.
+fn get_window_monitor(window: &Window) -> Monitor {
+    window.current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| get_daemon_window().primary_monitor().ok().flatten())
+        .expect("No monitor found for window")
+}
+
 // Get monitor where the mouse is currently located
 fn get_current_monitor(x: i32, y: i32) -> Monitor {
     info!("Mouse position: {}, {}", x, y);
@@ -139,6 +151,8 @@ fn translate_window() -> Window {
     };
     let (window, exists) = build_window("translate", "Translate");
     if exists {
+        window.show().unwrap_or_default();
+        window.set_focus().unwrap_or_default();
         return window;
     }
     window.set_skip_taskbar(true).unwrap();
@@ -158,7 +172,7 @@ fn translate_window() -> Window {
         }
     };
 
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
 
     window
@@ -225,10 +239,12 @@ fn translate_window() -> Window {
         }
     }
 
+    window.show().unwrap_or_default();
+    window.set_focus().unwrap_or_default();
     window
 }
 
-// Save the currently focused window handle before we open our popup (Windows only)
+// Save the currently focused window handle
 pub fn save_foreground_window() {
     #[cfg(target_os = "windows")]
     {
@@ -256,19 +272,27 @@ pub fn selection_translate() {
         state.0.lock().unwrap().replace_range(.., &text);
     }
     // Check config: show floating toolbar or go directly to translate window
-    let show_toolbar = match get("selection_show_toolbar") {
-        Some(v) => v.as_bool().unwrap_or(true),
-        None => {
-            set("selection_show_toolbar", true);
-            true
-        }
+    crate::config::reload();
+    let behavior = match get("text_select_behavior") {
+        Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
+        None => "toolbar".to_string(),
     };
-    if show_toolbar && !text.trim().is_empty() {
+    if behavior == "toolbar" && !text.trim().is_empty() {
         float_toolbar_window();
     } else {
         let window = translate_window();
         window.emit("new_text", text).unwrap();
     }
+}
+
+/// Called from mouse_hook when behavior is "direct_translate".
+/// Writes the already-captured text into state and opens the translate window directly.
+pub fn direct_translate_selection(text: String) {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<StringWrapper> = app_handle.state();
+    state.0.lock().unwrap().replace_range(.., &text);
+    let window = translate_window();
+    window.emit("new_text", text).unwrap();
 }
 
 pub fn input_translate() {
@@ -334,7 +358,7 @@ pub fn recognize_window() {
             400
         }
     };
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     window
         .set_size(tauri::PhysicalSize::new(
@@ -447,7 +471,7 @@ pub fn float_toolbar_window() {
     let app_handle = APP.get().unwrap();
     // If window already exists, just show it
     if let Some(w) = app_handle.get_window("float_toolbar") {
-        let monitor = w.current_monitor().unwrap().unwrap();
+        let monitor = get_window_monitor(&w);
         let dpi = monitor.scale_factor();
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
@@ -479,7 +503,7 @@ pub fn float_toolbar_window() {
         Ok(w) => w,
         Err(e) => { warn!("Failed to create float_toolbar window: {:?}", e); return; }
     };
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
@@ -538,7 +562,7 @@ pub fn light_ai_window() {
         window.emit("new_text", text).unwrap_or_default();
         return;
     }
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
@@ -552,11 +576,11 @@ pub fn light_ai_window() {
     if x < monitor_pos.x { x = monitor_pos.x; }
     if y < monitor_pos.y { y = monitor_pos.y; }
     window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
-    window.show().unwrap_or_default();  // 必须显示窗口
+    window.show().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────
 // Explain Window
 // ─────────────────────────────────────────────
 pub fn explain_window() {
@@ -579,7 +603,7 @@ pub fn explain_window() {
         window.emit("new_text", text).unwrap_or_default();
         return;
     }
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
@@ -593,20 +617,22 @@ pub fn explain_window() {
     if x < monitor_pos.x { x = monitor_pos.x; }
     if y < monitor_pos.y { y = monitor_pos.y; }
     window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
-    window.show().unwrap_or_default();  // 必须显示窗口
+    window.show().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────
 // Tauri commands for frontend to open windows
 // ─────────────────────────────────────────────
 #[tauri::command]
 pub fn open_light_ai_window() {
-    light_ai_window();
+    // Window creation via build() deadlocks on the WebView2 IPC thread.
+    // Spawning a separate thread mirrors float_toolbar_window() which works.
+    std::thread::spawn(|| { light_ai_window(); });
 }
 #[tauri::command]
 pub fn open_explain_window() {
-    explain_window();
+    std::thread::spawn(|| { explain_window(); });
 }
 // ─────────────────────────────────────────────
 // Chat Window
@@ -627,7 +653,7 @@ pub fn chat_window() {
 
 #[tauri::command]
 pub fn open_chat_window() {
-    chat_window();
+    std::thread::spawn(|| { chat_window(); });
 }
 
 #[tauri::command]
@@ -640,8 +666,13 @@ pub fn open_translate_from_toolbar() {
         drop(guard);
         s
     };
-    let window = translate_window();
-    window.emit("new_text", text).unwrap_or_default();
+    // Window creation via build() deadlocks on the WebView2 IPC thread.
+    // Read text first (needs AppHandle state lock), then spawn a new thread
+    // for window creation — same pattern as float_toolbar_window().
+    std::thread::spawn(move || {
+        let window = translate_window();
+        window.emit("new_text", text).unwrap_or_default();
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -656,7 +687,7 @@ pub fn phrases_window() {
     let app_handle = APP.get().unwrap();
     if let Some(w) = app_handle.get_window("phrases") {
         // 已开窗口：更新位置后显示
-        let monitor = w.current_monitor().unwrap().unwrap();
+        let monitor = get_window_monitor(&w);
         let dpi = monitor.scale_factor();
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
@@ -675,7 +706,7 @@ pub fn phrases_window() {
     }
     let (window, _exists) = build_window("phrases", "常用语");
     window.set_skip_taskbar(true).unwrap_or_default();
-    let monitor = window.current_monitor().unwrap().unwrap();
+    let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
@@ -771,4 +802,5 @@ pub fn updater_window() {
         .unwrap();
     window.set_size(tauri::LogicalSize::new(600, 400)).unwrap();
     window.center().unwrap();
+    window.show().unwrap_or_default();
 }

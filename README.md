@@ -22,6 +22,7 @@
 
 </div>
 
+-   [项目架构](#项目架构)
 -   [使用说明](#使用说明)
 -   [特色功能](#特色功能)
 -   [支持接口](#支持接口)
@@ -31,6 +32,105 @@
 -   [Wayland 支持](#wayland-支持)
 -   [手动编译](#手动编译)
 -   [感谢](#感谢)
+-   [开发注意事项](#开发注意事项--已知技术卡点)
+
+<div align="center">
+
+# 项目架构
+
+</div>
+
+> Tauri 1.x + React（Vite）+ Rust，所有窗口共享同一个 `index.html` 入口，通过 `appWindow.label` 路由到对应的前端组件。
+
+```
+immersive-input/
+├── src/                            # 前端（React + Vite）
+│   ├── main.jsx                    # 应用入口：初始化 store，挂载 React
+│   ├── App.jsx                     # 根组件：按 appWindow.label 路由到对应窗口
+│   ├── style.css                   # 全局样式
+│   │
+│   ├── components/                 # 公共组件
+│   │   ├── AuthGuard.jsx           # 认证守卫（需要登录才能访问的窗口）
+│   │   └── WindowControl/          # 自定义窗口控制按钮
+│   │
+│   ├── hooks/                      # React Hooks
+│   │   ├── useConfig.jsx           # 核心配置 Hook：Tauri store 双向同步，支持跨窗口事件广播
+│   │   ├── useSyncAtom.jsx         # Jotai atom 与 useConfig 的同步桥接
+│   │   ├── useVoice.jsx            # 语音合成
+│   │   └── useToastStyle.jsx       # Toast 样式适配
+│   │
+│   ├── utils/                      # 工具函数
+│   │   ├── store.js                # Tauri store 初始化（带文件监听器，自动同步 Rust 侧配置）
+│   │   ├── textAnalyzer.js         # 智能文字类型检测（URL/邮件/路径/颜色/数字表达式）
+│   │   ├── formatter.js            # 文本格式化（变量名转换等）
+│   │   ├── service_instance.ts     # 服务实例 ID 解析工具
+│   │   ├── language.ts             # 支持语言列表
+│   │   ├── auth.js                 # 鉴权工具
+│   │   └── lang_detect.js          # 客户端语种检测
+│   │
+│   ├── services/                   # 各类外部服务（每项服务 = index.jsx + Config.jsx + info.ts）
+│   │   ├── translate/              # 20+ 翻译服务（deepl/openai/google/baidu/bing 等）
+│   │   ├── recognize/              # OCR 服务（system/tesseract/baidu/tencent/iflytek 等）
+│   │   ├── tts/                    # 语音合成服务（lingva）
+│   │   ├── collection/             # 生词本服务（anki/eudic）
+│   │   └── light_ai/               # 轻 AI 润色（openai 接口封装）
+│   │
+│   ├── i18n/
+│   │   └── locales/                # 21 种语言翻译 JSON（zh_CN, en_US, ja_JP ...）
+│   │
+│   └── window/                     # 各窗口前端组件
+│       ├── Config/                 # 设置窗口（侧边栏多页面路由）
+│       │   ├── pages/
+│       │   │   ├── General/        # 通用设置
+│       │   │   ├── Translate/      # 翻译设置
+│       │   │   ├── Recognize/      # 文字识别设置
+│       │   │   ├── Hotkey/         # 快捷键设置
+│       │   │   ├── Service/        # 服务管理（翻译/OCR/TTS/生词本/AI API）
+│       │   │   ├── AIFeatures/     # AI 功能设置（轻 AI 参数、润色 Prompt）
+│       │   │   ├── TextSelection/  # 划词设置（行为模式 + 工具栏按钮开关/排序）★ 新增
+│       │   │   ├── History/        # 翻译与 AI 历史记录
+│       │   │   ├── Backup/         # 备份与恢复
+│       │   │   ├── Account/        # 账号管理
+│       │   │   └── About/          # 关于
+│       │   ├── components/SideBar/ # 侧边栏导航
+│       │   └── routes/             # React Router 路由表
+│       ├── FloatToolbar/           # 浮动工具栏（划词后弹出）★ 已重构为配置/行为解耦架构
+│       ├── Translate/              # 翻译窗口（主翻译功能，含多引擎并行展示）
+│       ├── LightAI/                # 轻 AI 润色窗口
+│       ├── Explain/                # 文本解释窗口（AI 深度解析）
+│       ├── Chat/                   # AI 对话窗口
+│       ├── Recognize/              # OCR 识别窗口
+│       ├── Updater/                # 自动更新窗口
+│       ├── Vault/                  # 密码本窗口
+│       ├── Phrases/                # 常用语窗口
+│       ├── Screenshot/             # 截图选区窗口
+│       └── Login/                  # 登录/注册窗口
+│
+├── src-tauri/src/                  # 后端（Rust）
+│   ├── main.rs                     # 应用入口：注册命令/插件/快捷键/托盘/鼠标钩子
+│   ├── window.rs                   # 所有窗口的创建与生命周期管理
+│   │                               #   ⚠ 窗口创建必须在独立线程中执行（见开发卡点 1）
+│   ├── cmd.rs                      # Tauri 命令（get_text/paste_result/write_clipboard 等）
+│   ├── config.rs                   # 配置读写（StoreWrapper + get/set/reload）
+│   │                               #   ⚠ reload() 确保 Rust 侧始终读取 JS 端最新配置
+│   ├── mouse_hook.rs               # 全局鼠标钩子：划词检测 → 根据 text_select_behavior 触发
+│   ├── hotkey.rs                   # 全局快捷键注册与事件分发
+│   ├── tray.rs                     # 系统托盘菜单
+│   ├── clipboard.rs                # 剪贴板监听
+│   ├── server.rs                   # HTTP API 服务（外部调用，默认端口 60828）
+│   ├── phrases.rs                  # 常用语数据
+│   ├── vault.rs                    # 密码本
+│   ├── backup.rs                   # 备份与恢复
+│   ├── lang_detect.rs              # 本地语种检测
+│   ├── system_ocr.rs               # 系统原生 OCR（Windows.Media.OCR / Apple Vision）
+│   ├── screenshot.rs               # 截图功能
+│   ├── updater.rs                  # 自动更新检查
+│   └── error.rs                    # 统一错误类型
+│
+├── public/                         # 静态资源（图标等）
+├── package.json                    # 前端依赖（React 18 / NextUI 2 / Vite 5）
+└── src-tauri/tauri.conf.json       # Tauri 应用配置（窗口/菜单/权限）
+```
 
 # 使用说明
 
@@ -115,19 +215,21 @@
 ### 浮动工具栏
 
 **触发方式：**
-- **自动显示**：选中文本后自动显示（需在设置中启用）
+- **自动显示**：选中文本后自动显示
 
 **功能说明：**
 
-选中文本后自动显示浮动工具栏，提供快速访问入口。
+选中文本后自动显示浮动工具栏，提供快速访问入口。根据选中内容类型，还会自动插入智能按钮（链接打开、邮件发送、路径打开、数学计算、颜色预览）。
 
-- 可配置显示的功能按钮（翻译、轻AI、解释、对话等）
-- 提供快捷操作入口，无需记忆快捷键
-- 工具栏位置自动跟随鼠标，智能避免遮挡
+- 可配置显示的功能按钮（翻译、轻AI、解析、格式化）
+- **支持按钮拖拽排序**：在「划词设置」中调整按钮顺序
+- 工具栏位置自动跟随鼠标，智能避免遮挡屏幕边缘
 
 **配置选项：**
-- 在「偏好设置 → 翻译设置」中配置是否启用浮动工具栏
-- 可选择划词后直接翻译或先显示工具栏
+- 在「偏好设置 → 划词设置」中配置划词行为：
+  - **显示工具栏**：划词后弹出工具栏，点击对应按钮触发功能
+  - **直接翻译**：划词后直接打开翻译窗口
+  - **禁用**：划词后无任何弹出
 
 ### 剪切板监听模式
 
@@ -554,6 +656,217 @@ Rust >= 1.80.0
     ```bash
     pnpm tauri build
     ```
+
+<div align="center">
+# 开发注意事项 / 已知技术卡点
+
+</div>
+
+本节记录开发过程中踩过的关键坑，便于后续维护和新功能开发时规避，也便于复用已有解决思路。
+
+## ⚠️ 卡点 1：Tauri 命令线程中 `WindowBuilder::build()` 死锁（Windows / WebView2）
+
+### 现象
+
+点击浮动工具栏按钮后，日志停在：
+
+```text
+Window not existence, Creating new window: translate
+```
+
+之后完全卡死，无任何后续日志，翻译窗口永远不出现。
+
+### 根本原因
+
+在 Windows 上，Tauri 同步命令（`#[tauri::command]`）的处理函数运行在 **WebView2 IPC 事件线程**上。
+
+当该线程调用 `WindowBuilder::build()` 时，会形成如下循环等待：
+
+```text
+WebView2 IPC 线程
+  → 执行 Tauri 命令处理函数
+    → build() 需要创建新的 WebView2 控制器
+      → 需要 WebView2 消息循环处理“创建窗口”事件
+        → 但消息循环正在等待 IPC 命令返回
+          → 循环等待，永久卡死
+```
+
+`float_toolbar_window()` 之所以正常，是因为它来自 `mouse_hook` 中的 `std::thread::spawn`，不是在 WebView2 IPC 命令线程中执行。
+
+### 修复方案
+
+**在 Tauri 命令处理函数中，把窗口创建逻辑移动到 `std::thread::spawn` 的独立线程中执行。**
+
+```rust
+// ❌ 错误写法：直接在命令线程中创建窗口
+#[tauri::command]
+pub fn open_translate_from_toolbar() {
+    let window = translate_window();
+    window.emit("new_text", text).unwrap_or_default();
+}
+
+// ✅ 正确写法：先读取共享状态，再在独立线程中创建窗口
+#[tauri::command]
+pub fn open_translate_from_toolbar() {
+    let text = { /* 在命令线程中读取 state */ };
+    std::thread::spawn(move || {
+        let window = translate_window();
+        window.emit("new_text", text).unwrap_or_default();
+    });
+}
+```
+
+### 适用规则
+
+- 凡是 `#[tauri::command]` 中可能触发 `WindowBuilder::build()` 的逻辑，**优先考虑放入 `std::thread::spawn`**
+- 先在命令线程中读取共享状态，再把真正的窗口创建放到独立线程，避免锁和 IPC 线程相互阻塞
+
+### 涉及文件
+
+- `src-tauri/src/window.rs`
+
+---
+
+## ⚠️ 卡点 2：`current_monitor().unwrap().unwrap()` 在新建不可见窗口上 panic
+
+### 现象
+
+窗口创建过程中无明显错误日志，但窗口不出现，或者应用直接 panic。
+
+### 根本原因
+
+很多窗口是通过 `.visible(false)` 创建的。此时系统尚未把该窗口关联到具体显示器，`current_monitor()` 可能返回 `Ok(None)`。
+
+如果直接使用：
+
+```rust
+let monitor = window.current_monitor().unwrap().unwrap();
+```
+
+第二个 `unwrap()` 会直接 panic。
+
+### 修复方案
+
+统一使用带 fallback 的安全封装函数：
+
+```rust
+fn get_window_monitor(window: &Window) -> Monitor {
+    window.current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| get_daemon_window().primary_monitor().ok().flatten())
+        .expect("No monitor found for window")
+}
+```
+
+### 适用规则
+
+- **不要** 在窗口创建初期直接使用 `current_monitor().unwrap().unwrap()`
+- 对不可见窗口、刚创建的窗口、尚未 show 的窗口，始终使用安全 fallback
+
+### 涉及文件
+
+- `src-tauri/src/window.rs`
+
+---
+
+## ⚠️ 卡点 3：浮动工具栏里的 `invoke()` 不能 `await`
+
+### 现象
+
+工具栏点击按钮后，如果前端写成：
+
+```js
+await invoke('open_translate_from_toolbar');
+```
+
+则可能再次触发窗口创建卡死，或者前端表现为按钮点击后无响应。
+
+### 根本原因
+
+`await invoke()` 会让当前 WebView2 IPC 调用链等待 Rust 返回；而 Rust 侧如果又开始创建新窗口，就会重新依赖 WebView2 消息循环，从而和卡点 1 形成同源问题。
+
+### 修复方案
+
+对于“打开窗口”类按钮，使用 **fire-and-forget** 调用方式：
+
+```js
+// ❌ 错误
+await invoke('open_translate_from_toolbar');
+hide();
+
+// ✅ 正确
+invoke('open_translate_from_toolbar').catch(() => {});
+await delay(80);
+hide();
+```
+
+### 适用规则
+
+- 只要是“点击工具栏按钮 → 打开其他窗口”的逻辑，`invoke()` **不要 await**
+- 时序建议：**先 `invoke()`，再短暂 `delay()`，最后 `hide()`**
+
+### 涉及文件
+
+- `src/window/FloatToolbar/index.jsx`
+
+---
+
+## ⚠️ 卡点 4：浮动工具栏按钮与具体业务逻辑不要强耦合
+
+### 现象
+
+如果把所有按钮逻辑都塞进一个巨大的 `handleClick` 里，后续加按钮、改时序、修特殊平台 bug 都会非常难维护。
+
+### 修复方案
+
+将浮动工具栏拆成两层：
+
+1. **显示配置层**
+   - `BASE_BUTTONS`
+   - `SMART_BUTTON_MAP`
+2. **行为配置层**
+   - `BUTTON_ACTIONS`
+
+工具栏组件本身只做：
+
+- 渲染按钮
+- 读取当前选中文字
+- 根据 `id` 分发到对应 action
+
+而不直接关心“翻译/解释/轻 AI/打开链接/格式化”的具体业务细节。
+
+### 推荐模式
+
+```js
+const BUTTON_ACTIONS = {
+  translate: async (_text, { hide }) => {
+    invoke('open_translate_from_toolbar').catch(() => {});
+    await delay(80);
+    hide();
+  },
+  explain: async (_text, { hide }) => {
+    invoke('open_explain_window').catch(() => {});
+    await delay(80);
+    hide();
+  },
+};
+
+const handleClick = useCallback(async (id) => {
+  const action = BUTTON_ACTIONS[id];
+  if (!action) return;
+  await action(text, ctx);
+}, [text, ctx]);
+```
+
+### 适用规则
+
+- 新增工具栏按钮时，优先新增 `BUTTON_ACTIONS[id]`
+- 工具栏组件只负责“分发”，不要再堆积 if-else
+- 不同按钮允许不同的时序策略（例如：先 `invoke` 后 `hide`、先 `hide` 后 `invoke`、保持工具栏打开显示 inline 结果）
+
+---
 
 <div align="center">
 

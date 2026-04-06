@@ -249,6 +249,19 @@
                 "btn_format": "格式化",
                 "btn_lightai": "载AI"
             },
+            "text_selection": {
+                "label": "划词设置",
+                "title": "划词设置",
+                "behavior_label": "划词行为",
+                "behavior_toolbar": "显示工具栏",
+                "behavior_direct": "直接翻译",
+                "behavior_disabled": "禁用",
+                "buttons_title": "工具栏按钮",
+                "btn_translate": "翻译",
+                "btn_explain": "解析",
+                "btn_format": "格式化",
+                "btn_lightai": "载AI"
+            },
             "about": {
                 "label": "关于应用",
                 "title": "关于应用",

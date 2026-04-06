@@ -1,5 +1,5 @@
-use crate::config::{get, set};
-use crate::window::{float_toolbar_window, save_foreground_window};
+use crate::config::{get, reload};
+use crate::window::{float_toolbar_window, direct_translate_selection, save_foreground_window};
 use crate::StringWrapper;
 use crate::APP;
 use log::{info, warn};
@@ -16,7 +16,8 @@ static PRESS_X: AtomicI64 = AtomicI64::new(0);
 static PRESS_Y: AtomicI64 = AtomicI64::new(0);
 
 /// Start the global mouse hook in a background thread.
-/// Detects left-button drag → release events and (in "auto" mode) shows the float toolbar.
+/// Detects left-button drag → release events and triggers the configured behavior
+/// (show toolbar / direct translate / disabled) based on `text_select_behavior` config.
 pub fn start_mouse_hook() {
     std::thread::Builder::new()
         .name("mouse_hook".to_string())
@@ -50,24 +51,16 @@ fn handle_event(event: Event) {
                 return;
             }
 
-            // Check text_select_enabled (default: true)
-            let enabled = match get("text_select_enabled") {
-                Some(v) => v.as_bool().unwrap_or(true),
-                None => {
-                    set("text_select_enabled", true);
-                    true
-                }
-            };
-            if !enabled {
-                return;
-            }
+            // Reload config from disk so we always see the latest JS-side settings.
+            reload();
 
-            // Only trigger in "auto" mode
-            let mode = match get("text_select_trigger_mode") {
-                Some(v) => v.as_str().unwrap_or("auto").to_string(),
-                None => "auto".to_string(),
+            // Check text_select_behavior (default: "toolbar").
+            // Do NOT write a default value here — that would overwrite the user's setting.
+            let behavior = match get("text_select_behavior") {
+                Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
+                None => "toolbar".to_string(),
             };
-            if mode != "auto" {
+            if behavior == "disabled" {
                 return;
             }
 
@@ -110,10 +103,15 @@ fn handle_event(event: Event) {
                     state.0.lock().unwrap().replace_range(.., &trimmed);
                 }
 
-                float_toolbar_window();
+                let text_len = trimmed.len();
+                if behavior == "direct_translate" {
+                    direct_translate_selection(trimmed);
+                } else {
+                    float_toolbar_window();
+                }
                 info!(
                     "Auto-select toolbar triggered ({}chars)",
-                    trimmed.len()
+                    text_len
                 );
             });
         }

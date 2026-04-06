@@ -249,6 +249,19 @@
                 "btn_format": "Format",
                 "btn_lightai": "Light AI"
             },
+            "text_selection": {
+                "label": "Text Selection",
+                "title": "Text Selection Settings",
+                "behavior_label": "Behavior",
+                "behavior_toolbar": "Show Toolbar",
+                "behavior_direct": "Direct Translate",
+                "behavior_disabled": "Disabled",
+                "buttons_title": "Toolbar Buttons",
+                "btn_translate": "Translate",
+                "btn_explain": "Explain",
+                "btn_format": "Format",
+                "btn_lightai": "Light AI"
+            },
             "about": {
                 "label": "About",
                 "title": "About Application",

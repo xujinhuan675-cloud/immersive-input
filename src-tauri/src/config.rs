@@ -181,8 +181,10 @@ pub fn set<T: serde::ser::Serialize>(key: &str, value: T) {
     store.save().unwrap();
 }
 
-pub fn is_first_run() -> bool {
+/// Reload the in-memory store from disk so Rust always sees the latest JS-side changes.
+pub fn reload() {
     let state = APP.get().unwrap().state::<StoreWrapper>();
-    let store = state.0.lock().unwrap();
-    store.is_empty()
+    let mut store = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    let _ = store.load();
 }
+
