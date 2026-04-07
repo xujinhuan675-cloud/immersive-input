@@ -158,7 +158,9 @@
                 "phrases": "Phrases",
                 "is_register": "The hotkey is already registered",
                 "success": "Hotkey register success",
-                "set_hotkey": "Press to Set Hotkey"
+                "set_hotkey": "Press to Set Hotkey",
+                "doubletap_key": "Double-tap Key",
+                "doubletap_tip": "Press a key to set, Backspace to clear"
             },
             "service": {
                 "label": "Service",

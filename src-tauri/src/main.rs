@@ -6,6 +6,7 @@ mod clipboard;
 mod cmd;
 mod config;
 mod error;
+mod doubletap_hook;
 mod hotkey;
 mod lang_detect;
 mod mouse_hook;

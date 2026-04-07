@@ -158,7 +158,9 @@
                 "phrases": "常用语",
                 "is_register": "快捷键已被注册",
                 "success": "快捷键注册成功",
-                "set_hotkey": "按下按键设置快捷键"
+                "set_hotkey": "按下按键设置快捷键",
+                "doubletap_key": "双击触发键",
+                "doubletap_tip": "按下单键设置，Backspace 清除"
             },
             "service": {
                 "label": "服务设置",

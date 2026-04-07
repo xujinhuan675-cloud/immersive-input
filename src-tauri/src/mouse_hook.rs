@@ -116,6 +116,10 @@ fn handle_event(event: Event) {
             });
         }
 
+        EventType::KeyPress(key) => {
+            crate::doubletap_hook::handle_key_press(key);
+        }
+
         _ => {}
     }
 }
