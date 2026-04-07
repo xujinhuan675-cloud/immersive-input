@@ -133,8 +133,30 @@ export default function Explain() {
         if (!q || loading) return;
         setInput('');
         setOutput((prev) => prev + `\n\n[你] ${q}\n\n`);
-        const prevHistory = [...history, { role: 'user', content: q }];
-        startExplain(q, history);
+
+        try { abortRef.current?.abort(); } catch {}
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        setLoading(true);
+
+        // Correct message order: system → full prior history → new user question
+        const msgs = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...history,
+            { role: 'user', content: q },
+        ];
+
+        streamChat(
+            msgs,
+            apiConfig,
+            (delta) => { setOutput((prev) => prev + delta); },
+            (full) => {
+                setHistory((h) => [...h, { role: 'user', content: q }, { role: 'assistant', content: full }]);
+                setLoading(false);
+            },
+            (err) => { setOutput((prev) => prev + '\n' + err); setLoading(false); },
+            ctrl.signal
+        );
     };
 
     // Auto-scroll

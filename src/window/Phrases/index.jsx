@@ -437,7 +437,19 @@ export default function Phrases() {
                     style={S.searchInput}
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setMode('search'); }}
-                    placeholder="🔍 搜索常用语（支持拼音）…"
+                    onKeyDown={(e) => {
+                        // Enter 直接发送第一条匹配结果，无需先用方向键选中
+                        if (e.key === 'Enter' && mode !== 'batch' && filtered.length > 0) {
+                            e.preventDefault();
+                            e.stopPropagation(); // 防止触发根层 handleKeyDown 重复发送
+                            sendPhrase(filtered[0]);
+                        }
+                    }}
+                    placeholder={
+                        filtered.length > 0 && search
+                            ? `🔍 找到 ${filtered.length} 条 · 按 Enter 发送「${filtered[0].title || filtered[0].content.slice(0, 10)}」…`
+                            : '🔍 搜索常用语（拼音），Enter 发送第一条…'
+                    }
                 />
                 <button style={{ ...S.btn('ghost', 'sm'), position: 'relative', zIndex: 1 }}
                     onClick={() => setPhraseModal('new')}>+ 新增</button>

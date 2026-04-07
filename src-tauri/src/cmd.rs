@@ -295,3 +295,73 @@ pub fn paste_result(
     }
     Ok(())
 }
+
+/// Fill account into the previous foreground window (Ctrl+V), then Tab, then fill password.
+/// The Tab key is used to jump between account and password fields on standard login forms.
+/// If Tab fails to reach the password field, the JS side shows a hint to use the fallback button.
+#[tauri::command]
+pub fn fill_autotab(
+    account: String,
+    password: String,
+    state: tauri::State<PrevForegroundWindow>,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use arboard::Clipboard;
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+            KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+            VK_CONTROL, VK_TAB, VK_V,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
+        // Restore the target window focus
+        let prev_hwnd = *state.0.lock().unwrap();
+        if prev_hwnd != 0 {
+            unsafe { let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void)); }
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
+
+        let no_scan: u16 = 0;
+        let no_flags = KEYBD_EVENT_FLAGS(0);
+
+        // 1. Set account to clipboard and Ctrl+V
+        {
+            let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
+            cb.set_text(&account).map_err(|e| e.to_string())?;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        let paste_account = [
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+        ];
+        unsafe { SendInput(&paste_account, std::mem::size_of::<INPUT>() as i32); }
+        std::thread::sleep(std::time::Duration::from_millis(120));
+
+        // 2. Tab (jump to password field)
+        let tab_press = [
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_TAB, wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_TAB, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+        ];
+        unsafe { SendInput(&tab_press, std::mem::size_of::<INPUT>() as i32); }
+        std::thread::sleep(std::time::Duration::from_millis(120));
+
+        // 3. Set password to clipboard and Ctrl+V
+        {
+            let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
+            cb.set_text(&password).map_err(|e| e.to_string())?;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        let paste_password = [
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+        ];
+        unsafe { SendInput(&paste_password, std::mem::size_of::<INPUT>() as i32); }
+    }
+    Ok(())
+}

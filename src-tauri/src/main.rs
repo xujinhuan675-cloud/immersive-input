@@ -10,6 +10,7 @@ mod doubletap_hook;
 mod hotkey;
 mod lang_detect;
 mod mouse_hook;
+mod phrase_inline;
 mod phrases;
 mod screenshot;
 mod server;
@@ -41,7 +42,6 @@ use updater::check_update;
 use window::config_window;
 use window::open_chat_window;
 use window::open_explain_window;
-use window::open_light_ai_window;
 use window::open_login_window;
 use window::open_translate_from_toolbar;
 use window::updater_window;
@@ -169,7 +169,9 @@ fn main() {
             aliyun,
             paste_result,
             write_clipboard,
-            open_light_ai_window,
+            fill_autotab,
+            phrase_inline::phrase_inline_fill,
+            phrase_inline::phrase_inline_dismiss,
             open_explain_window,
             open_translate_from_toolbar,
             open_chat_window,

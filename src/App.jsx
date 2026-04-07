@@ -18,6 +18,7 @@ import { store } from './utils/store';
 import Config from './window/Config';
 import Vault from './window/Vault';
 import Phrases from './window/Phrases';
+import PhrasesInline from './window/PhrasesInline';
 import Login from './window/Login';
 import AuthGuard from './components/AuthGuard';
 import { useConfig } from './hooks';
@@ -39,6 +40,7 @@ const windowMap = {
     updater: <Updater />,
     vault: <Vault />,
     phrases: <Phrases />,
+    phrases_inline: <PhrasesInline />,
     login: <Login />,
 };
 

@@ -70,6 +70,18 @@ fn handle_event(event: Event) {
             let drag_sq = dx * dx + dy * dy;
             const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
             if drag_sq < MIN_DRAG_SQ {
+                // Single click (no drag): hide the floating toolbar if it is visible.
+                // A 50 ms delay lets any toolbar-button JS click fire first before we hide.
+                if behavior == "toolbar" {
+                    std::thread::spawn(|| {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        if let Some(app) = APP.get() {
+                            if let Some(w) = app.get_window("float_toolbar") {
+                                let _ = w.hide();
+                            }
+                        }
+                    });
+                }
                 return;
             }
 
@@ -92,6 +104,12 @@ fn handle_event(event: Event) {
 
                 let text = get_text();
                 let trimmed = text.trim().to_string();
+
+                // Vault quick add capture: consume this selection and skip normal toolbar flow.
+                // Deliberately placed before min_len check so short passwords are also accepted.
+                if crate::vault::handle_quick_add_capture(&trimmed) {
+                    return;
+                }
 
                 if trimmed.len() < min_len {
                     return;

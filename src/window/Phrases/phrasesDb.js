@@ -20,6 +20,40 @@ async function getDb() {
             created_at TEXT    NOT NULL
         )
     `);
+    // 清理全部损坏的邮笿种子标签（icon=📧 均为种子注入，非用户手动创建）
+    // 同时把用户原有的“邮筱”标签图标更新为📧
+    {
+        const EMAIL_ICON = String.fromCodePoint(0x1F4E7); // 📧
+        const YOU_CHAR = '\u90AE';                        // 邮
+        const _tags = await _db.select('SELECT * FROM phrase_tags');
+        for (const t of _tags) {
+            if (t.icon === EMAIL_ICON) {
+                // 种子注入的损坏标签：先解绑常用语再删除
+                await _db.execute('UPDATE phrases SET tag_id=NULL WHERE tag_id=?', [t.id]);
+                await _db.execute('DELETE FROM phrase_tags WHERE id=?', [t.id]);
+            }
+        }
+        // 把以“邮”开头的标签（用户原有邮筱）图标更新为📧
+        const _remaining = await _db.select('SELECT * FROM phrase_tags');
+        for (const t of _remaining) {
+            if (t.name.startsWith(YOU_CHAR) && t.icon !== EMAIL_ICON) {
+                await _db.execute('UPDATE phrase_tags SET icon=? WHERE id=?', [EMAIL_ICON, t.id]);
+            }
+        }
+    }
+    // 将地址标签的图标统一更新为 🏠
+    await _db.execute(`UPDATE phrase_tags SET icon = '🏠' WHERE name = '地址'`);
+    // 删除同名重复标签（保留每个名称最小 id 的行）
+    await _db.execute(`
+        DELETE FROM phrase_tags WHERE id NOT IN (
+            SELECT MIN(id) FROM phrase_tags GROUP BY name
+        )
+    `);
+    // 建立唯一索引，防止未来再重复
+    await _db.execute(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_phrase_tags_name ON phrase_tags(name)
+    `);
+
     await _db.execute(`
         CREATE TABLE IF NOT EXISTS phrases (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +66,29 @@ async function getDb() {
             modified_at TEXT    NOT NULL
         )
     `);
+
+    // 内置默认标签——按名称查重，不覆盖用户已有标签
+    const DEFAULT_TAGS = [
+        { name: '地址',     icon: '🏠', color: '#4caf50' },
+        { name: '问候',     icon: '👋', color: '#e91e63' },
+        { name: '工作',     icon: '💼', color: '#9c27b0' },
+        { name: '回复',     icon: '💬', color: '#ff9800' },
+        { name: '签名',     icon: '✍️', color: '#607d8b' },
+        { name: '联系方式', icon: '📞', color: '#00bcd4' },
+        { name: '个人信息', icon: '👤', color: '#4a7cfa' },
+    ];
+    for (const t of DEFAULT_TAGS) {
+        const exists = await _db.select('SELECT id FROM phrase_tags WHERE name=?', [t.name]);
+        if (exists.length === 0) {
+            const maxRow = await _db.select('SELECT COALESCE(MAX(sort_order),0)+1 AS next FROM phrase_tags');
+            const sortOrder = maxRow[0]?.next ?? 1;
+            await _db.execute(
+                'INSERT OR IGNORE INTO phrase_tags (name, color, icon, sort_order, created_at) VALUES (?,?,?,?,?)',
+                [t.name, t.color, t.icon, sortOrder, now()]
+            );
+        }
+    }
+
     return _db;
 }
 

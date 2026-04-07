@@ -172,10 +172,31 @@ export default function Hotkey() {
         }
     }
 
+    // rdev key string → human-readable display symbol
+    const RDEV_DISPLAY = {
+        // Letters
+        KeyA:'A',KeyB:'B',KeyC:'C',KeyD:'D',KeyE:'E',KeyF:'F',KeyG:'G',KeyH:'H',
+        KeyI:'I',KeyJ:'J',KeyK:'K',KeyL:'L',KeyM:'M',KeyN:'N',KeyO:'O',KeyP:'P',
+        KeyQ:'Q',KeyR:'R',KeyS:'S',KeyT:'T',KeyU:'U',KeyV:'V',KeyW:'W',KeyX:'X',
+        KeyY:'Y',KeyZ:'Z',
+        // Digits
+        Num0:'0',Num1:'1',Num2:'2',Num3:'3',Num4:'4',
+        Num5:'5',Num6:'6',Num7:'7',Num8:'8',Num9:'9',
+        // Symbols
+        SemiColon:';', Quote:"'", Comma:',', Dot:'.', Slash:'/',
+        BackQuote:'`', Minus:'-', Equal:'=',
+        LeftBracket:'[', RightBracket:']', BackSlash:'\\',
+        // Special
+        Space:'\u23B5',   // ⎵ spacebar symbol
+    };
+
     // Display value for the unified input: combo takes priority, then doubletap.
     function displayVal(combo, dt) {
         if (combo) return combo;
-        if (dt) return `${dt}+${dt}`;
+        if (dt) {
+            const sym = RDEV_DISPLAY[dt] || dt;
+            return `${sym}${sym}`;
+        }
         return '';
     }
 

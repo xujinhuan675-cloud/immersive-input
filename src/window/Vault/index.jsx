@@ -1,6 +1,7 @@
 import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
+import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getRecords, addRecord, updateRecord, deleteRecord, getAllTags } from './vaultDb';
 
@@ -39,7 +40,8 @@ function getPasswordStrength(password) {
     return Math.min(score, 5);
 }
 
-const STRENGTH_TEXT = ['', '很弱', '弱', '中等', '强', '很强'];
+// Strength text resolved via i18n at render time
+const STRENGTH_KEYS = ['', 'vault.strength_very_weak', 'vault.strength_weak', 'vault.strength_medium', 'vault.strength_strong', 'vault.strength_very_strong'];
 const STRENGTH_COLOR = ['#ccc', '#e53935', '#fb8c00', '#fdd835', '#7cb342', '#43a047'];
 
 // ─────────────────────────────────────────────
@@ -157,7 +159,8 @@ const S = {
 // ─────────────────────────────────────────────
 // 密码生成器面板组件
 // ─────────────────────────────────────────────
-function PasswordGenPanel({ onUse }) {
+function PasswordGenPanel({ onUse, onCopySuccess }) {
+    const { t } = useTranslation();
     const [len, setLen] = useState(14);
     const [lower, setLower] = useState(true);
     const [upper, setUpper] = useState(true);
@@ -173,18 +176,19 @@ function PasswordGenPanel({ onUse }) {
     useEffect(() => { gen(); }, [gen]);
 
     const strength = getPasswordStrength(pwd);
+    const strengthText = strength > 0 ? t(STRENGTH_KEYS[strength]) : '';
 
     return (
         <div style={S.genPanel}>
-            <div style={S.genTitle}>🔑 密码生成器</div>
+            <div style={S.genTitle}>🔑 {t('vault.gen_title')}</div>
             <div style={S.genRow}>
-                <span style={{ fontSize: '11px', color: '#666', width: 38 }}>长度 {len}</span>
+                <span style={{ fontSize: '11px', color: '#666', width: 38 }}>{t('vault.gen_length', { n: len })}</span>
                 <input type="range" min={6} max={64} value={len}
                     style={S.slider} onChange={(e) => setLen(Number(e.target.value))} />
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {[['小写 a-z', lower, setLower], ['大写 A-Z', upper, setUpper],
-                  ['数字 0-9', nums, setNums], ['符号 !@#', syms, setSyms]].map(([label, val, set]) => (
+                {[[t('vault.gen_lower'), lower, setLower], [t('vault.gen_upper'), upper, setUpper],
+                  [t('vault.gen_numbers'), nums, setNums], [t('vault.gen_symbols'), syms, setSyms]].map(([label, val, set]) => (
                     <label key={label} style={S.checkbox}>
                         <input type="checkbox" checked={val} onChange={(e) => set(e.target.checked)} />
                         {label}
@@ -192,19 +196,19 @@ function PasswordGenPanel({ onUse }) {
                 ))}
             </div>
             <div style={S.genRow}>
-                <span style={{ fontSize: '11px', color: '#666', flexShrink: 0 }}>排除字符</span>
-                <input style={{ ...S.input, flex: 1 }} value={exclude} placeholder="如 0O1lI"
+                <span style={{ fontSize: '11px', color: '#666', flexShrink: 0 }}>{t('vault.gen_exclude')}</span>
+                <input style={{ ...S.input, flex: 1 }} value={exclude} placeholder={t('vault.gen_exclude_placeholder')}
                     onChange={(e) => setExclude(e.target.value)} />
             </div>
             <div style={{ background: '#f5f7ff', borderRadius: '6px', padding: '6px 10px', fontFamily: 'Consolas, monospace', fontSize: '13px', wordBreak: 'break-all' }}>
                 {pwd || <span style={{ color: '#bbb' }}>—</span>}
             </div>
             <div style={S.strengthBar(strength)} />
-            <div style={S.strengthText(strength)}>{strength > 0 ? `强度：${STRENGTH_TEXT[strength]} (${strength}/5)` : ''}</div>
+            <div style={S.strengthText(strength)}>{strengthText && `${t('vault.strength_label')}${strengthText} (${strength}/5)`}</div>
             <div style={{ display: 'flex', gap: '6px' }}>
-                <button style={S.btn()} onClick={gen}>重新生成</button>
-                <button style={S.btn('primary')} onClick={() => onUse(pwd)} disabled={!pwd}>使用此密码</button>
-                <button style={S.btn()} onClick={async () => { if (pwd) await invoke('write_clipboard', { text: pwd }); }}>复制</button>
+                <button style={S.btn()} onClick={gen}>{t('vault.gen_regenerate')}</button>
+                <button style={S.btn('primary')} onClick={() => onUse(pwd)} disabled={!pwd}>{t('vault.gen_use')}</button>
+                <button style={S.btn()} onClick={async () => { if (pwd) { await invoke('write_clipboard', { text: pwd }); onCopySuccess?.(); } }}>{t('vault.gen_copy')}</button>
             </div>
         </div>
     );
@@ -214,6 +218,7 @@ function PasswordGenPanel({ onUse }) {
 // 编辑视图
 // ─────────────────────────────────────────────
 function EditView({ record, allTags, onSave, onCancel }) {
+    const { t } = useTranslation();
     const isNew = !record;
     const [account, setAccount] = useState(record?.account ?? '');
     const [password, setPassword] = useState(record?.password ?? '');
@@ -248,7 +253,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
             }
             onSave();
         } catch (e) {
-            setError('保存失败：' + e);
+        setError(t('vault.save_failed') + e);
         } finally {
             setSaving(false);
         }
@@ -260,12 +265,12 @@ function EditView({ record, allTags, onSave, onCancel }) {
             <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
                 <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>
-                    {isNew ? '➕ 新增记录' : '✏️ 编辑记录'}
+                    {isNew ? `➕ ${t('vault.new_record')}` : `✏️ ${t('vault.edit_record')}`}
                 </span>
                 <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 1 }}>
-                    <button style={S.btn()} onClick={onCancel}>取消</button>
+                    <button style={S.btn()} onClick={onCancel}>{t('common.cancel')}</button>
                     <button style={S.btn('primary')} onClick={handleSave} disabled={saving}>
-                        {saving ? '保存中…' : '保存'}
+                        {saving ? t('vault.saving') : t('vault.save')}
                     </button>
                 </div>
             </div>
@@ -274,30 +279,30 @@ function EditView({ record, allTags, onSave, onCancel }) {
                 {error && <div style={{ color: '#e53935', fontSize: '12px' }}>{error}</div>}
 
                 <div style={S.formRow}>
-                    <label style={S.label}>账号 / 用户名</label>
+                    <label style={S.label}>{t('vault.account_label')}</label>
                     <input style={S.input} value={account} onChange={(e) => setAccount(e.target.value)}
-                        placeholder="输入账号或用户名" autoFocus />
+                        placeholder={t('vault.account_placeholder')} autoFocus />
                 </div>
 
                 <div style={S.formRow}>
-                    <label style={S.label}>密码</label>
+                    <label style={S.label}>{t('vault.password_label')}</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
                         <input style={{ ...S.input, flex: 1, fontFamily: showPwd ? 'inherit' : 'Consolas, monospace' }}
                             type={showPwd ? 'text' : 'password'}
                             value={password} onChange={(e) => setPassword(e.target.value)}
-                            placeholder="输入密码" />
+                            placeholder={t('vault.password_label')} />
                         <button style={S.btn('ghost')} onClick={() => setShowPwd((v) => !v)}>
-                            {showPwd ? '隐藏' : '显示'}
+                            {showPwd ? t('vault.hide') : t('vault.show')}
                         </button>
                         <button style={S.btn()} onClick={() => setShowGen((v) => !v)}>
-                            {showGen ? '收起' : '生成'}
+                            {showGen ? t('vault.gen_collapse') : t('vault.gen_btn')}
                         </button>
                     </div>
                     {password && (
                         <>
                             <div style={S.strengthBar(strength)} />
                             <div style={S.strengthText(strength)}>
-                                密码强度：{STRENGTH_TEXT[strength]} ({strength}/5)
+                                {t('vault.strength_label')}{t(STRENGTH_KEYS[strength])} ({strength}/5)
                             </div>
                         </>
                     )}
@@ -308,33 +313,31 @@ function EditView({ record, allTags, onSave, onCancel }) {
                 )}
 
                 <div style={S.formRow}>
-                    <label style={S.label}>网站 / 应用</label>
+                    <label style={S.label}>{t('vault.website_label')}</label>
                     <input style={S.input} value={website} onChange={(e) => setWebsite(e.target.value)}
-                        placeholder="https://example.com" />
+                        placeholder={t('vault.website_placeholder')} />
                 </div>
 
                 <div style={S.formRow}>
-                    <label style={S.label}>备注</label>
+                    <label style={S.label}>{t('vault.notes_label')}</label>
                     <textarea style={S.textarea} value={notes} onChange={(e) => setNotes(e.target.value)}
-                        placeholder="可选备注" />
+                        placeholder={t('vault.notes_placeholder')} />
                 </div>
 
                 <div style={S.formRow}>
-                    <label style={S.label}>标签</label>
-                    {/* 已有标签勾选 */}
+                    <label style={S.label}>{t('vault.tags_label')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                        {allTags.map((t) => (
-                            <span key={t} style={S.tagPill(tags.includes(t))} onClick={() => toggleTag(t)}>
-                                {tags.includes(t) ? '✓ ' : ''}{t}
+                        {allTags.map((tag) => (
+                            <span key={tag} style={S.tagPill(tags.includes(tag))} onClick={() => toggleTag(tag)}>
+                                {tags.includes(tag) ? '✓ ' : ''}{tag}
                             </span>
                         ))}
                     </div>
-                    {/* 新建标签 */}
                     <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                        <input style={{ ...S.input, flex: 1 }} value={newTag} placeholder="新建标签名，回车添加"
+                        <input style={{ ...S.input, flex: 1 }} value={newTag} placeholder={t('vault.new_tag_placeholder')}
                             onChange={(e) => setNewTag(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }} />
-                        <button style={S.btn()} onClick={addTag}>添加</button>
+                        <button style={S.btn()} onClick={addTag}>{t('vault.add_tag')}</button>
                     </div>
                     {/* 已选标签预览 */}
                     {tags.length > 0 && (
@@ -357,9 +360,10 @@ function EditView({ record, allTags, onSave, onCancel }) {
 // ─────────────────────────────────────────────
 // 快速新增模态框
 // ─────────────────────────────────────────────
-function QuickAddModal({ onSave, onClose }) {
-    const [account, setAccount] = useState('');
-    const [password, setPassword] = useState('');
+function QuickAddModal({ onSave, onClose, initialAccount = '', initialPassword = '' }) {
+    const { t } = useTranslation();
+    const [account, setAccount] = useState(initialAccount);
+    const [password, setPassword] = useState(initialPassword);
     const [website, setWebsite] = useState('');
     const [saving, setSaving] = useState(false);
 
@@ -377,27 +381,27 @@ function QuickAddModal({ onSave, onClose }) {
     return (
         <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
             <div style={S.modal}>
-                <div style={{ fontWeight: 700, fontSize: '14px' }}>⚡ 快速新增</div>
+                <div style={{ fontWeight: 700, fontSize: '14px' }}>⚡ {t('vault.quick_add_title')}</div>
                 <div style={S.formRow}>
-                    <label style={S.label}>账号</label>
+                    <label style={S.label}>{t('vault.account_short')}</label>
                     <input style={S.input} value={account} onChange={(e) => setAccount(e.target.value)}
-                        placeholder="账号 / 用户名" autoFocus />
+                        placeholder={t('vault.quick_add_account_placeholder')} autoFocus />
                 </div>
                 <div style={S.formRow}>
-                    <label style={S.label}>密码</label>
+                    <label style={S.label}>{t('vault.password_short')}</label>
                     <input style={S.input} type="text" value={password} onChange={(e) => setPassword(e.target.value)}
-                        placeholder="密码" />
+                        placeholder={t('vault.password_label')} />
                 </div>
                 <div style={S.formRow}>
-                    <label style={S.label}>网站（可选）</label>
+                    <label style={S.label}>{t('vault.quick_add_website')}</label>
                     <input style={S.input} value={website} onChange={(e) => setWebsite(e.target.value)}
-                        placeholder="https://" />
+                        placeholder={t('vault.quick_add_website_placeholder')} />
                 </div>
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button style={S.btn()} onClick={onClose}>取消</button>
+                    <button style={S.btn()} onClick={onClose}>{t('common.cancel')}</button>
                     <button style={S.btn('primary')} onClick={handleSave}
                         disabled={saving || (!account.trim() && !password.trim())}>
-                        {saving ? '保存中…' : '保存'}
+                        {saving ? t('vault.saving') : t('vault.save')}
                     </button>
                 </div>
             </div>
@@ -409,12 +413,14 @@ function QuickAddModal({ onSave, onClose }) {
 // 列表视图（主视图）
 // ─────────────────────────────────────────────
 function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
+    const { t } = useTranslation();
     const [records, setRecords] = useState([]);
     const [allTags, setAllTags] = useState([]);
     const [search, setSearch] = useState('');
     const [tagFilter, setTagFilter] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
-    const [showQuickAdd, setShowQuickAdd] = useState(false);
+    const [prefillData, setPrefillData] = useState(null); // {account,password} for hotkey flow
+    const [fillMode, setFillMode] = useState(false);       // true when opened via quick_fill hotkey
     const [showGenStandalone, setShowGenStandalone] = useState(false);
     const [toast, setToast] = useState('');
     const toastTimer = useRef(null);
@@ -422,12 +428,10 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
 
     // 根据模式自动操作
     useEffect(() => {
-        if (pendingMode === 'quick_add') {
-            setShowQuickAdd(true);
-            onModeConsumed?.();
-        } else if (pendingMode === 'quick_fill') {
-            // 快速填写模式：自动聚焦搜索框
+        if (pendingMode === 'quick_fill') {
+            // 快捷键填写模式：聚焦搜索框 + 开启 fillMode（Enter 触发一键填写）
             setTimeout(() => searchRef.current?.focus(), 100);
+            setFillMode(true);
             onModeConsumed?.();
         }
     }, [pendingMode, onModeConsumed]);
@@ -441,6 +445,14 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    // Listen for vault_quick_add_prefilled event (hotkey two-selection flow)
+    useEffect(() => {
+        const u = listen('vault_quick_add_prefilled', (e) => {
+            setPrefillData(e.payload);
+        });
+        return () => u.then((f) => f());
+    }, []);
 
     const showToast = (msg) => {
         setToast(msg);
@@ -463,14 +475,12 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     const copyText = async (text, label) => {
         if (!text) return;
         await invoke('write_clipboard', { text });
-        showToast(`已复制${label}`);
+        showToast(t('vault.copied', { label }));
     };
 
     const handleFill = async (text) => {
         if (!text) return;
         try {
-            // 隐藏密码本窗口，等待 OS 将焦点归还给上一个活动窗口，再粘贴
-            // quick_fill 模式下，Rust 已在打开密码本前保存了目标窗口句柄
             await appWindow.hide();
             await new Promise((r) => setTimeout(r, 150));
             await invoke('paste_result', { text });
@@ -479,8 +489,20 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
         }
     };
 
+    // 一键填写：账号 → Tab → 密码
+    const handleAutoFill = async (record) => {
+        if (!record?.account && !record?.password) return;
+        try {
+            await appWindow.hide();
+            await new Promise((r) => setTimeout(r, 150));
+            await invoke('fill_autotab', { account: record.account, password: record.password });
+        } catch (e) {
+            console.error('auto fill error:', e);
+        }
+    };
+
     const handleDelete = async (id) => {
-        if (!window.confirm('确认删除这条记录？')) return;
+        if (!window.confirm(t('vault.confirm_delete'))) return;
         await deleteRecord(id);
         if (selectedId === id) setSelectedId(null);
         load();
@@ -491,34 +513,41 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
             {/* 顶部标题栏 */}
             <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
-                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>🔐 密码本</span>
+                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>🔐 {t('vault.title')}</span>
                 <button style={{ ...S.btn(), position: 'relative', zIndex: 1 }}
-                    onClick={() => appWindow.close()}>✕ 关闭</button>
+                    onClick={() => appWindow.close()}>✕ {t('vault.close')}</button>
             </div>
 
             {/* 工具栏 */}
             <div style={S.toolbar}>
-                <button style={S.btn('primary')} onClick={() => onEdit(null)}>➕ 新增</button>
-                <button style={S.btn()} onClick={() => setShowQuickAdd(true)}>⚡ 快速新增</button>
+                <button style={S.btn('primary')} onClick={() => onEdit(null)}>➕ {t('vault.add')}</button>
+                <button style={S.btn()} onClick={async () => {
+                    await appWindow.hide();
+                    try { await invoke('open_vault_quick_add'); } catch (e) { console.error(e); }
+                }}>⚡ {t('vault.quick_add')}</button>
                 <button style={S.btn()} onClick={() => setShowGenStandalone((v) => !v)}>
-                    🔑 {showGenStandalone ? '收起生成器' : '密码生成器'}
+                    🔑 {showGenStandalone ? t('vault.collapse_gen') : t('vault.password_gen')}
                 </button>
                 {selectedRecord && (
                     <>
                         <div style={{ width: '1px', background: '#e0e0e0', margin: '0 2px' }} />
-                        <button style={S.btn('ghost', true)} onClick={() => copyText(selectedRecord.account, '账号')}>
-                            复制账号
+                        <button
+                            style={S.btn('primary', true)}
+                            onClick={() => handleAutoFill(selectedRecord)}
+                            title={t('vault.fill_one_tip')}>
+                            ⚡ {t('vault.fill_one')}
                         </button>
-                        <button style={S.btn('ghost', true)} onClick={() => copyText(selectedRecord.password, '密码')}>
-                            复制密码
+                        <button
+                            style={S.btn('', true)}
+                            onClick={() => handleFill(selectedRecord.account)}
+                            title={t('vault.fill_account_tip')}>
+                            {t('vault.fill_account')}
                         </button>
-                        <button style={S.btn('', true)} onClick={() => handleFill(selectedRecord.account)}
-                            title="将账号粘贴到上一个活动窗口">
-                            填写账号
-                        </button>
-                        <button style={S.btn('', true)} onClick={() => handleFill(selectedRecord.password)}
-                            title="将密码粘贴到上一个活动窗口">
-                            填写密码
+                        <button
+                            style={S.btn('', true)}
+                            onClick={() => handleFill(selectedRecord.password)}
+                            title={t('vault.fill_password_tip')}>
+                            {t('vault.fill_password')}
                         </button>
                     </>
                 )}
@@ -527,20 +556,35 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
             {/* 密码生成器独立面板 */}
             {showGenStandalone && (
                 <div style={{ padding: '8px 12px', background: '#f0f4ff', borderBottom: '1px solid #dde3f0' }}>
-                    <PasswordGenPanel onUse={async (pwd) => {
-                        await invoke('write_clipboard', { text: pwd });
-                        showToast('密码已复制到剪贴板');
-                        setShowGenStandalone(false);
-                    }} />
+                    <PasswordGenPanel
+                        onUse={async (pwd) => { await invoke('write_clipboard', { text: pwd }); showToast(t('vault.gen_copy_success')); setShowGenStandalone(false); }}
+                        onCopySuccess={() => showToast(t('vault.gen_copy_success'))}
+                    />
                 </div>
             )}
 
             {/* 搜索 + 标签筛选 */}
             <div style={S.filterBar}>
-                <input ref={searchRef} style={S.searchInput} value={search}
+                <input
+                    ref={searchRef}
+                    style={{
+                        ...S.searchInput,
+                        ...(fillMode && { borderColor: '#4a7cfa', boxShadow: '0 0 0 2px #c7d7fd' }),
+                    }}
+                    value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="🔍 搜索账号、网站、标签…" />
-                <span style={S.tagBtn(!tagFilter)} onClick={() => setTagFilter(null)}>全部</span>
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && fillMode && filtered.length > 0) {
+                            e.preventDefault();
+                            handleAutoFill(filtered[0]);
+                        }
+                    }}
+                    placeholder={fillMode
+                        ? `🔑 ${t('vault.search')} (Enter auto-fill)`
+                        : `🔍 ${t('vault.search')}`
+                    }
+                />
+                <span style={S.tagBtn(!tagFilter)} onClick={() => setTagFilter(null)}>{t('vault.all_tags')}</span>
                 {allTags.map((t) => (
                     <span key={t} style={S.tagBtn(tagFilter === t)} onClick={() => setTagFilter(tagFilter === t ? null : t)}>
                         {t}
@@ -552,7 +596,7 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
             <div style={S.list}>
                 {filtered.length === 0 && (
                     <div style={S.emptyTip}>
-                        {records.length === 0 ? '暂无记录，点击「新增」或「快速新增」添加' : '没有匹配的记录'}
+                        {records.length === 0 ? t('vault.empty_new') : t('vault.empty_search')}
                     </div>
                 )}
                 {filtered.map((r) => (
@@ -566,10 +610,10 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                             </div>
                         </div>
                         <div style={S.cardActions} onClick={(e) => e.stopPropagation()}>
-                            <button style={S.btn('', true)} onClick={() => copyText(r.account, '账号')}>账号</button>
-                            <button style={S.btn('ghost', true)} onClick={() => copyText(r.password, '密码')}>密码</button>
-                            <button style={S.btn('', true)} onClick={() => onEdit(r)}>编辑</button>
-                            <button style={S.btn('danger', true)} onClick={() => handleDelete(r.id)}>删除</button>
+                            <button style={S.btn('', true)} onClick={() => copyText(r.account, t('vault.account_short'))}>{t('vault.account_short')}</button>
+                            <button style={S.btn('ghost', true)} onClick={() => copyText(r.password, t('vault.password_short'))}>{t('vault.password_short')}</button>
+                            <button style={S.btn('', true)} onClick={() => onEdit(r)}>{t('vault.edit')}</button>
+                            <button style={S.btn('danger', true)} onClick={() => handleDelete(r.id)}>{t('vault.delete')}</button>
                         </div>
                     </div>
                 ))}
@@ -577,16 +621,21 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
 
             {/* 状态栏 */}
             <div style={S.statusBar}>
-                共 {records.length} 条记录
-                {search || tagFilter ? `，已筛选 ${filtered.length} 条` : ''}
-                {selectedRecord ? ` · 已选中：${selectedRecord.account || '（无账号）'}` : ''}
+                {t('vault.records_total', { n: records.length })}
+                {(search || tagFilter) ? t('vault.records_filtered', { n: filtered.length }) : ''}
+                {selectedRecord ? t('vault.records_selected', { name: selectedRecord.account || '—' }) : ''}
             </div>
 
-            {/* 快速新增模态框 */}
-            {showQuickAdd && (
+            {/* 快速新增模态框（划词捕获流程完成后预填） */}
+            {prefillData != null && (
                 <QuickAddModal
-                    onSave={() => { setShowQuickAdd(false); load(); }}
-                    onClose={() => setShowQuickAdd(false)}
+                    initialAccount={prefillData.account}
+                    initialPassword={prefillData.password}
+                    onSave={() => {
+                        setPrefillData(null);
+                        appWindow.close(); // 保存后关闭密码本窗口
+                    }}
+                    onClose={() => { setPrefillData(null); }}
                 />
             )}
 

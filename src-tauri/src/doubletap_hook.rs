@@ -24,9 +24,55 @@ static STATE: Lazy<Mutex<DoubleTapState>> = Lazy::new(|| {
 const INTERVAL_MS: u128 = 300;
 
 /// Convert an rdev Key to the config string stored by the frontend.
-/// Uses the Debug representation which matches what the JS side stores.
 fn key_to_str(key: Key) -> String {
     format!("{:?}", key)
+}
+
+/// Returns true if the key produces a visible character when typed into a text field.
+/// Used to determine whether to clean up the 2 trigger chars before running the action.
+fn key_produces_char(key: Key) -> bool {
+    matches!(
+        key,
+        Key::KeyA | Key::KeyB | Key::KeyC | Key::KeyD | Key::KeyE
+        | Key::KeyF | Key::KeyG | Key::KeyH | Key::KeyI | Key::KeyJ
+        | Key::KeyK | Key::KeyL | Key::KeyM | Key::KeyN | Key::KeyO
+        | Key::KeyP | Key::KeyQ | Key::KeyR | Key::KeyS | Key::KeyT
+        | Key::KeyU | Key::KeyV | Key::KeyW | Key::KeyX | Key::KeyY | Key::KeyZ
+        | Key::Num0 | Key::Num1 | Key::Num2 | Key::Num3 | Key::Num4
+        | Key::Num5 | Key::Num6 | Key::Num7 | Key::Num8 | Key::Num9
+        | Key::Space
+        | Key::BackQuote | Key::Minus | Key::Equal
+        | Key::LeftBracket | Key::RightBracket | Key::BackSlash
+        | Key::SemiColon | Key::Quote | Key::Comma | Key::Dot | Key::Slash
+    )
+}
+
+/// Send 2 Backspace keypresses to the currently focused window,
+/// erasing the 2 trigger characters the user just typed.
+fn delete_doubletap_chars() {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, INPUT, INPUT_0, INPUT_KEYBOARD,
+            KEYBDINPUT, VK_BACK,
+        };
+        let no_scan: u16 = 0;
+        let no_flags = KEYBD_EVENT_FLAGS(0);
+        for _ in 0..2 {
+            let bs = [
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_BACK, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+                },
+                INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_BACK, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+                },
+            ];
+            unsafe { SendInput(&bs, std::mem::size_of::<INPUT>() as i32); }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
 }
 
 /// Called by mouse_hook for every KeyPress event.
@@ -60,13 +106,13 @@ pub fn handle_key_press(key: Key) {
     if triggered {
         let key_str = key_to_str(key);
         info!("Double-tap detected: {}", key_str);
-        dispatch(&key_str);
+        dispatch(key, &key_str);
     }
 }
 
 /// Look up which action (if any) is configured for the given key string and run it.
-fn dispatch(key_str: &str) {
-    // Reload config so we always see the latest frontend-saved values.
+/// If the key produces a printable character, first delete the 2 typed trigger chars.
+fn dispatch(key: Key, key_str: &str) {
     reload();
 
     let actions: &[(&str, fn())] = &[
@@ -83,9 +129,16 @@ fn dispatch(key_str: &str) {
     for (config_name, action_fn) in actions {
         if let Some(val) = get(config_name) {
             if val.as_str().unwrap_or("") == key_str {
-                info!("Double-tap hotkey: {} → {}", key_str, config_name);
+                info!("Double-tap hotkey: {} \u{2192} {}", key_str, config_name);
+                let produces_char = key_produces_char(key);
                 let action = *action_fn;
-                std::thread::spawn(move || action());
+                std::thread::spawn(move || {
+                    // 删除输入框里已打出的两个触发字符
+                    if produces_char {
+                        delete_doubletap_chars();
+                    }
+                    action();
+                });
                 return;
             }
         }
