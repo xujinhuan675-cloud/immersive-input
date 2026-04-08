@@ -8,6 +8,8 @@
         "build": "vite build",
         "postbuild": "node scripts/post-deploy.mjs",
         "preview": "vite preview",
+        "test": "node --test",
+        "test:watch": "node --test --watch",
         "tauri": "tauri",
         "updater": "node updater/updater.mjs",
         "updater:fixRuntime": "node updater/updater-for-fix-runtime.mjs",

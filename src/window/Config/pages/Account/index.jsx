@@ -11,6 +11,7 @@ import {
     getPaymentGatewayConfig,
     getPaymentOrderStatus,
 } from '../../../../utils/payment';
+import { getBillingProfile } from '../../../../utils/billing';
 
 // 会员等级配置（预留）
 const TIER_KEYS = {
@@ -24,6 +25,8 @@ export default function Account() {
     const { t } = useTranslation();
     const [userInfo, setUserInfo] = useState(null);
     const [paymentConfig, setPaymentConfig] = useState(null);
+    const [billingProfile, setBillingProfile] = useState(null);
+    const [billingLoading, setBillingLoading] = useState(false);
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [creatingOrder, setCreatingOrder] = useState(false);
     const [refreshingOrder, setRefreshingOrder] = useState(false);
@@ -44,21 +47,48 @@ export default function Account() {
     }, []);
 
     useEffect(() => {
-        loadPaymentConfig();
-    }, []);
+        if (!userInfo?.id) {
+            setPaymentConfig(null);
+            setBillingProfile(null);
+            setLatestOrder(null);
+            return;
+        }
+        loadPaymentConfig({ silent: true });
+        loadBillingProfile(userInfo.id, { silent: true });
+    }, [userInfo?.id]);
 
-    async function loadPaymentConfig() {
+    async function loadPaymentConfig({ silent = false } = {}) {
         try {
             const data = await getPaymentGatewayConfig();
             setPaymentConfig(data);
         } catch (e) {
-            toast.error(e.message || t('config.account.payment_load_failed'));
+            if (!silent) {
+                toast.error(e.message || t('config.account.payment_load_failed'));
+            }
+        }
+    }
+
+    async function loadBillingProfile(userId = userInfo?.id, { silent = false } = {}) {
+        if (!userId) return;
+        if (!silent) setBillingLoading(true);
+        try {
+            const data = await getBillingProfile(userId);
+            setBillingProfile(data?.profile || null);
+        } catch (e) {
+            if (!silent) {
+                toast.error(e.message || t('config.account.billing_load_failed'));
+            }
+        } finally {
+            if (!silent) setBillingLoading(false);
         }
     }
 
     async function handleLogout() {
         await logout();
         setUserInfo(null);
+        setPaymentConfig(null);
+        setBillingProfile(null);
+        setLatestOrder(null);
         toast.success(t('config.account.logout_success'));
         // 退出登录后，AuthGuard 会自动检测到并显示登录界面
     }
@@ -116,6 +146,7 @@ export default function Account() {
         try {
             const result = await getPaymentOrderStatus(latestOrder.id);
             setLatestOrder(result.order || latestOrder);
+            await loadBillingProfile(userInfo?.id, { silent: true });
             toast.success(t('config.account.payment_refresh_success'));
         } catch (e) {
             toast.error(e.message || t('config.account.payment_refresh_failed'));
@@ -137,8 +168,47 @@ export default function Account() {
         const amount = Number(order.amountCents || 0) / 100;
         return `${amount.toFixed(2)} ${order.currency || 'CNY'}`;
     }
+    function formatBillingValue(value) {
+        if (value === null || value === undefined || value === '') {
+            return t('config.account.billing_none');
+        }
+        return String(value);
+    }
 
-    const tierConfig = userInfo ? (TIER_KEYS[userInfo.membership_tier] ?? TIER_KEYS.free) : null;
+    function formatBillingDateTime(value) {
+        if (!value) return t('config.account.billing_none');
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return String(value);
+        return d.toLocaleString();
+    }
+
+    function formatBillingQuota(value) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n < 0) return t('config.account.billing_unlimited');
+        if (!Number.isFinite(n)) return '0';
+        return String(n);
+    }
+
+    function getBillingStatusColor(status) {
+        const s = String(status || '').toLowerCase();
+        if (s === 'active') return 'success';
+        if (s === 'inactive' || s === 'suspended' || s === 'canceled' || s === 'cancelled') {
+            return 'danger';
+        }
+        return 'warning';
+    }
+
+    function getBillingStatusLabel(status) {
+        const s = String(status || '').toLowerCase();
+        if (s === 'active') return t('config.account.billing_status_active');
+        if (s === 'inactive') return t('config.account.billing_status_inactive');
+        if (s === 'suspended') return t('config.account.billing_status_suspended');
+        if (s === 'canceled' || s === 'cancelled') return t('config.account.billing_status_canceled');
+        return formatBillingValue(status).toUpperCase();
+    }
+
+    const displayTier = billingProfile?.tier || userInfo?.membership_tier || 'free';
+    const tierConfig = userInfo ? (TIER_KEYS[displayTier] ?? TIER_KEYS.free) : null;
     const activeBackend = paymentConfig?.activeBackend || '-';
     const customEnabled = paymentConfig?.customOrchestratorEnabled ? 'ON' : 'OFF';
 
@@ -193,6 +263,91 @@ export default function Account() {
                     </CardBody>
                 </Card>
             )}
+            {/* ── 会员与计费概览 ────────────────────── */}
+            {userInfo && (
+                <Card shadow='none' className='border-1 border-default-100'>
+                    <CardBody className='space-y-3'>
+                        <div className='flex items-center justify-between gap-2'>
+                            <p className='text-sm font-semibold text-default-800'>
+                                {t('config.account.billing_title')}
+                            </p>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                isLoading={billingLoading}
+                                onPress={() => loadBillingProfile(userInfo.id)}
+                            >
+                                {t('config.account.billing_reload')}
+                            </Button>
+                        </div>
+
+                        {billingProfile ? (
+                            <div className='space-y-2'>
+                                <div className='flex items-center gap-2'>
+                                    <Chip
+                                        size='sm'
+                                        color={tierConfig.color}
+                                        variant='flat'
+                                        className='text-[10px]'
+                                    >
+                                        {t(`config.account.tier_${tierConfig.key}`)}
+                                    </Chip>
+                                    <Chip
+                                        size='sm'
+                                        color={getBillingStatusColor(billingProfile.status)}
+                                        variant='flat'
+                                        className='text-[10px]'
+                                    >
+                                        {getBillingStatusLabel(billingProfile.status)}
+                                    </Chip>
+                                </div>
+                                <div className='text-xs text-default-500 space-y-1'>
+                                    <p>
+                                        {t('config.account.billing_daily_quota')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingQuota(billingProfile.dailyQuota)}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        {t('config.account.billing_daily_used')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingValue(billingProfile.dailyQuotaUsed)}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        {t('config.account.billing_daily_remaining')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingQuota(billingProfile.dailyQuotaRemaining)}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        {t('config.account.billing_credits')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingValue(billingProfile.bonusCredits)}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        {t('config.account.billing_total_requests')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingValue(billingProfile.aiRequestsTotal)}
+                                        </span>
+                                    </p>
+                                    <p>
+                                        {t('config.account.billing_subscription_expires')}:
+                                        <span className='font-mono ml-1 text-default-700'>
+                                            {formatBillingDateTime(billingProfile.subscriptionExpiresAt)}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className='text-xs text-default-500'>
+                                {t('config.account.billing_not_ready')}
+                            </p>
+                        )}
+                    </CardBody>
+                </Card>
+            )}
             {/* ── 支付方案与充值入口 ────────────────────── */}
             {userInfo && (
                 <Card shadow='none' className='border-1 border-default-100'>
@@ -201,7 +356,11 @@ export default function Account() {
                             <p className='text-sm font-semibold text-default-800'>
                                 {t('config.account.payment_title')}
                             </p>
-                            <Button size='sm' variant='light' onPress={loadPaymentConfig}>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                onPress={() => loadPaymentConfig({ silent: false })}
+                            >
                                 {t('config.account.payment_reload')}
                             </Button>
                         </div>

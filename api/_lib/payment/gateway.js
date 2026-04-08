@@ -21,6 +21,7 @@ import {
 } from './store.js';
 import { sub2ApiPayProvider } from './providers/sub2apipay.js';
 import { customOrchestratorProvider } from './providers/customOrchestrator.js';
+import { applyPaymentGrantForOrder } from '../billing/service.js';
 
 const PROVIDERS = {
     [PAYMENT_BACKENDS.SUB2APIPAY]: sub2ApiPayProvider,
@@ -56,6 +57,41 @@ function resolveBackend(providerHint, fallbackBackend) {
     return fallbackBackend;
 }
 
+async function reconcilePaidOrder(order, source = '') {
+    if (!order) {
+        return { order, grant: null };
+    }
+    const status = normalizePaymentStatus(order.status);
+    if (status !== PAYMENT_ORDER_STATUS.PAID && status !== PAYMENT_ORDER_STATUS.COMPLETED) {
+        return { order, grant: null };
+    }
+
+    const grant = await applyPaymentGrantForOrder(order);
+    const shouldFinalize =
+        status === PAYMENT_ORDER_STATUS.PAID &&
+        (grant?.applied || grant?.reason === 'DUPLICATE_GRANT');
+    if (!shouldFinalize || !canTransition(order.status, PAYMENT_ORDER_STATUS.COMPLETED)) {
+        return { order, grant };
+    }
+
+    const updated = await updatePaymentOrderStatus(order.id, {
+        status: PAYMENT_ORDER_STATUS.COMPLETED,
+        failedReason: null,
+        paidAt: order.paidAt || new Date().toISOString(),
+        metadata: {
+            ...(order.metadata || {}),
+            billingGrant: {
+                status: grant.applied ? 'applied' : 'duplicate',
+                grantType: grant.grantType || null,
+                reason: grant.reason || '',
+                source,
+                reconciledAt: new Date().toISOString(),
+            },
+        },
+    });
+    return { order: updated, grant };
+}
+
 export function getPaymentGatewayStatus() {
     const cfg = getPaymentRuntimeConfig();
     return {
@@ -86,9 +122,11 @@ export async function createUnifiedOrder(input) {
     if (idempotencyKey) {
         const existed = await findPaymentOrderByUserIdempotency(userId, idempotencyKey);
         if (existed) {
+            const reconciled = await reconcilePaidOrder(existed, 'create-idempotency-reuse');
             return {
-                order: existed,
+                order: reconciled.order,
                 reused: true,
+                grant: reconciled.grant,
             };
         }
     }
@@ -136,10 +174,12 @@ export async function createUnifiedOrder(input) {
             },
             failedReason: null,
         });
+        const reconciled = await reconcilePaidOrder(updated, 'create-gateway-sync');
 
         return {
-            order: updated,
+            order: reconciled.order,
             reused: false,
+            grant: reconciled.grant,
         };
     } catch (error) {
         await createPaymentAttemptRecord({
@@ -163,12 +203,14 @@ export async function createUnifiedOrder(input) {
 }
 
 export async function queryUnifiedOrder(orderId) {
-    const order = await findPaymentOrderById(orderId);
+    let order = await findPaymentOrderById(orderId);
     if (!order) {
         throw new Error('Order not found');
     }
+    const initialReconciled = await reconcilePaidOrder(order, 'query-initial');
+    order = initialReconciled.order;
     if (PAYMENT_ORDER_TERMINAL_STATUSES.has(order.status)) {
-        return { order, synced: false };
+        return { order, synced: false, grant: initialReconciled.grant };
     }
 
     const provider = ensureProvider(order.backend);
@@ -187,10 +229,10 @@ export async function queryUnifiedOrder(orderId) {
 
         const nextStatus = normalizePaymentStatus(result.status || order.status);
         if (!canTransition(order.status, nextStatus)) {
-            return { order, synced: true };
+            return { order, synced: true, grant: initialReconciled.grant };
         }
 
-        const updated = await updatePaymentOrderStatus(order.id, {
+        order = await updatePaymentOrderStatus(order.id, {
             status: nextStatus,
             failedReason:
                 nextStatus === PAYMENT_ORDER_STATUS.FAILED
@@ -202,7 +244,8 @@ export async function queryUnifiedOrder(orderId) {
                 gatewayQueryResponse: result.raw || {},
             },
         });
-        return { order: updated, synced: true };
+        const reconciled = await reconcilePaidOrder(order, 'query-gateway-sync');
+        return { order: reconciled.order, synced: true, grant: reconciled.grant };
     } catch (error) {
         await createPaymentAttemptRecord({
             id: crypto.randomUUID(),
@@ -277,6 +320,8 @@ export async function handleUnifiedWebhook(input) {
                 },
             });
         }
+        const reconciled = await reconcilePaidOrder(order, 'webhook');
+        order = reconciled.order;
     }
 
     await markPaymentWebhookEventProcessed(eventId);

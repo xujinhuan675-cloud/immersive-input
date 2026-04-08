@@ -182,6 +182,111 @@ immersive-input/
 - `GET|POST /api/payment/order-status`：查询并同步订单状态
 - `POST /api/payment/webhook?provider=sub2apipay|custom_orchestrator`：支付回调入口
 
+### 会员与计费模型（已内置）
+
+- `billing_profiles`：会员档位、订阅到期、每日额度、积分余额、累计用量
+- `billing_usage_events`：每次扣费/扣额度记录（支持 `user_id + idempotency_key` 幂等）
+- `billing_ledger_entries`：充值/订阅发放与用量账本（支付发放使用 `grant_key` 幂等）
+
+支付订单进入 `PAID/COMPLETED` 后会触发计费发放：
+
+- `orderType=subscription`：按 `productCode` 升级/续期会员
+- 其他订单：按金额换算积分（`BILLING_TOPUP_CREDITS_PER_CNY`）
+- 发放成功后订单会从 `PAID` 自动推进到 `COMPLETED`，重复回调不会重复入账
+
+### 计费配置项
+
+- `BILLING_FREE_DAILY_QUOTA`：免费档每日额度（默认 20）
+- `BILLING_TOPUP_CREDITS_PER_CNY`：每 1 元兑换积分（默认 100）
+- `BILLING_ALLOW_CREDIT_FALLBACK`：每日额度耗尽后是否允许扣积分（默认 `true`）
+
+### 会员与计费 API
+
+- `GET|POST /api/billing/profile`：查询用户计费档案（`userId`）
+- `POST /api/billing/consume`：扣减使用量（支持 `X-Idempotency-Key`）
+- `POST /api/billing/grant`：按支付订单补发（或重放）权益（`orderId`）
+
+### 支付接入教程（端到端）
+
+1. 准备环境变量  
+   复制 `payment.env.example`，至少配置：
+   - `PAYMENT_ACTIVE_BACKEND`
+   - `SUB2APIPAY_BASE_URL` / `SUB2APIPAY_API_TOKEN`
+   - `SUB2APIPAY_NOTIFY_URL`（指向你的 `/api/payment/webhook?provider=sub2apipay`）
+   - `SUB2APIPAY_WEBHOOK_SECRET`
+2. 启动服务后先确认网关状态  
+   `GET /api/payment/config`，应看到 `activeBackend=sub2apipay`（或你期望的方案）
+3. 创建订单  
+   `POST /api/payment/create-order`，建议带 `idempotencyKey`，返回 `order.id` 与 `checkoutUrl`
+4. 拉起支付页完成支付  
+   使用返回的 `checkoutUrl` 打开收银台，用户完成付款
+5. 接收回调并验签  
+   支付平台回调 `POST /api/payment/webhook?...`，系统会幂等更新订单并自动发放会员/积分
+6. 主动查询最终状态  
+   轮询 `GET|POST /api/payment/order-status`，看到 `order.status=COMPLETED` 代表已完成发放
+7. 查询会员档案核对权益  
+   `GET /api/billing/profile?userId=...` 检查 `tier` / `subscriptionExpiresAt` / `bonusCredits`
+8. 验证用量扣减  
+   `POST /api/billing/consume`（同一个 `idempotencyKey` 重放），确认不会重复扣减
+
+#### 示例请求
+
+```bash
+curl -X POST "http://127.0.0.1:3000/api/payment/create-order" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: pay_u001_20260408_001" \
+  -d '{
+    "userId":"u001",
+    "orderType":"topup",
+    "amount":29.9,
+    "currency":"CNY",
+    "productCode":"membership_topup",
+    "description":"membership topup"
+  }'
+```
+
+```bash
+curl "http://127.0.0.1:3000/api/billing/profile?userId=u001"
+```
+
+```bash
+curl -X POST "http://127.0.0.1:3000/api/billing/consume" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: usage_u001_20260408_001" \
+  -d '{
+    "userId":"u001",
+    "units":1,
+    "source":"ai"
+  }'
+```
+
+### 方案切换（A/B）
+
+保持当前生产路径（方案 A）：
+
+- `PAYMENT_ACTIVE_BACKEND=sub2apipay`
+- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=false`
+
+切换到方案 B（预置完整实现）：
+
+- `PAYMENT_ACTIVE_BACKEND=custom_orchestrator`
+- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=true`
+- 按需设置 `CUSTOM_ORCHESTRATOR_ADAPTER`
+
+### 自动化测试
+
+已提供 Node 内置测试（无需额外测试框架）：
+
+- `tests/payment-core.test.mjs`：支付开关、状态归一化、状态机转移
+- `tests/billing-engine.test.mjs`：额度扣减、积分回退、订阅发放、充值换算
+- `tests/billing-service.test.mjs`：计费服务幂等与支付发放行为（内存存储模拟）
+
+运行：
+
+```bash
+pnpm test
+```
+
 ## 快速开始
 
 首次使用前，请先在「偏好设置」中配置相关服务：
