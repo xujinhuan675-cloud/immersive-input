@@ -3,9 +3,9 @@ import { PiTranslateFill, PiTextboxFill } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
 import {
     MdKeyboardAlt, MdExtension, MdAccountCircle,
-    MdSettings, MdCloudUpload, MdInfo, MdHistory,
+    MdSettings, MdInfo, MdHistory,
 } from 'react-icons/md';
-import { TbBrain, TbCursorText } from 'react-icons/tb';
+import { TbBrain } from 'react-icons/tb';
 import { Button } from '@nextui-org/react';
 import React from 'react';
 
@@ -17,10 +17,8 @@ const MENU = [
     { path: '/hotkey',   Icon: MdKeyboardAlt,   key: 'hotkey'  },
     { path: '/service',  Icon: MdExtension,     key: 'service' },
     { path: '/history',  Icon: MdHistory,       key: 'history' },
-    { path: '/backup',   Icon: MdCloudUpload,   key: 'backup'  },
-    { path: '/ai',            Icon: TbBrain,       key: 'ai'             },
-    { path: '/text_selection', Icon: TbCursorText,  key: 'text_selection' },
-    { path: '/about',          Icon: MdInfo,        key: 'about'          },
+    { path: '/ai',       Icon: TbBrain,         key: 'ai'      },
+    { path: '/about',    Icon: MdInfo,          key: 'about'   },
 ];
 
 export default function SideBar() {

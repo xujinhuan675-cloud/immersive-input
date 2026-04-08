@@ -6,11 +6,9 @@ import General from '../pages/General';
 import Service from '../pages/Service';
 import History from '../pages/History';
 import Hotkey from '../pages/Hotkey';
-import Backup from '../pages/Backup';
 import About from '../pages/About';
 import AIFeatures from '../pages/AIFeatures';
 import Account from '../pages/Account';
-import TextSelection from '../pages/TextSelection';
 
 const routes = [
     {
@@ -38,20 +36,12 @@ const routes = [
         element: <History />,
     },
     {
-        path: '/backup',
-        element: <Backup />,
-    },
-    {
         path: '/about',
         element: <About />,
     },
     {
         path: '/ai',
         element: <AIFeatures />,
-    },
-    {
-        path: '/text_selection',
-        element: <TextSelection />,
     },
     {
         path: '/account',

@@ -145,6 +145,42 @@ immersive-input/
 5. **开始使用**：登录成功后即可使用所有功能
 
 > 💡 密码保存在本地设备，不会上传到云端。如忘记密码，可点击"忘记密码"通过邮箱重置。
+## 支付双方案（sub2apipay 默认生效）
+
+项目已内置统一支付网关，支持两套后端实现并通过环境变量切换：
+
+- 方案 A（默认生效）：`sub2apipay`
+- 方案 B（完整预置，默认关闭）：`custom_orchestrator`（自定义编排层 + 适配器）
+
+### 核心开关
+
+- `PAYMENT_ACTIVE_BACKEND=sub2apipay`（默认）
+- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=false`（默认）
+
+当 `PAYMENT_ACTIVE_BACKEND=custom_orchestrator` 且 `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=true` 时，才会真正切到方案 B。
+
+### sub2apipay 相关配置
+
+- `SUB2APIPAY_BASE_URL`
+- `SUB2APIPAY_API_TOKEN`
+- `SUB2APIPAY_CREATE_ORDER_PATH`（默认 `/api/orders`）
+- `SUB2APIPAY_QUERY_ORDER_PATH`（默认 `/api/orders/{orderId}`）
+- `SUB2APIPAY_NOTIFY_URL`
+- `SUB2APIPAY_RETURN_URL`
+- `SUB2APIPAY_WEBHOOK_SECRET`
+
+### 自定义编排层（方案 B）相关配置
+
+- `CUSTOM_ORCHESTRATOR_ADAPTER`（默认 `noop`）
+- `CUSTOM_ORCHESTRATOR_WEBHOOK_SECRET`
+- `CUSTOM_ORCHESTRATOR_PLACEHOLDER_CHECKOUT_URL`
+
+### 支付 API 入口
+
+- `GET /api/payment/config`：查看当前生效后端与开关状态
+- `POST /api/payment/create-order`：创建支付订单（统一入口）
+- `GET|POST /api/payment/order-status`：查询并同步订单状态
+- `POST /api/payment/webhook?provider=sub2apipay|custom_orchestrator`：支付回调入口
 
 ## 快速开始
 

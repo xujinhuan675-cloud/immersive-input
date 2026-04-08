@@ -40,6 +40,13 @@ export default function TextSelection() {
     const [behavior, setBehavior] = useConfig('text_select_behavior', 'toolbar');
     const [btnOrder, setBtnOrder] = useConfig('toolbar_btn_order', DEFAULT_BTN_ORDER);
 
+    const behaviorLabelKey =
+        behavior === 'direct_translate'
+            ? 'behavior_direct'
+            : behavior === 'disabled'
+              ? 'behavior_disabled'
+              : 'behavior_toolbar';
+
     const ALL_BUTTONS = [
         { id: 'translate', emoji: '🌐', label: t('config.text_selection.btn_translate'), cfgKey: 'toolbar_btn_translate' },
         { id: 'explain',   emoji: '❓',     label: t('config.text_selection.btn_explain'),   cfgKey: 'toolbar_btn_explain'   },
@@ -75,7 +82,7 @@ export default function TextSelection() {
                             <Dropdown>
                                 <DropdownTrigger>
                                     <Button variant='bordered'>
-                                        {t(`config.text_selection.behavior_${behavior ?? 'toolbar'}`)}
+                                        {t(`config.text_selection.${behaviorLabelKey}`)}
                                     </Button>
                                 </DropdownTrigger>
                                 <DropdownMenu

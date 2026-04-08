@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { appWindow } from '@tauri-apps/api/window';
 import { getCurrentUser } from '../utils/auth';
+import WindowControl from './WindowControl';
+import { osType } from '../utils/env';
 import Login from '../window/Login';
 
 /**
@@ -8,7 +10,6 @@ import Login from '../window/Login';
  * 未登录时显示登录界面，登录后显示子组件
  */
 export default function AuthGuard({ children, showWelcome = false }) {
-    const { t } = useTranslation();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
@@ -43,17 +44,14 @@ export default function AuthGuard({ children, showWelcome = false }) {
     if (!isAuthenticated) {
         return (
             <div className='h-screen flex flex-col bg-background'>
+                {/* 拖拽栏 + 窗口控制（只在非嵌入场景显示） */}
                 {showWelcome && (
-                    <div className='flex-shrink-0 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-6 px-6'>
-                        <div className='flex items-center justify-center gap-3'>
-                            <svg className='w-8 h-8' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' />
-                            </svg>
-                            <div>
-                                <h2 className='text-xl font-bold'>{t('login.welcome_title')}</h2>
-                                <p className='text-sm opacity-90 mt-0.5'>{t('login.welcome_subtitle')}</p>
-                            </div>
-                        </div>
+                    <div
+                        data-tauri-drag-region='true'
+                        className='h-[35px] flex items-center justify-between shrink-0 px-2'
+                    >
+                        <div data-tauri-drag-region='true' className='flex-1 h-full' />
+                        {osType !== 'Darwin' && <WindowControl />}
                     </div>
                 )}
                 <div className='flex-1 overflow-auto'>

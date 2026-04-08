@@ -17,6 +17,7 @@ import { invoke } from '@tauri-apps/api';
 import { useTheme } from 'next-themes';
 
 import { useConfig } from '../../../../hooks/useConfig';
+import Backup from '../Backup';
 import { LanguageFlag } from '../../../../utils/language';
 import { useToastStyle } from '../../../../hooks';
 import { osType } from '../../../../utils/env';
@@ -587,6 +588,10 @@ export default function General() {
                     </div>
                 </CardBody>
             </Card>
+            {/* 备份设置 */}
+            <div className='mt-[10px]'>
+                <Backup />
+            </div>
         </>
     );
 }

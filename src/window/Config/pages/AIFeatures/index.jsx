@@ -1,10 +1,11 @@
 import { Toaster } from 'react-hot-toast';
-import { Card, CardBody, Switch, Slider, Button, Textarea } from '@nextui-org/react';
+import { Card, CardBody, Switch, Slider, Button, Textarea, Tabs, Tab } from '@nextui-org/react';
 import React, { useState } from 'react';
 
 import { useConfig } from '../../../../hooks/useConfig';
 import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
 import { useTranslation } from 'react-i18next';
+import TextSelection from '../TextSelection';
 
 export default function AIFeatures() {
     const { t } = useTranslation();
@@ -17,12 +18,15 @@ export default function AIFeatures() {
     const [showPromptEditor, setShowPromptEditor] = useState(false);
 
     return (
-        <div className='p-[10px] max-w-[800px]'>
+        <>
             <Toaster />
-            <p className='text-[12px] text-default-400 mb-[10px]'>
-                {t('config.ai.api_tip')}
-            </p>
-            <Card className='mb-[10px]'>
+            <Tabs className='flex justify-center max-h-[calc(100%-40px)] overflow-y-auto'>
+                <Tab key='ai_features' title={t('config.ai.label')}>
+                    <div className='p-[10px] max-w-[800px]'>
+                        <p className='text-[12px] text-default-400 mb-[10px]'>
+                            {t('config.ai.api_tip')}
+                        </p>
+                        <Card className='mb-[10px]'>
                 <CardBody>
                     <h3 className='text-[16px] font-bold mb-[6px]'>{t('config.ai.pref_title')}</h3>
                     <p className='text-[12px] text-default-400 mb-[10px]'>{t('config.ai.pref_desc')}</p>
@@ -67,7 +71,13 @@ export default function AIFeatures() {
                         )}
                     </div>
                 </CardBody>
-            </Card>
-        </div>
+                    </Card>
+                </div>
+            </Tab>
+            <Tab key='text_selection' title={t('config.text_selection.label')}>
+                <TextSelection />
+            </Tab>
+        </Tabs>
+    </>
     );
 }

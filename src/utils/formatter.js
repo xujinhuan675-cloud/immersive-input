@@ -30,6 +30,48 @@ function normalizeWhitespace(text) {
     return text;
 }
 
+/**
+ * Capitalize the first English letter of each non-CJK run that is adjacent to a CJK run.
+ *
+ * Examples (after addCjkSpacing has run):
+ *   "hello world \u4f60\u597d"  \u2192  "Hello world \u4f60\u597d"
+ *   "\u4f60\u597d hello world"  \u2192  "\u4f60\u597d Hello world"
+ *   "hello \u4f60\u597d world"  \u2192  "Hello \u4f60\u597d World"
+ *   "a b c \u4f60\u597d"         \u2192  "A b c \u4f60\u597d"
+ */
+function capitalizeAtCjkBoundary(text) {
+    const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+
+    // Split into alternating CJK / non-CJK segments
+    const segments = [];
+    let buf = '';
+    let lastWasCjk = null;
+    for (const ch of text) {
+        const isCjk = CJK_RE.test(ch);
+        if (lastWasCjk !== null && isCjk !== lastWasCjk) {
+            segments.push({ cjk: lastWasCjk, text: buf });
+            buf = '';
+        }
+        buf += ch;
+        lastWasCjk = isCjk;
+    }
+    if (buf.length) segments.push({ cjk: lastWasCjk ?? false, text: buf });
+
+    // For each non-CJK segment adjacent to at least one CJK segment,
+    // uppercase the first lowercase English letter in that segment.
+    for (let i = 0; i < segments.length; i++) {
+        if (!segments[i].cjk) {
+            const adjPrev = i > 0 && segments[i - 1].cjk;
+            const adjNext = i < segments.length - 1 && segments[i + 1].cjk;
+            if (adjPrev || adjNext) {
+                segments[i].text = segments[i].text.replace(/[a-z]/, (c) => c.toUpperCase());
+            }
+        }
+    }
+
+    return segments.map((s) => s.text).join('');
+}
+
 // Common tech abbreviations that should be uppercase
 const ABBR_MAP = {
     '\\bai\\b': 'AI',
@@ -119,6 +161,7 @@ export function formatText(input) {
     let result = input;
     result = normalizeWhitespace(result);
     result = addCjkSpacing(result);
+    result = capitalizeAtCjkBoundary(result); // 中英文边界首字母大写
     result = normalizePunctuation(result);
     result = normalizeAbbreviations(result);
     result = cleanupSpaces(result);
