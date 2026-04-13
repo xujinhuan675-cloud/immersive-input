@@ -32,7 +32,7 @@ fi
 
 # 测试 2: 发送验证码
 echo -e "${YELLOW}📧 测试 2: 发送验证码到 $TEST_EMAIL${NC}"
-CODE_RESPONSE=$(curl -s -X POST "$API_BASE/api/auth/send-register-code" \
+CODE_RESPONSE=$(curl -s -X POST "$API_BASE/api/auth/send-code?scene=register" \
   -H "Content-Type: application/json" \
   -d "{\"email\": \"$TEST_EMAIL\"}")
 
@@ -67,7 +67,7 @@ fi
 
 # 测试 4: 验证码限流测试
 echo -e "${YELLOW}⏱️  测试 4: 验证码限流（连续发送）${NC}"
-LIMIT_RESPONSE=$(curl -s -X POST "$API_BASE/api/auth/send-register-code" \
+LIMIT_RESPONSE=$(curl -s -X POST "$API_BASE/api/auth/send-code?scene=register" \
   -H "Content-Type: application/json" \
   -d "{\"email\": \"$TEST_EMAIL\"}")
 

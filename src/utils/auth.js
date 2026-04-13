@@ -178,7 +178,7 @@ export async function registerWithEmail({ username, email, password, code }) {
  * if (!res.ok) throw new Error((await res.json()).message);
  */
 export async function sendEmailCode({ email }) {
-    const data = await postJson('/api/auth/send-register-code', { email });
+    const data = await postJson('/api/auth/send-code?scene=register', { email });
     return data;
 }
 
@@ -188,7 +188,7 @@ export async function sendEmailCode({ email }) {
  * @returns {Promise<void>}
  */
 export async function sendResetCode({ email }) {
-    const data = await postJson('/api/auth/send-reset-code', { email });
+    const data = await postJson('/api/auth/send-code?scene=reset', { email });
     return data;
 }
 

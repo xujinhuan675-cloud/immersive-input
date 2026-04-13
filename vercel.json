@@ -1,6 +1,26 @@
 {
     "rewrites": [
         {
+            "source": "/api/auth/send-register-code",
+            "destination": "/api/auth/send-code?scene=register"
+        },
+        {
+            "source": "/api/auth/send-reset-code",
+            "destination": "/api/auth/send-code?scene=reset"
+        },
+        {
+            "source": "/api/billing/admin-membership",
+            "destination": "/api/admin/billing?action=membership"
+        },
+        {
+            "source": "/api/billing/grant",
+            "destination": "/api/admin/billing?action=grant"
+        },
+        {
+            "source": "/api/payment/refund",
+            "destination": "/api/admin/billing?action=refund"
+        },
+        {
             "source": "/admin/billing",
             "destination": "/admin-billing.html"
         },

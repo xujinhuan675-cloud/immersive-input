@@ -14,7 +14,7 @@
 - 配置 `ALIPAY_APP_ID`。
 - 配置 `ALIPAY_PRIVATE_KEY`。
 - 配置 `ALIPAY_PUBLIC_KEY`。
-- 配置 `ALIPAY_NOTIFY_URL={{APP_BASE_URL}}/api/payment/webhook?provider=alipay`。
+- 配置 `ALIPAY_NOTIFY_URL={{APP_BASE_URL}}/api/payment/webhook`。
 - 配置 `ALIPAY_RETURN_URL` 为你的支付完成页。
 - 在支付宝开放平台中确认应用已开通网页支付能力。
 - 确认回调地址与应用公钥、支付宝公钥一致，没有混用沙箱和正式环境。
@@ -28,7 +28,8 @@
 - 配置 `WXPAY_API_V3_KEY`。
 - 配置 `WXPAY_PUBLIC_KEY`。
 - 配置 `WXPAY_PUBLIC_KEY_ID`。
-- 配置 `WXPAY_NOTIFY_URL={{APP_BASE_URL}}/api/payment/webhook?provider=wxpay`。
+- 配置 `WXPAY_NOTIFY_URL={{APP_BASE_URL}}/api/payment/webhook`。
+- 当前后端会根据支付宝回调体字段或微信支付签名头自动识别渠道，一般不需要在 webhook URL 上额外带 `provider` 参数。
 - 确认商户平台 APIv3 密钥、平台证书、公钥模式与当前配置一致。
 - 桌面端默认优先走二维码/NATIVE，移动端会按上下文切到 H5。
 
@@ -59,12 +60,12 @@
 
 ## 6. 管理员接口
 
-- `POST /api/payment/refund`
+- `POST /api/admin/billing?action=refund`
 - 请求体：`{ "orderId": "...", "reason": "..." }`
 - 要求：携带 `X-Admin-Token`
 - 行为：对已支付订单发起退款；如果渠道已经确认退款，会同步把订单推进到 `REFUNDED` 并回滚已发放权益。
 
-- `POST /api/billing/admin-membership`
+- `POST /api/admin/billing?action=membership`
 - 请求体：`{ "userId": "...", "action": "suspend|resume", "reason": "..." }`
 - 要求：携带 `X-Admin-Token`
 - 行为：暂停或恢复会员状态。

@@ -53,8 +53,8 @@
         </screenshot>
     </screenshots>
     <releases>
-        <release version="3.0.7" date="2025-5-10">
-            <url type="details">https://github.com/pot-app/pot-desktop/releases/tag/3.0.7</url>
+        <release version="4.0.7" date="2026-04-13">
+            <url type="details">https://github.com/pot-app/pot-desktop/releases/tag/4.0.7</url>
             <description>
                 <p>New feature:</p>
                 <ul>

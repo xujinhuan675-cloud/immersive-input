@@ -226,7 +226,7 @@ immersive-input/
 
 - `GET|POST /api/billing/profile`：查询用户计费档案（`userId`）
 - `POST /api/billing/consume`：扣减使用量（支持 `X-Idempotency-Key`）
-- `POST /api/billing/grant`：按支付订单补发（或重放）权益（`orderId`）
+- `POST /api/admin/billing?action=grant`：按支付订单补发（或重放）权益（`orderId`）
 
 ### 支付接入教程（端到端）
 

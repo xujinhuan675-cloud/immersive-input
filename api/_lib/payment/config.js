@@ -52,7 +52,7 @@ function buildUrl(base, path) {
 function defaultWebhookUrl(baseUrl, provider) {
     const root = normalizeBaseUrl(baseUrl);
     if (!root) return '';
-    return `${root}/api/payment/webhook?provider=${encodeURIComponent(provider)}`;
+    return `${root}/api/payment/webhook`;
 }
 
 export function getPaymentRuntimeConfig() {

@@ -62,7 +62,7 @@ export async function refundPaymentOrder({ orderId, reason = '', adminToken } = 
     const targetOrderId = String(orderId || '').trim();
     if (!targetOrderId) throw new Error('Missing orderId');
 
-    return requestBackend('/api/payment/refund', {
+    return requestBackend('/api/admin/billing?action=refund', {
         method: 'POST',
         headers: buildAdminHeaders(token),
         body: {

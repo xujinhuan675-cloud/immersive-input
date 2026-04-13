@@ -33,13 +33,7 @@ export async function getBillingCatalog(options = {}) {
     });
 }
 
-export async function consumeBillingUnits({
-    userId,
-    units = 1,
-    source = 'ai',
-    metadata = {},
-    idempotencyKey,
-} = {}) {
+export async function consumeBillingUnits({ userId, units = 1, source = 'ai', metadata = {}, idempotencyKey } = {}) {
     const key = String(idempotencyKey || '').trim();
     return requestBackend('/api/billing/consume', {
         method: 'POST',
@@ -54,18 +48,13 @@ export async function consumeBillingUnits({
     });
 }
 
-export async function updateAdminMembership({
-    userId,
-    action,
-    reason = '',
-    adminToken,
-} = {}) {
+export async function updateAdminMembership({ userId, action, reason = '', adminToken } = {}) {
     const token = String(adminToken || '').trim();
     if (!token) throw new Error('Missing admin token');
     const targetUserId = String(userId || '').trim();
     if (!targetUserId) throw new Error('Missing userId');
 
-    return requestBackend('/api/billing/admin-membership', {
+    return requestBackend('/api/admin/billing?action=membership', {
         method: 'POST',
         headers: buildAdminHeaders(token),
         body: {
