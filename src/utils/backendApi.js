@@ -1,3 +1,5 @@
+import { getAccessToken } from './auth';
+
 function getApiBase() {
     const base = String(import.meta.env.VITE_AUTH_API_BASE || '').trim();
     if (!base) return '';
@@ -64,6 +66,13 @@ export async function requestBackend(path, { method = 'GET', headers = {}, body 
     const urls = buildCandidateUrls(path);
     let latestNotFound = null;
     let latestError = null;
+    const authHeaders = {};
+    if (!('Authorization' in headers) && !('authorization' in headers)) {
+        const accessToken = await getAccessToken();
+        if (accessToken) {
+            authHeaders.Authorization = `Bearer ${accessToken}`;
+        }
+    }
 
     for (let i = 0; i < urls.length; i += 1) {
         const url = urls[i];
@@ -72,6 +81,7 @@ export async function requestBackend(path, { method = 'GET', headers = {}, body 
                 method,
                 headers: {
                     'Content-Type': 'application/json',
+                    ...authHeaders,
                     ...headers,
                 },
                 body: body === undefined ? undefined : JSON.stringify(body),

@@ -1,20 +1,26 @@
-import crypto from 'node:crypto';
-
 import { normalizePaymentStatus, PAYMENT_ORDER_STATUS } from '../../constants.js';
 import { getPaymentRuntimeConfig } from '../../config.js';
+import { verifyWebhookSignature } from '../webhookSecurity.js';
+function inferWebhookStatus(data) {
+    const directStatus = normalizePaymentStatus(data.status || data.trade_status || data.type || '');
+    if (directStatus !== PAYMENT_ORDER_STATUS.PENDING || data.status || data.trade_status || data.type) {
+        return directStatus;
+    }
 
-function getHeader(headers, name) {
-    const value = headers?.[name] ?? headers?.[name.toLowerCase()];
-    if (!value) return '';
-    if (Array.isArray(value)) return String(value[0]);
-    return String(value);
-}
-
-function safeEqual(a, b) {
-    const aa = Buffer.from(String(a || ''), 'utf8');
-    const bb = Buffer.from(String(b || ''), 'utf8');
-    if (aa.length !== bb.length) return false;
-    return crypto.timingSafeEqual(aa, bb);
+    const eventType = String(data.event_type || data.event || '').trim().toLowerCase();
+    if (!eventType) return PAYMENT_ORDER_STATUS.PENDING;
+    if (eventType.includes('refund')) return PAYMENT_ORDER_STATUS.REFUNDED;
+    if (eventType.includes('cancel') || eventType.includes('close')) return PAYMENT_ORDER_STATUS.CANCELED;
+    if (eventType.includes('fail') || eventType.includes('expire')) return PAYMENT_ORDER_STATUS.FAILED;
+    if (
+        eventType.includes('paid') ||
+        eventType.includes('success') ||
+        eventType.includes('succeed') ||
+        eventType.includes('complete')
+    ) {
+        return PAYMENT_ORDER_STATUS.PAID;
+    }
+    return PAYMENT_ORDER_STATUS.PENDING;
 }
 
 export function createNoopAdapter() {
@@ -29,7 +35,8 @@ export function createNoopAdapter() {
                 status: PAYMENT_ORDER_STATUS.REQUIRES_ACTION,
                 raw: {
                     adapter: 'noop',
-                    note: 'Custom orchestrator placeholder adapter.',
+                    orchestrationMode: 'self_hosted',
+                    note: 'Placeholder adapter used for integration testing and custom orchestration bootstrap.',
                 },
             };
         },
@@ -40,31 +47,44 @@ export function createNoopAdapter() {
                 status: normalizePaymentStatus(order.status || PAYMENT_ORDER_STATUS.PENDING),
                 raw: {
                     adapter: 'noop',
-                    note: 'No real upstream queried.',
+                    orchestrationMode: 'self_hosted',
+                    note: 'No upstream provider is queried in noop mode.',
+                },
+            };
+        },
+        async refundPayment({ order, reason = '' }) {
+            return {
+                providerRefundId: `noop_refund_${order.id}`,
+                status: PAYMENT_ORDER_STATUS.REFUNDED,
+                accepted: true,
+                raw: {
+                    adapter: 'noop',
+                    orchestrationMode: 'self_hosted',
+                    refundReason: reason,
                 },
             };
         },
         async verifyWebhook({ headers, rawBody }) {
-            const secret = getPaymentRuntimeConfig().customOrchestrator.webhookSecret;
-            if (!secret) {
-                return { ok: true, skipped: true };
-            }
-            const signature = getHeader(headers, 'x-custom-orchestrator-signature');
-            if (!signature) return { ok: false, reason: 'Missing signature' };
-            const expected = crypto.createHmac('sha256', secret).update(rawBody || '').digest('hex');
-            return {
-                ok: safeEqual(signature, expected),
-                signature,
-                expected,
-            };
+            const cfg = getPaymentRuntimeConfig().customOrchestrator;
+            return verifyWebhookSignature({
+                headers,
+                rawBody,
+                secret: cfg.webhookSecret,
+                signatureHeader: cfg.webhookSignatureHeader,
+                timestampHeader: cfg.webhookTimestampHeader,
+                toleranceSeconds: cfg.webhookToleranceSeconds,
+                enforceTimestamp: cfg.enforceWebhookTimestamp,
+            });
         },
         parseWebhookEvent({ payload }) {
             const data = payload || {};
+            const fallbackOrderId = data.order_id || data.out_trade_no || data.metadata?.order_id || null;
+            const fallbackStatus = inferWebhookStatus(data);
             return {
-                eventId: String(data.event_id || data.id || crypto.randomUUID()),
-                orderId: data.order_id || data.out_trade_no || data.metadata?.order_id || null,
-                externalOrderId: data.provider_order_id || data.trade_no || null,
-                status: normalizePaymentStatus(data.status || data.type || 'pending'),
+                eventId: data.event_id || data.id || data.notify_id || null,
+                orderId: fallbackOrderId,
+                externalOrderId: data.provider_order_id || data.trade_no || data.order_no || null,
+                status: fallbackStatus,
                 rawPayload: data,
             };
         },

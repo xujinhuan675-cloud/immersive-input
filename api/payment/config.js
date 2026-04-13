@@ -1,10 +1,15 @@
-import { sendJson, setCors } from '../_lib/http.js';
+import { getErrorStatus, sendJson, setCors } from '../_lib/http.js';
+import { getRequestAuthContext } from '../_lib/requestAuth.js';
 import { getPaymentGatewayStatus } from '../_lib/payment/gateway.js';
 
 export default async function handler(req, res) {
-    setCors(req, res, {
+    const cors = setCors(req, res, {
         methods: 'GET, OPTIONS',
+        headers: 'Content-Type, Authorization, X-Admin-Token',
     });
+    if (!cors.originAllowed) {
+        return sendJson(res, 403, { message: 'Origin not allowed' });
+    }
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
         return res.end();
@@ -14,9 +19,10 @@ export default async function handler(req, res) {
     }
 
     try {
+        await getRequestAuthContext(req, { allowAdmin: true });
         const status = getPaymentGatewayStatus();
         return sendJson(res, 200, { ok: true, ...status });
     } catch (e) {
-        return sendJson(res, 500, { message: e?.message || 'Internal Server Error' });
+        return sendJson(res, getErrorStatus(e, 500), { message: e?.message || 'Internal Server Error' });
     }
 }

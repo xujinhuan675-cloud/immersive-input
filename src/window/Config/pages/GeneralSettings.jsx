@@ -1,0 +1,379 @@
+﻿import { enable, isEnabled, disable } from 'tauri-plugin-autostart-api';
+import { DropdownTrigger } from '@nextui-org/react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DropdownMenu } from '@nextui-org/react';
+import { DropdownItem } from '@nextui-org/react';
+import { useTranslation } from 'react-i18next';
+import { CardBody } from '@nextui-org/react';
+import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@nextui-org/react';
+import { Dropdown } from '@nextui-org/react';
+import { info } from 'tauri-plugin-log-api';
+import { Button } from '@nextui-org/react';
+import { Switch } from '@nextui-org/react';
+import { appLogDir, appConfigDir } from '@tauri-apps/api/path';
+import { open } from '@tauri-apps/api/shell';
+import { Card } from '@nextui-org/react';
+import { invoke } from '@tauri-apps/api';
+import { useTheme } from 'next-themes';
+
+import { useConfig } from '../../../hooks/useConfig';
+import { applyAppFont, buildAppFontStack, getCuratedFontList, isChineseCapableFont } from '../../../utils/appFont';
+import { appVersion } from '../../../utils/env';
+import { osType } from '../../../utils/env';
+
+const LANGUAGE_OPTIONS = [
+    'zh_cn',
+    'zh_tw',
+    'en',
+    'ja',
+    'ko',
+    'fr',
+    'de',
+    'es',
+    'ru',
+    'it',
+    'tr',
+    'pt_pt',
+    'pt_br',
+    'nb_no',
+    'nn_no',
+    'fa',
+    'uk',
+    'ar',
+    'he',
+];
+
+const CHINESE_SUPPORT_BADGE = '\u652f\u6301\u4e2d\u6587';
+const BADGE_FONT_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+export default function GeneralSettings() {
+    const [autoStart, setAutoStart] = useState(false);
+    const [fontList, setFontList] = useState(null);
+    const [checkUpdate, setCheckUpdate] = useConfig('check_update', true);
+    const [appLanguage, setAppLanguage] = useConfig('app_language', 'en');
+    const [appTheme, setAppTheme] = useConfig('app_theme', 'system');
+    const [appFont, setAppFont] = useConfig('app_font', 'default');
+    const [appFontSize, setAppFontSize] = useConfig('app_font_size', 16);
+    const [trayClickEvent, setTrayClickEvent] = useConfig('tray_click_event', 'config');
+    const [aboutModalOpen, setAboutModalOpen] = useState(false);
+    const { t, i18n } = useTranslation();
+    const { setTheme } = useTheme();
+    const fontOptions = useMemo(() => getCuratedFontList(fontList, appFont), [fontList, appFont]);
+    const selectedFontSupportsChinese = appFont !== 'default' && isChineseCapableFont(appFont);
+
+    const renderChineseSupportBadge = () => (
+        <span
+            className='rounded-full bg-default-100 px-2 py-0.5 text-[10px] font-medium leading-4 text-default-600'
+            style={{ fontFamily: BADGE_FONT_STACK }}
+        >
+            {CHINESE_SUPPORT_BADGE}
+        </span>
+    );
+
+    useEffect(() => {
+        isEnabled().then((value) => {
+            setAutoStart(value);
+        });
+        invoke('font_list').then((value) => {
+            setFontList(value);
+        });
+    }, []);
+
+    return (
+        <>
+            <Card className='mb-[10px]'>
+                <CardBody>
+                    <div className='config-item'>
+                        <h3>{t('config.general.auto_start')}</h3>
+                        <Switch
+                            isSelected={autoStart}
+                            onValueChange={(value) => {
+                                setAutoStart(value);
+                                if (value) {
+                                    enable().then(() => {
+                                        info('Auto start enabled');
+                                    });
+                                } else {
+                                    disable().then(() => {
+                                        info('Auto start disabled');
+                                    });
+                                }
+                            }}
+                        />
+                    </div>
+                    <div className='config-item'>
+                        <h3>{t('config.general.check_update')}</h3>
+                        {checkUpdate !== null && (
+                            <Switch
+                                isSelected={checkUpdate}
+                                onValueChange={(value) => {
+                                    setCheckUpdate(value);
+                                }}
+                            />
+                        )}
+                    </div>
+                </CardBody>
+            </Card>
+            <Card className='mb-[10px]'>
+                <CardBody>
+                    <div className='config-item'>
+                        <h3 className='my-auto'>{t('config.general.app_language')}</h3>
+                        {appLanguage !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>
+                                        {t(`languages.${appLanguage}`)}
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='app language'
+                                    className='max-h-[40vh] overflow-y-auto'
+                                    onAction={(key) => {
+                                        setAppLanguage(key);
+                                        i18n.changeLanguage(key);
+                                        invoke('update_tray', { language: key, copyMode: '' });
+                                    }}
+                                >
+                                    {LANGUAGE_OPTIONS.map((languageKey) => (
+                                        <DropdownItem key={languageKey}>
+                                            {t(`languages.${languageKey}`)}
+                                        </DropdownItem>
+                                    ))}
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
+                    </div>
+                    <div className='config-item'>
+                        <h3 className='my-auto'>{t('config.general.app_theme')}</h3>
+                        {appTheme !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>{t(`config.general.theme.${appTheme}`)}</Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='app theme'
+                                    onAction={(key) => {
+                                        setAppTheme(key);
+                                        if (key !== 'system') {
+                                            setTheme(key);
+                                        } else {
+                                            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                                                setTheme('dark');
+                                            } else {
+                                                setTheme('light');
+                                            }
+                                            window
+                                                .matchMedia('(prefers-color-scheme: dark)')
+                                                .addEventListener('change', (event) => {
+                                                    if (event.matches) {
+                                                        setTheme('dark');
+                                                    } else {
+                                                        setTheme('light');
+                                                    }
+                                                });
+                                        }
+                                    }}
+                                >
+                                    <DropdownItem key='system'>{t('config.general.theme.system')}</DropdownItem>
+                                    <DropdownItem key='light'>{t('config.general.theme.light')}</DropdownItem>
+                                    <DropdownItem key='dark'>{t('config.general.theme.dark')}</DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
+                    </div>
+                    <div className='config-item'>
+                        <h3 className='my-auto'>{t('config.general.app_font')}</h3>
+                        {appFont !== null && fontList !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>
+                                        <span className='flex items-center gap-2'>
+                                            <span
+                                                style={{
+                                                    fontFamily: buildAppFontStack(appFont),
+                                                }}
+                                            >
+                                                {appFont === 'default' ? t('config.general.default_font') : appFont}
+                                            </span>
+                                            {selectedFontSupportsChinese && renderChineseSupportBadge()}
+                                        </span>
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='app font'
+                                    className='max-h-[50vh] overflow-y-auto'
+                                    onAction={(key) => {
+                                        applyAppFont(key);
+                                        setAppFont(key);
+                                    }}
+                                >
+                                    <DropdownItem key='default' style={{ fontFamily: 'sans-serif' }}>
+                                        {t('config.general.default_font')}
+                                    </DropdownItem>
+                                    {fontOptions.map((fontName) => {
+                                        const fontSupportsChinese = isChineseCapableFont(fontName);
+
+                                        return (
+                                            <DropdownItem key={fontName} textValue={fontName}>
+                                                <div className='flex items-center gap-2'>
+                                                    <span
+                                                        className='truncate'
+                                                        style={{ fontFamily: buildAppFontStack(fontName) }}
+                                                    >
+                                                        {fontName}
+                                                    </span>
+                                                    {fontSupportsChinese && renderChineseSupportBadge()}
+                                                </div>
+                                            </DropdownItem>
+                                        );
+                                    })}
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
+                    </div>
+                    <div className='config-item'>
+                        <h3 className='my-auto mx-0'>{t('config.general.font_size.title')}</h3>
+                        {appFontSize !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>{t(`config.general.font_size.${appFontSize}`)}</Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='app font size'
+                                    className='max-h-[50vh] overflow-y-auto'
+                                    onAction={(key) => {
+                                        document.documentElement.style.fontSize = `${key}px`;
+                                        setAppFontSize(key);
+                                    }}
+                                >
+                                    <DropdownItem key={10}>{t('config.general.font_size.10')}</DropdownItem>
+                                    <DropdownItem key={12}>{t('config.general.font_size.12')}</DropdownItem>
+                                    <DropdownItem key={14}>{t('config.general.font_size.14')}</DropdownItem>
+                                    <DropdownItem key={16}>{t('config.general.font_size.16')}</DropdownItem>
+                                    <DropdownItem key={18}>{t('config.general.font_size.18')}</DropdownItem>
+                                    <DropdownItem key={20}>{t('config.general.font_size.20')}</DropdownItem>
+                                    <DropdownItem key={24}>{t('config.general.font_size.24')}</DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
+                    </div>
+                    <div className={`config-item ${osType !== 'Windows_NT' && 'hidden'}`}>
+                        <h3 className='my-auto'>{t('config.general.tray_click_event')}</h3>
+                        {trayClickEvent !== null && (
+                            <Dropdown>
+                                <DropdownTrigger>
+                                    <Button variant='bordered'>{t(`config.general.event.${trayClickEvent}`)}</Button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    aria-label='tray click event'
+                                    onAction={(key) => {
+                                        setTrayClickEvent(key);
+                                    }}
+                                >
+                                    <DropdownItem key='config'>{t('config.general.event.config')}</DropdownItem>
+                                    <DropdownItem key='translate'>{t('config.general.event.translate')}</DropdownItem>
+                                    <DropdownItem key='ocr_recognize'>
+                                        {t('config.general.event.ocr_recognize')}
+                                    </DropdownItem>
+                                    <DropdownItem key='ocr_translate'>
+                                        {t('config.general.event.ocr_translate')}
+                                    </DropdownItem>
+                                    <DropdownItem key='disable'>{t('config.general.event.disable')}</DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        )}
+                    </div>
+                </CardBody>
+            </Card>
+            <Card>
+                <CardBody>
+                    <div className='config-item'>
+                        <h3 className='my-auto'>{t('config.about.label')}</h3>
+                        <Button
+                            variant='bordered'
+                            onPress={() => {
+                                setAboutModalOpen(true);
+                            }}
+                        >
+                            {appVersion ? `v${appVersion}` : 'Immersive Input'}
+                        </Button>
+                    </div>
+                </CardBody>
+            </Card>
+            <Modal
+                isOpen={aboutModalOpen}
+                onOpenChange={setAboutModalOpen}
+                size='md'
+            >
+                <ModalContent className='max-w-[420px]'>
+                    <ModalHeader className='flex flex-col gap-1 pb-[8px]'>
+                        <span>{t('config.about.label')}</span>
+                        <span className='text-sm font-normal text-default-500'>
+                            {`Immersive Input${appVersion ? ` v${appVersion}` : ''}`}
+                        </span>
+                    </ModalHeader>
+                    <ModalBody className='gap-[10px] pt-0 pb-[10px]'>
+                        <div className='grid grid-cols-2 gap-[8px]'>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                className='justify-start'
+                                fullWidth
+                                onPress={() => {
+                                    open('https://github.com/IOTO-Doc/Immersive-Input');
+                                }}
+                            >
+                                GitHub
+                            </Button>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                className='justify-start'
+                                fullWidth
+                                onPress={() => {
+                                    invoke('updater_window');
+                                }}
+                            >
+                                {t('config.about.check_update')}
+                            </Button>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                className='justify-start'
+                                fullWidth
+                                onPress={async () => {
+                                    const dir = await appLogDir();
+                                    open(dir);
+                                }}
+                            >
+                                {t('config.about.view_log')}
+                            </Button>
+                            <Button
+                                size='sm'
+                                variant='light'
+                                className='justify-start'
+                                fullWidth
+                                onPress={async () => {
+                                    const dir = await appConfigDir();
+                                    open(dir);
+                                }}
+                            >
+                                {t('config.about.view_config')}
+                            </Button>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter className='pt-0 pb-[12px]'>
+                        <Button
+                            variant='light'
+                            onPress={() => {
+                                setAboutModalOpen(false);
+                            }}
+                        >
+                            {t('common.close')}
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+        </>
+    );
+}

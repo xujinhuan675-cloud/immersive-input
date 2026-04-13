@@ -4,11 +4,15 @@ import { appWindow, currentMonitor } from '@tauri-apps/api/window';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { Spacer, Button } from '@nextui-org/react';
-import { AiFillCloseCircle } from 'react-icons/ai';
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { BsPinFill } from 'react-icons/bs';
+import { useTranslation } from 'react-i18next';
 
+import WindowHeader, {
+    WindowHeaderCloseButton,
+    WindowHeaderPinButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
 import LanguageArea from './components/LanguageArea';
 import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
@@ -66,6 +70,7 @@ void listen('tauri://move', () => {
 });
 
 export default function Translate() {
+    const { t } = useTranslation();
     const [closeOnBlur] = useConfig('translate_close_on_blur', true);
     const [alwaysOnTop] = useConfig('translate_always_on_top', false);
     const [windowPosition] = useConfig('translate_window_position', 'mouse');
@@ -233,50 +238,32 @@ export default function Translate() {
     return (
         pluginList && (
             <div
-                className={`bg-background h-screen w-screen ${
+                className={`bg-background h-screen w-screen flex flex-col ${
                     osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
                 }`}
             >
-                <div
-                    className='fixed top-[5px] left-[5px] right-[5px] h-[30px]'
-                    data-tauri-drag-region='true'
-                />
-                <div className={`h-[35px] w-full flex ${osType === 'Darwin' ? 'justify-end' : 'justify-between'}`}>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='flat'
-                        disableAnimation
-                        className='my-auto bg-transparent'
-                        onPress={() => {
-                            if (pined) {
-                                if (closeOnBlur) {
-                                    unlisten = listenBlur();
+                <WindowHeader
+                    left={
+                        <WindowHeaderPinButton
+                            active={pined}
+                            onClick={() => {
+                                if (pined) {
+                                    if (closeOnBlur) {
+                                        unlisten = listenBlur();
+                                    }
+                                    appWindow.setAlwaysOnTop(false);
+                                } else {
+                                    unlistenBlur();
+                                    appWindow.setAlwaysOnTop(true);
                                 }
-                                appWindow.setAlwaysOnTop(false);
-                            } else {
-                                unlistenBlur();
-                                appWindow.setAlwaysOnTop(true);
-                            }
-                            setPined(!pined);
-                        }}
-                    >
-                        <BsPinFill className={`text-[20px] ${pined ? 'text-primary' : 'text-default-400'}`} />
-                    </Button>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='flat'
-                        disableAnimation
-                        className={`my-auto ${osType === 'Darwin' && 'hidden'} bg-transparent`}
-                        onPress={() => {
-                            void appWindow.close();
-                        }}
-                    >
-                        <AiFillCloseCircle className='text-[20px] text-default-400' />
-                    </Button>
-                </div>
-                <div className={`${osType === 'Linux' ? 'h-[calc(100vh-37px)]' : 'h-[calc(100vh-35px)]'} px-[8px]`}>
+                                setPined(!pined);
+                            }}
+                        />
+                    }
+                    center={<WindowHeaderTitle>{t('translate.translate')}</WindowHeaderTitle>}
+                    right={<WindowHeaderCloseButton hideOnDarwin />}
+                />
+                <div className='flex-1 min-h-0 px-[8px] pb-[8px]'>
                     <div className='h-full overflow-y-auto'>
                         <div>
                             {serviceInstanceConfigMap !== null && (

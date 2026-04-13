@@ -8,7 +8,11 @@ import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
 import ReactMarkdown from 'react-markdown';
 
-import { useConfig, useToastStyle } from '../../hooks';
+import WindowHeader, {
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { useToastStyle } from '../../hooks';
 import { osType } from '../../utils/env';
 
 let unlisten = 0;
@@ -55,25 +59,30 @@ export default function Updater() {
 
     return (
         <div
-            className={`bg-background h-screen ${
+            className={`bg-background h-screen flex flex-col overflow-hidden ${
                 osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
             }`}
         >
             <Toaster />
-            <div className='p-[5px] h-[35px] w-full select-none cursor-default'>
-                <div
-                    data-tauri-drag-region='true'
-                    className={`h-full w-full flex ${osType === 'Darwin' ? 'justify-end' : 'justify-start'}`}
-                >
-                    <img
-                        src='icon.png'
-                        className='h-[25px] w-[25px] mr-[10px]'
-                        draggable={false}
-                    />
-                    <h2>{t('updater.title')}</h2>
-                </div>
-            </div>
-            <Card className='mx-[80px] mt-[10px] overscroll-auto h-[calc(100vh-150px)]'>
+            <WindowHeader
+                center={
+                    <WindowHeaderTitle
+                        icon={
+                            <img
+                                src='icon.png'
+                                alt='Immersive Input'
+                                draggable={false}
+                                style={{ width: 18, height: 18 }}
+                            />
+                        }
+                    >
+                        {t('updater.title')}
+                    </WindowHeaderTitle>
+                }
+                right={<WindowHeaderCloseButton />}
+            />
+            <div className='flex-1 min-h-0 px-[80px] pt-[12px]'>
+            <Card className='h-full overscroll-auto'>
                 <CardBody>
                     {body === '' ? (
                         <div className='space-y-3'>
@@ -131,24 +140,27 @@ export default function Updater() {
                     )}
                 </CardBody>
             </Card>
+            </div>
             {downloaded !== 0 && (
-                <Progress
-                    aria-label='Downloading...'
-                    label={t('updater.progress')}
-                    value={(downloaded / total) * 100}
-                    classNames={{
-                        base: 'w-full px-[80px]',
-                        track: 'drop-shadow-md border border-default',
-                        indicator: 'bg-gradient-to-r from-pink-500 to-yellow-500',
-                        label: 'tracking-wider font-medium text-default-600',
-                        value: 'text-foreground/60',
-                    }}
-                    showValueLabel
-                    size='sm'
-                />
+                <div className='px-[80px] pt-[10px] shrink-0'>
+                    <Progress
+                        aria-label='Downloading...'
+                        label={t('updater.progress')}
+                        value={(downloaded / total) * 100}
+                        classNames={{
+                            base: 'w-full',
+                            track: 'drop-shadow-md border border-default',
+                            indicator: 'bg-gradient-to-r from-pink-500 to-yellow-500',
+                            label: 'tracking-wider font-medium text-default-600',
+                            value: 'text-foreground/60',
+                        }}
+                        showValueLabel
+                        size='sm'
+                    />
+                </div>
             )}
 
-            <div className='grid gap-4 grid-cols-2 h-[50px] my-[10px] mx-[80px]'>
+            <div className='grid gap-4 grid-cols-2 my-[10px] mx-[80px] shrink-0'>
                 <Button
                     variant='flat'
                     isLoading={downloaded !== 0}

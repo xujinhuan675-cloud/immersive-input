@@ -411,7 +411,7 @@ pub fn recognize_window() {
 
 #[cfg(not(target_os = "macos"))]
 fn screenshot_window() -> Window {
-    let (window, _exists) = build_window("screenshot", "Screenshot");
+    let (window, exists) = build_window("screenshot", "Screenshot");
 
     window.set_skip_taskbar(true).unwrap();
     #[cfg(target_os = "macos")]
@@ -426,6 +426,9 @@ fn screenshot_window() -> Window {
     window.set_fullscreen(true).unwrap();
 
     window.set_always_on_top(true).unwrap();
+    if exists {
+        window.emit("refresh_screenshot", ()).unwrap_or_default();
+    }
     window
 }
 

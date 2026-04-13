@@ -1,34 +1,55 @@
-use crate::config::{get, set};
+use crate::config::set;
 use crate::window::*;
 use log::{info, warn};
 use std::thread;
 use tauri::api::notification;
 use tiny_http::{Request, Response, Server};
 
+const DEFAULT_SERVER_PORT: u16 = 60828;
+const FIRST_NON_SYSTEM_PORT: u16 = 1024;
+
 pub fn start_server() {
-    let port = match get("server_port") {
-        Some(v) => v.as_i64().unwrap(),
-        None => {
-            set("server_port", 60828);
-            60828
+    let (port, server) = match bind_server() {
+        Ok(value) => value,
+        Err(e) => {
+            let _ = notification::Notification::new("com.immersive-input.desktop")
+                .title("Server start failed")
+                .body(&e)
+                .show();
+            warn!("Server start failed: {}", e);
+            return;
         }
     };
+
+    set("server_port", port);
+    if port == DEFAULT_SERVER_PORT {
+        info!("HTTP server listening on 127.0.0.1:{port}");
+    } else {
+        warn!(
+            "Default server port {} is unavailable, switched to 127.0.0.1:{}",
+            DEFAULT_SERVER_PORT, port
+        );
+    }
+
     thread::spawn(move || {
-        let server = match Server::http(format!("127.0.0.1:{port}")) {
-            Ok(v) => v,
-            Err(e) => {
-                let _ = notification::Notification::new("com.immersive-input.desktop")
-                    .title("Server start failed")
-                    .body("Please Change Server Port and restart the application")
-                    .show();
-                warn!("Server start failed: {}", e);
-                return;
-            }
-        };
         for request in server.incoming_requests() {
             http_handle(request);
         }
     });
+}
+
+fn bind_server() -> Result<(u16, Server), String> {
+    for port in DEFAULT_SERVER_PORT..=u16::MAX {
+        if let Ok(server) = Server::http(format!("127.0.0.1:{port}")) {
+            return Ok((port, server));
+        }
+    }
+    for port in FIRST_NON_SYSTEM_PORT..DEFAULT_SERVER_PORT {
+        if let Ok(server) = Server::http(format!("127.0.0.1:{port}")) {
+            return Ok((port, server));
+        }
+    }
+    Err("No available local port could be bound".to_string())
 }
 
 fn http_handle(request: Request) {

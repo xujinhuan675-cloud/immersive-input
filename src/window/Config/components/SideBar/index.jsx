@@ -1,9 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { PiTranslateFill, PiTextboxFill } from 'react-icons/pi';
+import { PiTranslateFill } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
 import {
     MdKeyboardAlt, MdExtension, MdAccountCircle,
-    MdSettings, MdInfo, MdHistory,
+    MdSettings, MdHistory,
 } from 'react-icons/md';
 import { TbBrain } from 'react-icons/tb';
 import { Button } from '@nextui-org/react';
@@ -11,14 +11,12 @@ import React from 'react';
 
 const MENU = [
     { path: '/account',  Icon: MdAccountCircle, key: 'account'  },
+    { path: '/ai',       Icon: TbBrain,         key: 'ai'      },
     { path: '/general',  Icon: MdSettings,      key: 'general'  },
     { path: '/translate',Icon: PiTranslateFill, key: 'translate'},
-    { path: '/recognize',Icon: PiTextboxFill,   key: 'recognize'},
     { path: '/hotkey',   Icon: MdKeyboardAlt,   key: 'hotkey'  },
     { path: '/service',  Icon: MdExtension,     key: 'service' },
     { path: '/history',  Icon: MdHistory,       key: 'history' },
-    { path: '/ai',       Icon: TbBrain,         key: 'ai'      },
-    { path: '/about',    Icon: MdInfo,          key: 'about'   },
 ];
 
 export default function SideBar() {

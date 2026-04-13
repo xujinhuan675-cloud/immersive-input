@@ -1,18 +1,15 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { resolveActingUserId } from '../_lib/requestAuth.js';
 import { getBillingProfileSummary } from '../_lib/billing/service.js';
 
-function getUserIdFromReq(req, body = null) {
-    const url = new URL(req.url, 'http://localhost');
-    return String(
-        body?.userId || url.searchParams.get('userId') || req.headers['x-user-id'] || ''
-    ).trim();
-}
-
 export default async function handler(req, res) {
-    setCors(req, res, {
+    const cors = setCors(req, res, {
         methods: 'GET, POST, OPTIONS',
-        headers: 'Content-Type, Authorization, X-User-Id',
+        headers: 'Content-Type, Authorization, X-User-Id, X-Admin-Token',
     });
+    if (!cors.originAllowed) {
+        return sendJson(res, 403, { message: 'Origin not allowed' });
+    }
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
         return res.end();
@@ -23,12 +20,13 @@ export default async function handler(req, res) {
 
     try {
         const body = req.method === 'POST' ? await readJsonBody(req) : null;
-        const userId = getUserIdFromReq(req, body);
-        if (!userId) return sendJson(res, 400, { message: 'Missing userId' });
+        const { userId } = await resolveActingUserId(req, body, { allowAdmin: true });
 
         const profile = await getBillingProfileSummary(userId);
         return sendJson(res, 200, { ok: true, profile });
     } catch (e) {
-        return sendJson(res, 500, { message: e?.message || 'Internal Server Error' });
+        return sendJson(res, getErrorStatus(e, 500), {
+            message: e?.message || 'Internal Server Error',
+        });
     }
 }

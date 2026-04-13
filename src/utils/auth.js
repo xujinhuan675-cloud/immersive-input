@@ -35,6 +35,27 @@ const STORAGE_KEYS = {
     LANGUAGE_PREFERENCE: 'auth_language_preference',
 };
 
+function buildStoredUser(user) {
+    if (!user) return null;
+    return {
+        id: user.id,
+        email: user.email,
+        display_name: user.user_metadata?.display_name || user.display_name || '',
+    };
+}
+
+function persistStoredSession(user, token) {
+    const storedUser = buildStoredUser(user);
+    if (!storedUser || !token) return;
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(storedUser));
+}
+
+function clearStoredSession() {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+}
+
 // 简单的加密/解密函数（使用 Base64 + 简单混淆）
 // 注意：这不是强加密，只是防止明文存储
 function encryptPassword(password) {
@@ -100,12 +121,7 @@ export async function loginWithPassword({ email, password, rememberMe = false })
     if (!user || !token) {
         throw new Error('登录失败');
     }
-    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
-        id: user.id,
-        email: user.email,
-        display_name: user.user_metadata?.display_name,
-    }));
+    persistStoredSession(user, token);
     if (rememberMe) {
         localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, email);
         localStorage.setItem(STORAGE_KEYS.REMEMBER_PASSWORD, encryptPassword(password));
@@ -144,12 +160,7 @@ export async function registerWithEmail({ username, email, password, code }) {
     if (!user || !token) {
         throw new Error('登录失败');
     }
-    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
-        id: user.id,
-        email: user.email,
-        display_name: user.user_metadata?.display_name,
-    }));
+    persistStoredSession(user, token);
     return { user, token };
 }
 
@@ -215,8 +226,7 @@ export async function forgotPassword({ email }) {
 export async function logout() {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER);
+    clearStoredSession();
     // 注意：不删除记住的邮箱和密码，以便下次登录使用
 }
 
@@ -239,6 +249,22 @@ export function getCurrentUser() {
     } catch {
         return { user: null, token: null };
     }
+}
+
+export async function getAccessToken() {
+    const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN) || '';
+    try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        const session = data?.session || null;
+        if (session?.access_token && session?.user) {
+            persistStoredSession(session.user, session.access_token);
+            return session.access_token;
+        }
+    } catch {
+        // fall back to the locally cached token when session refresh is unavailable
+    }
+    return storedToken || null;
 }
 
 /**

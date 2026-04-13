@@ -1,7 +1,14 @@
-import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { store } from '../../utils/store';
 import { saveHistory } from '../../utils/aiHistory';
 
@@ -66,6 +73,7 @@ async function streamChat(messages, apiConfig, onChunk, onComplete, onError, sig
 }
 
 export default function Explain() {
+    const { t } = useTranslation();
     const apiConfig = useApiConfig();
     const [sourceText, setSourceText] = useState('');
     const [output, setOutput] = useState('');
@@ -165,9 +173,7 @@ export default function Explain() {
     }, [output]);
 
     const s = {
-        root: { display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: '-apple-system,"Microsoft YaHei",sans-serif', fontSize: '13px', background: '#fafafa', color: '#333' },
-        header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#fff', borderBottom: '1px solid #e5e5e5', flexShrink: 0, position: 'relative' },
-        dragRegion: { position: 'absolute', top: 0, left: 0, right: 0, height: '100%', cursor: 'move' },
+        root: { display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: APP_FONT_FAMILY_VAR, fontSize: '13px', background: '#fafafa', color: '#333' },
         sourceBox: { padding: '6px 12px', background: '#fff8e1', borderBottom: '1px solid #ffe082', fontSize: '12px', color: '#666', maxHeight: '56px', overflow: 'hidden', flexShrink: 0, lineHeight: 1.5 },
         outputArea: { flex: 1, overflow: 'auto', padding: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '13px' },
         footer: { display: 'flex', gap: '6px', padding: '6px 10px', background: '#fff', borderTop: '1px solid #e5e5e5', flexShrink: 0 },
@@ -177,7 +183,37 @@ export default function Explain() {
 
     return (
         <div style={s.root}>
-            <div style={s.header}>
+            <>
+            <WindowHeader
+                center={<WindowHeaderTitle>{t('history.ai_explain')}</WindowHeaderTitle>}
+                right={
+                    <>
+                        {loading ? (
+                            <WindowHeaderButton
+                                onClick={() => {
+                                    abortRef.current?.abort();
+                                    setLoading(false);
+                                }}
+                            >
+                                {t('history.stop')}
+                            </WindowHeaderButton>
+                        ) : (
+                            <WindowHeaderButton
+                                variant='primary'
+                                onClick={() => {
+                                    setOutput('');
+                                    setHistory([]);
+                                    void startExplain(sourceText);
+                                }}
+                            >
+                                {'\u91cd\u65b0\u89e3\u6790'}
+                            </WindowHeaderButton>
+                        )}
+                        <WindowHeaderCloseButton />
+                    </>
+                }
+            />
+            {false && <div style={s.header}>
                 {/* 拖动区域 */}
                 <div style={s.dragRegion} data-tauri-drag-region='true' />
                 
@@ -189,7 +225,8 @@ export default function Explain() {
                     }
                     <button style={s.btn(false)} onClick={() => appWindow.close()}>✕</button>
                 </div>
-            </div>
+            </div>}
+            </>
             <div style={s.sourceBox}>
                 <span style={{ fontWeight: 600, color: '#999', marginRight: 6 }}>解析对象：</span>
                 {sourceText || <span style={{ color: '#bbb' }}>（等待选中文本…）</span>}

@@ -18,6 +18,7 @@ import {
     insertUsageEvent,
     updateBillingProfile,
 } from './store.js';
+import { findLaterSuccessfulSubscriptionOrders } from '../payment/store.js';
 
 function defaultProfileForUser(userId, cfg) {
     return {
@@ -64,9 +65,22 @@ const baseDeps = {
     insertLedgerEntry,
     insertUsageEvent,
     updateBillingProfile,
+    findLaterSuccessfulSubscriptionOrders,
     uuid: () => crypto.randomUUID(),
     now: () => new Date(),
 };
+
+function clonePlainObject(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function pickSnapshotFromGrantMetadata(order, ledgerEntry) {
+    return (
+        ledgerEntry?.metadata?.beforeProfile ||
+        order?.metadata?.billingGrant?.beforeProfile ||
+        null
+    );
+}
 
 export function createBillingService(overrides = {}) {
     const deps = {
@@ -194,6 +208,7 @@ export function createBillingService(overrides = {}) {
         if (!userId) throw new Error('Order missing userId');
 
         const current = await getOrCreateBillingProfile(userId);
+        const beforeProfile = clonePlainObject(toPublicProfile(current));
         const grantKey = `payment_grant:${order.id}`;
         const currentNow = deps.now();
         const subscriptionNext =
@@ -222,6 +237,7 @@ export function createBillingService(overrides = {}) {
                 productCode: order.productCode || null,
                 amountCents: order.amountCents,
                 grantType,
+                beforeProfile,
             },
         });
 
@@ -232,6 +248,9 @@ export function createBillingService(overrides = {}) {
                 reason: 'DUPLICATE_GRANT',
                 profile: toPublicProfile(latest),
                 grantType,
+                beforeProfile: null,
+                afterProfile: null,
+                creditedUnits: grantType === 'topup' ? topupCredits : 0,
             };
         }
 
@@ -239,11 +258,15 @@ export function createBillingService(overrides = {}) {
             ...next,
             userId,
         });
+        const afterProfile = toPublicProfile(updated);
         return {
             applied: true,
             reason: '',
-            profile: toPublicProfile(updated),
+            profile: afterProfile,
             grantType,
+            beforeProfile,
+            afterProfile,
+            creditedUnits: grantType === 'topup' ? topupCredits : 0,
         };
     }
 
@@ -252,12 +275,214 @@ export function createBillingService(overrides = {}) {
         return rows;
     }
 
+    async function reversePaymentGrantForOrder(order, input = {}) {
+        if (!order?.id) throw new Error('Missing order');
+        const userId = String(order.userId || '').trim();
+        if (!userId) throw new Error('Order missing userId');
+
+        const refundKey = `payment_refund:${order.id}`;
+        const ledgerRows = await deps.getBillingLedgerByOrder(order.id);
+        const alreadyRefunded = ledgerRows.find((row) => row.grantKey === refundKey);
+        if (alreadyRefunded) {
+            const latest = await getOrCreateBillingProfile(userId);
+            return {
+                reversed: false,
+                duplicated: true,
+                reason: 'DUPLICATE_REFUND_REVERSAL',
+                reverseType: alreadyRefunded.metadata?.grantType || null,
+                profile: toPublicProfile(latest),
+            };
+        }
+
+        const current = await getOrCreateBillingProfile(userId);
+        const grantRow =
+            ledgerRows.find((row) => row.grantKey === `payment_grant:${order.id}`) ||
+            ledgerRows.find((row) =>
+                row.entryType === 'subscription_grant' || row.entryType === 'topup_credit'
+            ) ||
+            null;
+        const grantType =
+            grantRow?.metadata?.grantType ||
+            order?.metadata?.billingGrant?.grantType ||
+            (order.orderType === 'subscription' ? 'subscription' : 'topup');
+        const now = deps.now();
+
+        if (grantType === 'subscription') {
+            const laterOrders = await deps.findLaterSuccessfulSubscriptionOrders({
+                userId,
+                excludeOrderId: order.id,
+                afterTimestamp: order.paidAt || order.createdAt || now.toISOString(),
+            });
+            if (laterOrders.length > 0) {
+                return {
+                    reversed: false,
+                    duplicated: false,
+                    reason: 'LATER_SUBSCRIPTION_EXISTS',
+                    reverseType: 'subscription',
+                    profile: toPublicProfile(current),
+                };
+            }
+
+            const snapshot = pickSnapshotFromGrantMetadata(order, grantRow);
+            if (!snapshot) {
+                return {
+                    reversed: false,
+                    duplicated: false,
+                    reason: 'MISSING_PREVIOUS_PROFILE_SNAPSHOT',
+                    reverseType: 'subscription',
+                    profile: toPublicProfile(current),
+                };
+            }
+
+            const nextProfile = {
+                ...current,
+                tier: snapshot.tier || current.tier || BILLING_TIERS.FREE,
+                status: snapshot.status || current.status || 'active',
+                subscriptionExpiresAt: snapshot.subscriptionExpiresAt || null,
+                dailyQuota:
+                    Number.isFinite(Number(snapshot.dailyQuota)) && Number(snapshot.dailyQuota) !== 0
+                        ? Number(snapshot.dailyQuota)
+                        : current.dailyQuota,
+            };
+            const inserted = await deps.insertLedgerEntry({
+                id: deps.uuid(),
+                userId,
+                entryType: 'subscription_refund_reversal',
+                amountUnits: 0,
+                orderId: order.id,
+                grantKey: refundKey,
+                metadata: {
+                    grantType: 'subscription',
+                    reason: String(input.reason || '').trim(),
+                    actor: input.actor || null,
+                    beforeProfile: toPublicProfile(current),
+                    restoredProfile: snapshot,
+                },
+            });
+            if (!inserted) {
+                const latest = await getOrCreateBillingProfile(userId);
+                return {
+                    reversed: false,
+                    duplicated: true,
+                    reason: 'DUPLICATE_REFUND_REVERSAL',
+                    reverseType: 'subscription',
+                    profile: toPublicProfile(latest),
+                };
+            }
+            const updated = await deps.updateBillingProfile(nextProfile);
+            return {
+                reversed: true,
+                duplicated: false,
+                reason: '',
+                reverseType: 'subscription',
+                profile: toPublicProfile(updated),
+            };
+        }
+
+        const cfg = deps.getBillingRuntimeConfig();
+        const creditedUnits =
+            Number(grantRow?.amountUnits) ||
+            Number(order?.metadata?.billingGrant?.creditedUnits) ||
+            deps.computeTopupCredits(order.amountCents, cfg.topupCreditsPerCny);
+        const nextProfile = {
+            ...current,
+            bonusCredits: current.bonusCredits - creditedUnits,
+        };
+        const inserted = await deps.insertLedgerEntry({
+            id: deps.uuid(),
+            userId,
+            entryType: 'topup_refund_reversal',
+            amountUnits: -creditedUnits,
+            orderId: order.id,
+            grantKey: refundKey,
+            metadata: {
+                grantType: 'topup',
+                reason: String(input.reason || '').trim(),
+                actor: input.actor || null,
+                beforeProfile: toPublicProfile(current),
+                deductedCredits: creditedUnits,
+            },
+        });
+        if (!inserted) {
+            const latest = await getOrCreateBillingProfile(userId);
+            return {
+                reversed: false,
+                duplicated: true,
+                reason: 'DUPLICATE_REFUND_REVERSAL',
+                reverseType: 'topup',
+                profile: toPublicProfile(latest),
+            };
+        }
+        const updated = await deps.updateBillingProfile(nextProfile);
+        return {
+            reversed: true,
+            duplicated: false,
+            reason: '',
+            reverseType: 'topup',
+            profile: toPublicProfile(updated),
+            deltaCredits: -creditedUnits,
+        };
+    }
+
+    async function setMembershipStatus(input = {}) {
+        const userId = String(input.userId || '').trim();
+        if (!userId) throw new Error('Missing userId');
+        const action = String(input.action || '').trim().toLowerCase();
+        if (!action) throw new Error('Missing action');
+
+        const current = await getOrCreateBillingProfile(userId);
+        const now = deps.now();
+        let nextStatus = current.status;
+
+        if (action === 'suspend') {
+            nextStatus = 'suspended';
+        } else if (action === 'resume') {
+            const expiryTime = current.subscriptionExpiresAt
+                ? new Date(current.subscriptionExpiresAt).getTime()
+                : 0;
+            const hasActiveWindow =
+                current.tier !== BILLING_TIERS.FREE &&
+                Number.isFinite(expiryTime) &&
+                expiryTime > new Date(now).getTime();
+            nextStatus = hasActiveWindow || current.tier === BILLING_TIERS.FREE ? 'active' : 'inactive';
+        } else {
+            throw new Error(`Unsupported action: ${action}`);
+        }
+
+        const updated = await deps.updateBillingProfile({
+            ...current,
+            status: nextStatus,
+        });
+        await deps.insertLedgerEntry({
+            id: deps.uuid(),
+            userId,
+            entryType: action === 'suspend' ? 'subscription_suspended' : 'subscription_resumed',
+            amountUnits: 0,
+            orderId: null,
+            grantKey: null,
+            metadata: {
+                action,
+                reason: String(input.reason || '').trim(),
+                actor: input.actor || null,
+                beforeStatus: current.status,
+                afterStatus: nextStatus,
+            },
+        });
+        return {
+            ok: true,
+            action,
+            profile: toPublicProfile(updated),
+        };
+    }
+
     return {
         getOrCreateBillingProfile,
         getBillingProfileSummary,
         consumeBillingUnits,
         applyPaymentGrantForOrder,
         getBillingGrantLedger,
+        reversePaymentGrantForOrder,
+        setMembershipStatus,
     };
 }
 
@@ -268,3 +493,5 @@ export const getBillingProfileSummary = defaultService.getBillingProfileSummary;
 export const consumeBillingUnits = defaultService.consumeBillingUnits;
 export const applyPaymentGrantForOrder = defaultService.applyPaymentGrantForOrder;
 export const getBillingGrantLedger = defaultService.getBillingGrantLedger;
+export const reversePaymentGrantForOrder = defaultService.reversePaymentGrantForOrder;
+export const setMembershipStatus = defaultService.setMembershipStatus;

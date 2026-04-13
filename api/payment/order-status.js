@@ -1,5 +1,7 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { assertOrderAccess, getRequestAuthContext } from '../_lib/requestAuth.js';
 import { queryUnifiedOrder } from '../_lib/payment/gateway.js';
+import { findPaymentOrderById } from '../_lib/payment/store.js';
 
 function getOrderIdFromUrl(req) {
     const url = new URL(req.url, 'http://localhost');
@@ -7,9 +9,13 @@ function getOrderIdFromUrl(req) {
 }
 
 export default async function handler(req, res) {
-    setCors(req, res, {
+    const cors = setCors(req, res, {
         methods: 'GET, POST, OPTIONS',
+        headers: 'Content-Type, Authorization, X-Admin-Token',
     });
+    if (!cors.originAllowed) {
+        return sendJson(res, 403, { message: 'Origin not allowed' });
+    }
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
         return res.end();
@@ -26,11 +32,15 @@ export default async function handler(req, res) {
                 : String((await readJsonBody(req)).orderId || '').trim();
         if (!orderId) return sendJson(res, 400, { message: 'Missing orderId' });
 
+        const context = await getRequestAuthContext(req, { allowAdmin: true });
+        const order = await findPaymentOrderById(orderId);
+        assertOrderAccess(context, order);
+
         const result = await queryUnifiedOrder(orderId);
         return sendJson(res, 200, { ok: true, ...result });
     } catch (e) {
         const msg = String(e?.message || 'Internal Server Error');
-        const status = msg.includes('not found') ? 404 : 500;
+        const status = getErrorStatus(e, msg.includes('not found') ? 404 : 500);
         return sendJson(res, status, { message: msg });
     }
 }

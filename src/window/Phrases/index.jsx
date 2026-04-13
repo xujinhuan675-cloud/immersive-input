@@ -1,6 +1,13 @@
 import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
+import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import {
     getTags, addTag, updateTag, deleteTag,
     getAllPhrases, addPhrase, updatePhrase, deletePhrase,
@@ -23,7 +30,7 @@ const PRESET_ICONS = ['📝','💬','📞','📢','🎯','🔧','💡','📋','�
 const S = {
     root: {
         height: '100vh', display: 'flex', flexDirection: 'column',
-        background: '#fff', fontFamily: '-apple-system,"Microsoft YaHei",sans-serif',
+        background: '#fff', fontFamily: APP_FONT_FAMILY_VAR,
         fontSize: '13px', color: '#222', overflow: 'hidden',
         borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
     },
@@ -295,6 +302,7 @@ function PhraseRow({ phrase, query, active, sentIds, isBatch, onSend, onEdit, on
 // 主组件
 // ─────────────────────────────────────────────
 export default function Phrases() {
+    const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [allPhrases, setAllPhrases] = useState([]);
     const [tagCounts, setTagCounts] = useState({});
@@ -430,7 +438,44 @@ export default function Phrases() {
     return (
         <div style={S.root} onKeyDown={handleKeyDown} tabIndex={-1}>
             {/* ─── 搜索头部 ─── */}
-            <div style={S.header}>
+            <WindowHeader
+                left={<WindowHeaderTitle icon='📝'>{'\u5e38\u7528\u8bed'}</WindowHeaderTitle>}
+                center={
+                    <input
+                        ref={searchRef}
+                        style={S.searchInput}
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setMode('search');
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && mode !== 'batch' && filtered.length > 0) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void sendPhrase(filtered[0]);
+                            }
+                        }}
+                        placeholder={
+                            filtered.length > 0 && search
+                                ? t('phrases.search_found', {
+                                      n: filtered.length,
+                                      preview: filtered[0].title || filtered[0].content.slice(0, 10),
+                                  })
+                                : t('phrases.search_placeholder')
+                        }
+                    />
+                }
+                right={
+                    <>
+                        <WindowHeaderButton variant='primary' onClick={() => setPhraseModal('new')}>
+                            {t('phrases.add')}
+                        </WindowHeaderButton>
+                        <WindowHeaderCloseButton />
+                    </>
+                }
+            />
+            {false && <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
                 <input
                     ref={searchRef}
@@ -455,7 +500,7 @@ export default function Phrases() {
                     onClick={() => setPhraseModal('new')}>+ 新增</button>
                 <button style={{ ...S.btn('', 'sm'), position: 'relative', zIndex: 1 }}
                     onClick={() => appWindow.close()}>✕</button>
-            </div>
+            </div>}
 
             {/* ─── 主体 ─── */}
             <div style={S.body}>

@@ -3,7 +3,7 @@ import { appCacheDir, join } from '@tauri-apps/api/path';
 import { currentMonitor } from '@tauri-apps/api/window';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { appWindow } from '@tauri-apps/api/window';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { warn } from 'tauri-plugin-log-api';
 import { invoke } from '@tauri-apps/api';
 
@@ -17,18 +17,37 @@ export default function Screenshot() {
     const [mouseMoveY, setMouseMoveY] = useState(0);
 
     const imgRef = useRef();
+    const captureScreenshot = async () => {
+        const monitor = await currentMonitor();
+        if (!monitor) {
+            warn('Current monitor not found');
+            return;
+        }
+
+        const position = monitor.position;
+        await invoke('screenshot', { x: position.x, y: position.y });
+        const appCacheDirPath = await appCacheDir();
+        const filePath = await join(appCacheDirPath, 'immersive_screenshot.png');
+        setImgurl(`${convertFileSrc(filePath)}?ts=${Date.now()}`);
+    };
 
     useEffect(() => {
-        currentMonitor().then((monitor) => {
-            const position = monitor.position;
-            invoke('screenshot', { x: position.x, y: position.y }).then(() => {
-                appCacheDir().then((appCacheDirPath) => {
-                    join(appCacheDirPath, 'pot_screenshot.png').then((filePath) => {
-                        setImgurl(convertFileSrc(filePath));
-                    });
-                });
-            });
+        let unlistenRefresh;
+
+        void captureScreenshot();
+        listen('refresh_screenshot', () => {
+            setIsDown(false);
+            setIsMoved(false);
+            void captureScreenshot();
+        }).then((fn) => {
+            unlistenRefresh = fn;
         });
+
+        return () => {
+            if (unlistenRefresh) {
+                unlistenRefresh();
+            }
+        };
     }, []);
 
     return (

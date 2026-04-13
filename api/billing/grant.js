@@ -1,6 +1,7 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
 import { applyPaymentGrantForOrder } from '../_lib/billing/service.js';
 import { findPaymentOrderById } from '../_lib/payment/store.js';
+import { requireAdminRequest } from '../_lib/requestAuth.js';
 
 function parseOrderId(req, body) {
     const url = new URL(req.url, 'http://localhost');
@@ -8,10 +9,13 @@ function parseOrderId(req, body) {
 }
 
 export default async function handler(req, res) {
-    setCors(req, res, {
+    const cors = setCors(req, res, {
         methods: 'POST, OPTIONS',
-        headers: 'Content-Type, Authorization',
+        headers: 'Content-Type, Authorization, X-Admin-Token',
     });
+    if (!cors.originAllowed) {
+        return sendJson(res, 403, { message: 'Origin not allowed' });
+    }
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
         return res.end();
@@ -21,6 +25,7 @@ export default async function handler(req, res) {
     }
 
     try {
+        await requireAdminRequest(req);
         const body = await readJsonBody(req);
         const orderId = parseOrderId(req, body);
         if (!orderId) return sendJson(res, 400, { message: 'Missing orderId' });
@@ -33,7 +38,10 @@ export default async function handler(req, res) {
     } catch (e) {
         const msg = String(e?.message || 'Internal Server Error');
         const lower = msg.toLowerCase();
-        const status = lower.includes('missing order') || lower.includes('missing userid') ? 400 : 500;
+        const status = getErrorStatus(
+            e,
+            lower.includes('missing order') || lower.includes('missing userid') ? 400 : 500
+        );
         return sendJson(res, status, { message: msg });
     }
 }

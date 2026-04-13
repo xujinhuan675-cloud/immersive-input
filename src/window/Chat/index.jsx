@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { appWindow } from '@tauri-apps/api/window';
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { store } from '../../utils/store';
 import { saveHistory } from '../../utils/aiHistory';
 
@@ -136,7 +142,7 @@ export default function Chat() {
     const s = {
         root: {
             display: 'flex', flexDirection: 'column', height: '100vh',
-            fontFamily: '-apple-system,"Microsoft YaHei",sans-serif', fontSize: '14px',
+            fontFamily: APP_FONT_FAMILY_VAR, fontSize: '14px',
             background: '#f8f8fa', color: '#222',
         },
         header: {
@@ -171,7 +177,7 @@ export default function Chat() {
         input: {
             flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px',
             fontSize: '14px', outline: 'none', resize: 'none', maxHeight: '120px',
-            fontFamily: '-apple-system,"Microsoft YaHei",sans-serif', lineHeight: 1.5,
+            fontFamily: APP_FONT_FAMILY_VAR, lineHeight: 1.5,
         },
         btn: (primary) => ({
             padding: '8px 16px', borderRadius: '8px', border: 'none',
@@ -185,27 +191,17 @@ export default function Chat() {
 
     return (
         <div style={s.root}>
-            <div style={s.header}>
-                {/* 拖动区域 */}
-                <div style={s.dragRegion} data-tauri-drag-region='true' />
-                
-                <span style={{ fontWeight: 700, fontSize: '15px', position: 'relative', zIndex: 1 }}>💬 AI 对话</span>
-                <div style={{ display: 'flex', gap: '8px', position: 'relative', zIndex: 1 }}>
-                    <button
-                        style={{ ...s.btn(false), fontSize: '12px', padding: '4px 10px' }}
-                        onClick={() => setMessages([])}
-                        disabled={loading}
-                    >
-                        清空对话
-                    </button>
-                    <button
-                        style={{ ...s.btn(false), fontSize: '12px', padding: '4px 10px' }}
-                        onClick={() => appWindow.close()}
-                    >
-                        ✕
-                    </button>
-                </div>
-            </div>
+            <WindowHeader
+                center={<WindowHeaderTitle icon='💬'>AI {'\u5bf9\u8bdd'}</WindowHeaderTitle>}
+                right={
+                    <>
+                        <WindowHeaderButton onClick={() => setMessages([])} disabled={loading}>
+                            {'\u6e05\u7a7a\u5bf9\u8bdd'}
+                        </WindowHeaderButton>
+                        <WindowHeaderCloseButton />
+                    </>
+                }
+            />
 
             <div style={s.msgList}>
                 {isEmpty && (

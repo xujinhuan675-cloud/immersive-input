@@ -26,6 +26,7 @@ export default defineConfig(async () => ({
             input: {
                 index: resolve(__dirname, 'index.html'),
                 daemon: resolve(__dirname, 'daemon.html'),
+                adminBilling: resolve(__dirname, 'admin-billing.html'),
             },
         },
         // Tauri supports es2021

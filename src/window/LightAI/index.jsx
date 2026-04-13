@@ -3,7 +3,13 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { lightAiStream, STYLE_KEYS, STYLE_NAMES } from '../../services/light_ai/openai';
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
 import { saveHistory } from '../../utils/aiHistory';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { store } from '../../utils/store';
 
 const VERSION_COUNT = 3;
@@ -164,7 +170,7 @@ export default function LightAI() {
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
-            fontFamily: '-apple-system, "Microsoft YaHei", sans-serif',
+            fontFamily: APP_FONT_FAMILY_VAR,
             fontSize: '13px',
             background: '#fafafa',
             color: '#333',
@@ -261,20 +267,21 @@ export default function LightAI() {
 
     return (
         <div style={styles.root}>
-            {/* Header with drag region */}
-            <div style={styles.header}>
-                {/* Transparent drag area behind buttons */}
-                <div style={styles.dragOverlay} data-tauri-drag-region='true' />
-                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>⚡ 轻AI润色</span>
-                <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 1 }}>
+            <WindowHeader
+                center={<WindowHeaderTitle>AI {'\u6da6\u8272'}</WindowHeaderTitle>}
+                right={
+                    <>
                     {loading ? (
-                        <button style={styles.btn(false)} onClick={stopAll}>⏹ 停止</button>
+                            <WindowHeaderButton onClick={stopAll}>{'\u505c\u6b62'}</WindowHeaderButton>
                     ) : (
-                        <button style={styles.btn(true)} onClick={generate}>▶ 重新生成</button>
+                            <WindowHeaderButton variant='primary' onClick={generate}>
+                                {'\u91cd\u65b0\u751f\u6210'}
+                            </WindowHeaderButton>
                     )}
-                    <button style={styles.btn(false)} onClick={() => appWindow.close()}>✕ 关闭</button>
-                </div>
-            </div>
+                        <WindowHeaderCloseButton />
+                    </>
+                }
+            />
 
             {/* Source text */}
             <div style={styles.sourceBox}>

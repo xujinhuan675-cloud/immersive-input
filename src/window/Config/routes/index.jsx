@@ -1,12 +1,10 @@
 import { Navigate } from 'react-router-dom';
 
-import Translate from '../pages/Translate';
-import Recognize from '../pages/Recognize';
-import General from '../pages/General';
+import TranslatePage from '../pages/TranslatePage';
+import General from '../pages/GeneralPage';
 import Service from '../pages/Service';
 import History from '../pages/History';
 import Hotkey from '../pages/Hotkey';
-import About from '../pages/About';
 import AIFeatures from '../pages/AIFeatures';
 import Account from '../pages/Account';
 
@@ -17,11 +15,11 @@ const routes = [
     },
     {
         path: '/translate',
-        element: <Translate />,
+        element: <TranslatePage />,
     },
     {
         path: '/recognize',
-        element: <Recognize />,
+        element: <Navigate to='/translate?tab=recognize' replace />,
     },
     {
         path: '/hotkey',
@@ -37,7 +35,7 @@ const routes = [
     },
     {
         path: '/about',
-        element: <About />,
+        element: <Navigate to='/general' replace />,
     },
     {
         path: '/ai',

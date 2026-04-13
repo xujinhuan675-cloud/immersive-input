@@ -2,6 +2,12 @@ import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import {
     getAllPhrases, matchPhrase, incrementUseCount,
     getTags, addTag, updateTag, deleteTag,
@@ -12,7 +18,7 @@ import {
 const S = {
     root: {
         height: '100vh', display: 'flex', flexDirection: 'column',
-        background: '#fff', fontFamily: '-apple-system,"Microsoft YaHei",sans-serif',
+        background: '#fff', fontFamily: APP_FONT_FAMILY_VAR,
         fontSize: '13px', color: '#222', overflow: 'hidden',
         borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.28)',
     },
@@ -26,10 +32,6 @@ const S = {
         flex: 1, padding: '5px 9px', border: '1.5px solid #4a7cfa',
         borderRadius: '7px', fontSize: '13px', outline: 'none',
         background: '#fff', zIndex: 1, position: 'relative',
-    },
-    closeBtn: {
-        padding: '2px 6px', border: 'none', background: 'transparent',
-        cursor: 'pointer', color: '#bbb', fontSize: '14px', zIndex: 1, lineHeight: 1,
     },
     list: { flex: 1, overflowY: 'auto' },
     item: (active) => ({
@@ -169,11 +171,10 @@ function TagsView({ onBack, onChanged }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={S.editHeader}>
-                <div style={S.dragOverlay} data-tauri-drag-region="true" />
-                <button style={S.backBtn} onClick={onBack}>{t('phrases.back')}</button>
-                <span style={S.editTitle}>{t('phrases.manage_tags')}</span>
-            </div>
+            <WindowHeader
+                left={<WindowHeaderButton onClick={onBack}>{t('phrases.back')}</WindowHeaderButton>}
+                center={<WindowHeaderTitle>{t('phrases.manage_tags')}</WindowHeaderTitle>}
+            />
             <div style={{ flex: 1, overflowY: 'auto' }}>
                 {tags.length === 0 ? (
                     <div style={S.empty}>{t('phrases.no_tags')}</div>
@@ -241,11 +242,10 @@ function EditView({ phrase, allTags, onSave, onCancel }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={S.editHeader}>
-                <div style={S.dragOverlay} data-tauri-drag-region="true" />
-                <button style={S.backBtn} onClick={onCancel}>{t('phrases.back')}</button>
-                <span style={S.editTitle}>{isNew ? t('phrases.add_phrase') : t('phrases.edit_phrase')}</span>
-            </div>
+            <WindowHeader
+                left={<WindowHeaderButton onClick={onCancel}>{t('phrases.back')}</WindowHeaderButton>}
+                center={<WindowHeaderTitle>{isNew ? t('phrases.add_phrase') : t('phrases.edit_phrase')}</WindowHeaderTitle>}
+            />
 
             <div style={S.editBody}>
                 <div style={S.formRow}>
@@ -400,7 +400,28 @@ export default function PhrasesInline() {
 
     return (
         <div style={S.root}>
-            <div style={S.header}>
+            <WindowHeader
+                left={<WindowHeaderTitle icon='📝'>{'\u5e38\u7528\u8bed'}</WindowHeaderTitle>}
+                center={
+                    <input
+                        ref={searchRef}
+                        style={S.searchInput}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={
+                            filtered.length > 0 && search
+                                ? t('phrases.search_found', {
+                                      n: filtered.length,
+                                      preview: (filtered[0].title || filtered[0].content).slice(0, 8),
+                                  })
+                                : t('phrases.search_placeholder')
+                        }
+                    />
+                }
+                right={<WindowHeaderCloseButton onClick={dismiss} />}
+            />
+            {false && <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
                 <span style={{ fontSize: '15px', zIndex: 1 }}>📝</span>
                 <input
@@ -416,7 +437,7 @@ export default function PhrasesInline() {
                     }
                 />
                 <button style={S.closeBtn} onClick={dismiss}>{t('phrases.close')}</button>
-            </div>
+            </div>}
 
             <div style={S.list}>
                 {filtered.length === 0 ? (

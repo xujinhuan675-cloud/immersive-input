@@ -14,6 +14,7 @@ function createMemoryBillingService({
     topupCreditsPerCny = 100,
     allowCreditFallback = true,
     now = new Date('2026-04-08T10:00:00.000Z'),
+    laterSubscriptionOrders = [],
 } = {}) {
     const profiles = new Map();
     const usageByIdempotency = new Map();
@@ -69,6 +70,16 @@ function createMemoryBillingService({
         },
         getBillingLedgerByOrder: async (orderId) =>
             clone(ledgerEntries.filter((entry) => entry.orderId === orderId)),
+        findLaterSuccessfulSubscriptionOrders: async ({ userId, excludeOrderId, afterTimestamp }) =>
+            clone(
+                laterSubscriptionOrders.filter(
+                    (order) =>
+                        order.userId === userId &&
+                        order.id !== excludeOrderId &&
+                        new Date(order.paidAt || order.createdAt || 0).getTime() >
+                            new Date(afterTimestamp || 0).getTime()
+                )
+            ),
         uuid: () => `id_${++seq}`,
         now: () => new Date(now),
     });
@@ -199,4 +210,123 @@ test('applyPaymentGrantForOrder refuses unpaid orders', async () => {
     });
     assert.equal(result.applied, false);
     assert.equal(result.reason, 'ORDER_NOT_PAID');
+});
+
+test('reversePaymentGrantForOrder subtracts credited topup balance on refund', async () => {
+    const { service } = createMemoryBillingService({
+        topupCreditsPerCny: 100,
+    });
+    const order = {
+        id: 'order_topup_refund',
+        userId: 'u_refund',
+        status: 'PAID',
+        orderType: 'topup',
+        productCode: 'membership_topup',
+        amountCents: 3000,
+    };
+    await service.applyPaymentGrantForOrder(order);
+    const refunded = await service.reversePaymentGrantForOrder(order, {
+        reason: 'admin refund',
+        actor: { role: 'admin' },
+    });
+
+    assert.equal(refunded.reversed, true);
+    assert.equal(refunded.reverseType, 'topup');
+    assert.equal(refunded.profile.bonusCredits, 0);
+    assert.equal(refunded.deltaCredits, -3000);
+});
+
+test('reversePaymentGrantForOrder restores previous subscription snapshot when safe', async () => {
+    const { service } = createMemoryBillingService({
+        now: new Date('2026-04-08T00:00:00.000Z'),
+    });
+    await service.applyPaymentGrantForOrder({
+        id: 'bootstrap_order',
+        userId: 'u_sub_refund',
+        status: 'PAID',
+        orderType: 'subscription',
+        productCode: 'membership_basic_month',
+        amountCents: 2900,
+    });
+    const order = {
+        id: 'order_sub_refund',
+        userId: 'u_sub_refund',
+        status: 'PAID',
+        orderType: 'subscription',
+        productCode: 'membership_pro_month',
+        amountCents: 5900,
+        paidAt: '2026-04-08T00:00:00.000Z',
+        createdAt: '2026-04-08T00:00:00.000Z',
+    };
+    await service.applyPaymentGrantForOrder(order);
+
+    const refunded = await service.reversePaymentGrantForOrder(order, {
+        reason: 'rollback plan',
+        actor: { role: 'admin' },
+    });
+
+    assert.equal(refunded.reversed, true);
+    assert.equal(refunded.reverseType, 'subscription');
+    assert.equal(refunded.profile.tier, 'basic');
+    assert.equal(refunded.profile.subscriptionExpiresAt, '2026-05-08T00:00:00.000Z');
+});
+
+test('reversePaymentGrantForOrder blocks subscription rollback when a later subscription exists', async () => {
+    const { service } = createMemoryBillingService({
+        laterSubscriptionOrders: [
+            {
+                id: 'later_order',
+                userId: 'u_sub_later',
+                paidAt: '2026-04-10T00:00:00.000Z',
+            },
+        ],
+    });
+    const order = {
+        id: 'order_sub_old',
+        userId: 'u_sub_later',
+        status: 'PAID',
+        orderType: 'subscription',
+        productCode: 'membership_pro_month',
+        amountCents: 5900,
+        paidAt: '2026-04-08T00:00:00.000Z',
+        createdAt: '2026-04-08T00:00:00.000Z',
+    };
+    await service.applyPaymentGrantForOrder(order);
+
+    const refunded = await service.reversePaymentGrantForOrder(order, {
+        reason: 'refund old plan',
+    });
+
+    assert.equal(refunded.reversed, false);
+    assert.equal(refunded.reason, 'LATER_SUBSCRIPTION_EXISTS');
+});
+
+test('setMembershipStatus suspends and resumes an active subscription', async () => {
+    const { service } = createMemoryBillingService({
+        now: new Date('2026-04-08T00:00:00.000Z'),
+    });
+    await service.applyPaymentGrantForOrder({
+        id: 'order_sub_suspend',
+        userId: 'u_suspend',
+        status: 'PAID',
+        orderType: 'subscription',
+        productCode: 'membership_basic_month',
+        amountCents: 2900,
+        paidAt: '2026-04-08T00:00:00.000Z',
+        createdAt: '2026-04-08T00:00:00.000Z',
+    });
+
+    const suspended = await service.setMembershipStatus({
+        userId: 'u_suspend',
+        action: 'suspend',
+        reason: 'manual pause',
+    });
+    const resumed = await service.setMembershipStatus({
+        userId: 'u_suspend',
+        action: 'resume',
+        reason: 'manual restore',
+    });
+
+    assert.equal(suspended.profile.status, 'suspended');
+    assert.equal(resumed.profile.status, 'active');
 });

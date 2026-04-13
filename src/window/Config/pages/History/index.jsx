@@ -16,7 +16,7 @@ import * as builtinCollectionServices from '../../../../services/collection';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import * as builtinServices from '../../../../services/translate';
 import { useConfig, useToastStyle } from '../../../../hooks';
-import { LanguageFlag } from '../../../../utils/language';
+import { normalizeLanguageKey } from '../../../../utils/language';
 import { osType } from '../../../../utils/env';
 import {
     ServiceSourceType,
@@ -93,6 +93,13 @@ export default function History() {
     const aiAbortRef = useRef(null);
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
+    const historyServiceWidthClass = 'w-[176px] min-w-[176px]';
+    const historyTimeWidthClass = 'w-[140px] min-w-[140px]';
+    const historyColumnGapClass = 'pr-[12px]';
+    const historyContentWidthClass =
+        osType === 'Linux'
+            ? 'w-[calc((100vw-287px-176px-140px-30px-36px)*0.5)]'
+            : 'w-[calc((100vw-287px-176px-140px-36px)*0.5)]';
     // AI tab labels 使用 t() 动态生成，随语言切换
     const AI_TYPE_LABELS = {
         lightai: t('history.ai_lightai'),
@@ -245,6 +252,45 @@ export default function History() {
         const second = padTo2Digits(date.getSeconds());
         return `${year}/${month}/${day} ${hour}:${minute}:${second}`;
     };
+    const formatLanguageLabel = (language) => {
+        const normalized = normalizeLanguageKey(language);
+        return t(`languages.${normalized}`, { defaultValue: language ?? '' });
+    };
+    const getTranslateServiceDisplayName = (serviceInstanceKey) => {
+        const serviceName = getServiceName(serviceInstanceKey);
+
+        if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
+            return pluginList?.[ServiceType.TRANSLATE]?.[serviceName]?.display ?? serviceName;
+        }
+
+        return t(`services.translate.${serviceName}.title`, { defaultValue: serviceName });
+    };
+    const getTranslateServiceIcon = (serviceInstanceKey) => {
+        const serviceName = getServiceName(serviceInstanceKey);
+
+        if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
+            return pluginList?.[ServiceType.TRANSLATE]?.[serviceName]?.icon ?? null;
+        }
+
+        return builtinServices[serviceName]?.info.icon ?? null;
+    };
+    const renderHistoryServiceCell = ({ iconSrc, title, subtitle, titleClassName = '' }) => (
+        <div className={`flex ${historyServiceWidthClass} items-center gap-[8px] ${historyColumnGapClass}`}>
+            {iconSrc ? (
+                <img
+                    src={iconSrc}
+                    className='block h-[24px] w-[24px] shrink-0 object-contain'
+                    draggable={false}
+                />
+            ) : (
+                <div className='h-[24px] w-[24px] shrink-0 rounded-[6px] bg-default-200' />
+            )}
+            <div className='min-w-0'>
+                <p className={`truncate text-[13px] leading-5 ${titleClassName}`}>{title}</p>
+                {subtitle ? <p className='truncate text-[12px] leading-4 text-default-500'>{subtitle}</p> : null}
+            </div>
+        </div>
+    );
     const loadPluginList = async () => {
         const serviceTypeList = ['translate', 'collection'];
         let temp = {};
@@ -327,7 +373,7 @@ export default function History() {
                         initAi(k);
                     }}
                     size='sm'
-                    className='px-0 mb-[6px]'
+                    className='flex justify-center max-h-[calc(100%-40px)] overflow-y-auto mb-[6px]'
                 >
                     <Tab key='translate' title={`${t('history.translate_tab')} (${total})`}>
                     {/* 翻译历史内容在下方 */}
@@ -358,8 +404,6 @@ export default function History() {
                     <TableHeader>
                         <TableColumn key='service' />
                         <TableColumn key='text' />
-                        <TableColumn key='source' />
-                        <TableColumn key='target' />
                         <TableColumn key='result' />
                         <TableColumn key='timestamp' />
                     </TableHeader>
@@ -374,50 +418,30 @@ export default function History() {
                             }) && (
                                 <TableRow key={item.id}>
                                     <TableCell>
-                                        {getServiceSouceType(item.service) === ServiceSourceType.PLUGIN ? (
-                                            <img
-                                                src={pluginList['translate'][getServiceName(item.service)].icon}
-                                                className='h-[18px] w-[18px] my-auto mr-[8px]'
-                                                draggable={false}
-                                            />
-                                        ) : (
-                                            <img
-                                                src={`${builtinServices[getServiceName(item.service)].info.icon}`}
-                                                className='h-[18px] w-[18px] my-auto mr-[8px]'
-                                                draggable={false}
-                                            />
-                                        )}
+                                        {renderHistoryServiceCell({
+                                            iconSrc: getTranslateServiceIcon(item.service),
+                                            title: getTranslateServiceDisplayName(item.service),
+                                            subtitle: `${formatLanguageLabel(item.source)} -> ${formatLanguageLabel(item.target)}`,
+                                        })}
                                     </TableCell>
                                     <TableCell>
                                         <p
-                                            className={`whitespace-nowrap ${
-                                                osType === 'Linux'
-                                                    ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                    : 'w-[calc((100vw-287px-26px-60px-140px)*0.5)]'
-                                            } text-ellipsis overflow-hidden`}
+                                            className={`${historyContentWidthClass} ${historyColumnGapClass} whitespace-nowrap overflow-hidden text-ellipsis`}
+                                            title={item.text}
                                         >
                                             {item.text}
                                         </p>
                                     </TableCell>
                                     <TableCell>
-                                        <span className={`w-[30px] fi fi-${LanguageFlag[item.source]}`} />
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className={`w-[30px] fi fi-${LanguageFlag[item.target]}`} />
-                                    </TableCell>
-                                    <TableCell>
                                         <p
-                                            className={`whitespace-nowrap ${
-                                                osType === 'Linux'
-                                                    ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                    : 'w-[calc((100vw-287px-26px-60px-140px)*0.5)]'
-                                            } text-ellipsis overflow-hidden`}
+                                            className={`${historyContentWidthClass} ${historyColumnGapClass} whitespace-nowrap overflow-hidden text-ellipsis`}
+                                            title={item.result}
                                         >
                                             {item.result}
                                         </p>
                                     </TableCell>
                                     <TableCell>
-                                        <p className='text-center whitespace-nowrap w-[140px]'>
+                                        <p className={`${historyTimeWidthClass} whitespace-nowrap text-center`}>
                                             {formatDate(new Date(item.timestamp))}
                                         </p>
                                     </TableCell>
@@ -469,7 +493,7 @@ export default function History() {
                             }}
                         >
                             <TableHeader>
-                                <TableColumn key='icon' />
+                                <TableColumn key='service' />
                                 <TableColumn key='source' />
                                 <TableColumn key='result' />
                                 <TableColumn key='ts' />
@@ -478,32 +502,30 @@ export default function History() {
                                 {(item) => (
                                     <TableRow key={item.id}>
                                         <TableCell>
-                                            <div className='h-[18px] w-[18px] my-auto mr-[8px] rounded-[4px] bg-default-200' />
+                                            {renderHistoryServiceCell({
+                                                title: AI_TYPE_LABELS[activeTab],
+                                                subtitle: null,
+                                                titleClassName: 'text-default-700',
+                                            })}
                                         </TableCell>
                                         <TableCell>
                                             <p
-                                                className={`whitespace-nowrap ${
-                                                    osType === 'Linux'
-                                                        ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                        : 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                } text-ellipsis overflow-hidden`}
+                                                className={`${historyContentWidthClass} ${historyColumnGapClass} whitespace-nowrap overflow-hidden text-ellipsis`}
+                                                title={item.source}
                                             >
                                                 {item.source}
                                             </p>
                                         </TableCell>
                                         <TableCell>
                                             <p
-                                                className={`whitespace-nowrap ${
-                                                    osType === 'Linux'
-                                                        ? 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                        : 'w-[calc((100vw-287px-26px-60px-140px-30px)*0.5)]'
-                                                } text-ellipsis overflow-hidden`}
+                                                className={`${historyContentWidthClass} ${historyColumnGapClass} whitespace-nowrap overflow-hidden text-ellipsis`}
+                                                title={item.result}
                                             >
                                                 {item.result}
                                             </p>
                                         </TableCell>
                                         <TableCell>
-                                            <p className='text-center whitespace-nowrap w-[140px]'>{item.ts}</p>
+                                            <p className={`${historyTimeWidthClass} whitespace-nowrap text-center`}>{item.ts}</p>
                                         </TableCell>
                                     </TableRow>
                                 )}

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 
 import {
     normalizePaymentStatus,
-    PAYMENT_BACKENDS,
+    PAYMENT_BACKEND,
     PAYMENT_ORDER_STATUS,
     PAYMENT_ORDER_TERMINAL_STATUSES,
 } from './constants.js';
@@ -19,21 +19,12 @@ import {
     updatePaymentOrderAfterGatewayCreate,
     updatePaymentOrderStatus,
 } from './store.js';
-import { sub2ApiPayProvider } from './providers/sub2apipay.js';
 import { customOrchestratorProvider } from './providers/customOrchestrator.js';
-import { applyPaymentGrantForOrder } from '../billing/service.js';
+import { buildDeterministicWebhookEventId } from './custom/webhookSecurity.js';
+import { applyPaymentGrantForOrder, reversePaymentGrantForOrder } from '../billing/service.js';
 
-const PROVIDERS = {
-    [PAYMENT_BACKENDS.SUB2APIPAY]: sub2ApiPayProvider,
-    [PAYMENT_BACKENDS.CUSTOM_ORCHESTRATOR]: customOrchestratorProvider,
-};
-
-function ensureProvider(backend) {
-    const provider = PROVIDERS[backend];
-    if (!provider) {
-        throw new Error(`Unsupported payment backend: ${backend}`);
-    }
-    return provider;
+function ensureProvider() {
+    return customOrchestratorProvider;
 }
 
 function toAmountCents(amount, amountCents) {
@@ -48,13 +39,6 @@ function toAmountCents(amount, amountCents) {
 function sanitizeMetadata(metadata) {
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
     return metadata;
-}
-
-function resolveBackend(providerHint, fallbackBackend) {
-    const hint = String(providerHint || '').trim();
-    if (hint === PAYMENT_BACKENDS.SUB2APIPAY) return hint;
-    if (hint === PAYMENT_BACKENDS.CUSTOM_ORCHESTRATOR) return hint;
-    return fallbackBackend;
 }
 
 async function reconcilePaidOrder(order, source = '') {
@@ -83,6 +67,9 @@ async function reconcilePaidOrder(order, source = '') {
             billingGrant: {
                 status: grant.applied ? 'applied' : 'duplicate',
                 grantType: grant.grantType || null,
+                beforeProfile: grant.beforeProfile || null,
+                afterProfile: grant.afterProfile || null,
+                creditedUnits: grant.creditedUnits || 0,
                 reason: grant.reason || '',
                 source,
                 reconciledAt: new Date().toISOString(),
@@ -94,26 +81,41 @@ async function reconcilePaidOrder(order, source = '') {
 
 export function getPaymentGatewayStatus() {
     const cfg = getPaymentRuntimeConfig();
+    const runtimeStatus =
+        typeof customOrchestratorProvider.getRuntimeStatus === 'function'
+            ? customOrchestratorProvider.getRuntimeStatus()
+            : { ready: true };
     return {
         requestedBackend: cfg.requestedBackend,
         activeBackend: cfg.activeBackend,
         customOrchestratorEnabled: cfg.customOrchestratorEnabled,
         providers: {
-            sub2apipay: {
-                configured: !!cfg.sub2apipay.baseUrl,
-            },
             customOrchestrator: {
                 configured: true,
-                adapter: cfg.customOrchestrator.adapter,
+                adapter: runtimeStatus.defaultAdapter || cfg.customOrchestrator.adapter,
+                webhookSignatureRequired: !!cfg.customOrchestrator.webhookSecret,
+                webhookTimestampValidation: !!cfg.customOrchestrator.enforceWebhookTimestamp,
+                webhookToleranceSeconds: cfg.customOrchestrator.webhookToleranceSeconds,
+                ready: runtimeStatus.ready !== false,
+                channel:
+                    runtimeStatus.channel ||
+                    runtimeStatus.defaultAdapter ||
+                    cfg.customOrchestrator.adapter,
+                mode: runtimeStatus.mode || 'custom',
+                missingFields: runtimeStatus.missingFields || [],
+                availableAdapters: runtimeStatus.availableAdapters || [],
+                enabledAdapters: runtimeStatus.enabledAdapters || [],
+                defaultAdapter: runtimeStatus.defaultAdapter || cfg.customOrchestrator.adapter,
+                adapters: runtimeStatus.adapters || [],
             },
         },
     };
 }
 
 export async function createUnifiedOrder(input) {
-    const cfg = getPaymentRuntimeConfig();
-    const backend = cfg.activeBackend;
-    const provider = ensureProvider(backend);
+    const backend = PAYMENT_BACKEND;
+    const provider = ensureProvider();
+    const requestedProvider = String(input.paymentProvider || input.provider || '').trim();
 
     const userId = String(input.userId || '').trim();
     if (!userId) throw new Error('Missing userId');
@@ -132,10 +134,20 @@ export async function createUnifiedOrder(input) {
     }
 
     const amountCents = toAmountCents(input.amount, input.amountCents);
+    const sanitizedMetadata = sanitizeMetadata(input.metadata);
+    const providerName = provider.resolveAdapterName({
+        requestedAdapter: requestedProvider,
+        order: {
+            metadata: {
+                ...sanitizedMetadata,
+                paymentProvider: requestedProvider || sanitizedMetadata.paymentProvider || '',
+            },
+        },
+    });
     const order = await createPaymentOrderRecord({
         id: crypto.randomUUID(),
         userId,
-        provider: provider.id,
+        provider: providerName,
         backend,
         orderType: String(input.orderType || 'topup'),
         amountCents,
@@ -146,17 +158,25 @@ export async function createUnifiedOrder(input) {
         externalOrderId: null,
         checkoutUrl: null,
         idempotencyKey,
-        metadata: sanitizeMetadata(input.metadata),
+        metadata: {
+            ...sanitizedMetadata,
+            paymentProvider: providerName,
+            paymentMethod: input.paymentMethod || sanitizedMetadata.paymentMethod || null,
+        },
         failedReason: null,
     });
 
     try {
-        const result = await provider.createPayment({ order });
+        const result = await provider.createPayment({
+            order,
+            requestedAdapter: providerName,
+            requestContext: input.requestContext || {},
+        });
         await createPaymentAttemptRecord({
             id: crypto.randomUUID(),
             orderId: order.id,
             backend,
-            provider: provider.id,
+            provider: result.providerName || providerName,
             action: 'create',
             status: 'success',
             requestPayload: { order },
@@ -170,6 +190,8 @@ export async function createUnifiedOrder(input) {
             checkoutUrl: result.checkoutUrl || null,
             metadata: {
                 ...(order.metadata || {}),
+                paymentProvider: result.providerName || providerName,
+                checkoutPresentation: result.raw?.checkoutPresentation || null,
                 gatewayCreateResponse: result.raw || {},
             },
             failedReason: null,
@@ -186,7 +208,7 @@ export async function createUnifiedOrder(input) {
             id: crypto.randomUUID(),
             orderId: order.id,
             backend,
-            provider: provider.id,
+            provider: providerName,
             action: 'create',
             status: 'failed',
             requestPayload: { order },
@@ -209,18 +231,21 @@ export async function queryUnifiedOrder(orderId) {
     }
     const initialReconciled = await reconcilePaidOrder(order, 'query-initial');
     order = initialReconciled.order;
-    if (PAYMENT_ORDER_TERMINAL_STATUSES.has(order.status)) {
+    if (
+        PAYMENT_ORDER_TERMINAL_STATUSES.has(order.status) &&
+        order.status !== PAYMENT_ORDER_STATUS.COMPLETED
+    ) {
         return { order, synced: false, grant: initialReconciled.grant };
     }
 
-    const provider = ensureProvider(order.backend);
+    const provider = ensureProvider();
     try {
         const result = await provider.queryPayment({ order });
         await createPaymentAttemptRecord({
             id: crypto.randomUUID(),
             orderId: order.id,
             backend: order.backend,
-            provider: order.provider,
+            provider: result.providerName || order.provider,
             action: 'query',
             status: 'success',
             requestPayload: { orderId: order.id, externalOrderId: order.externalOrderId },
@@ -241,9 +266,21 @@ export async function queryUnifiedOrder(orderId) {
             paidAt: nextStatus === PAYMENT_ORDER_STATUS.PAID ? new Date().toISOString() : null,
             metadata: {
                 ...(order.metadata || {}),
+                paymentProvider: result.providerName || order.provider,
+                checkoutPresentation:
+                    result.raw?.checkoutPresentation || order.metadata?.checkoutPresentation || null,
                 gatewayQueryResponse: result.raw || {},
             },
         });
+        if (nextStatus === PAYMENT_ORDER_STATUS.REFUNDED) {
+            await reversePaymentGrantForOrder(order, {
+                reason: result.raw?.refund_reason || result.raw?.reason || '',
+                actor: {
+                    role: 'provider_sync',
+                    provider: result.providerName || order.provider,
+                },
+            });
+        }
         const reconciled = await reconcilePaidOrder(order, 'query-gateway-sync');
         return { order: reconciled.order, synced: true, grant: reconciled.grant };
     } catch (error) {
@@ -262,14 +299,14 @@ export async function queryUnifiedOrder(orderId) {
 }
 
 export async function handleUnifiedWebhook(input) {
-    const cfg = getPaymentRuntimeConfig();
-    const backend = resolveBackend(input.providerHint, cfg.activeBackend);
-    const provider = ensureProvider(backend);
+    const backend = PAYMENT_BACKEND;
+    const provider = ensureProvider();
 
     const verify = await provider.verifyWebhook({
         headers: input.headers || {},
         rawBody: input.rawBody || '',
         payload: input.payload || {},
+        providerHint: input.providerHint || '',
     });
     if (!verify?.ok) {
         throw new Error(verify?.reason || 'Webhook signature invalid');
@@ -279,12 +316,22 @@ export async function handleUnifiedWebhook(input) {
         payload: input.payload || {},
         headers: input.headers || {},
         rawBody: input.rawBody || '',
+        providerHint: input.providerHint || '',
+        adapterName: verify.adapterName || '',
     });
+    const providerName = String(event.providerName || verify.adapterName || '').trim();
 
-    const eventId = String(event.eventId || crypto.randomUUID());
+    const eventId =
+        String(event.eventId || '').trim() ||
+        buildDeterministicWebhookEventId({
+            provider: providerName,
+            rawBody: input.rawBody || '',
+            signature: verify.signature || '',
+        });
+
     const inserted = await insertPaymentWebhookEvent({
         eventId,
-        provider: provider.id,
+        provider: providerName,
         backend,
         orderId: event.orderId || null,
         externalOrderId: event.externalOrderId || null,
@@ -292,7 +339,12 @@ export async function handleUnifiedWebhook(input) {
         payload: event.rawPayload || input.payload || {},
     });
     if (!inserted) {
-        return { ok: true, duplicated: true, eventId };
+        return {
+            ok: true,
+            duplicated: true,
+            eventId,
+            response: provider.buildWebhookResponse(providerName, true),
+        };
     }
 
     let order = null;
@@ -302,6 +354,7 @@ export async function handleUnifiedWebhook(input) {
     if (!order && event.externalOrderId) {
         order = await findPaymentOrderByExternalOrderId(String(event.externalOrderId));
     }
+    const effectiveProviderName = providerName || order?.provider || 'custom_orchestrator';
 
     if (order) {
         const nextStatus = normalizePaymentStatus(event.status || order.status);
@@ -315,10 +368,26 @@ export async function handleUnifiedWebhook(input) {
                         : null,
                 metadata: {
                     ...(order.metadata || {}),
+                    paymentProvider: effectiveProviderName,
                     webhookEventId: eventId,
                     webhookPayload: event.rawPayload || {},
+                    webhookVerifiedAt: new Date().toISOString(),
+                    webhookSignatureChecked: !verify.skipped,
                 },
             });
+            if (nextStatus === PAYMENT_ORDER_STATUS.REFUNDED) {
+                await reversePaymentGrantForOrder(order, {
+                    reason:
+                        event.rawPayload?.refund_reason ||
+                        event.rawPayload?.reason ||
+                        event.rawPayload?.message ||
+                        '',
+                    actor: {
+                        role: 'provider_webhook',
+                        provider: effectiveProviderName,
+                    },
+                });
+            }
         }
         const reconciled = await reconcilePaidOrder(order, 'webhook');
         order = reconciled.order;
@@ -330,5 +399,114 @@ export async function handleUnifiedWebhook(input) {
         duplicated: false,
         eventId,
         order,
+        response: provider.buildWebhookResponse(effectiveProviderName, true),
+    };
+}
+
+export async function refundUnifiedOrder(orderId, input = {}) {
+    const provider = ensureProvider();
+    const synced = await queryUnifiedOrder(orderId);
+    const order = synced?.order || null;
+    if (!order?.id) {
+        throw new Error('Order not found');
+    }
+
+    const currentStatus = normalizePaymentStatus(order.status);
+    if (currentStatus === PAYMENT_ORDER_STATUS.REFUNDED) {
+        return {
+            order,
+            duplicated: true,
+            refund: {
+                accepted: true,
+                reason: 'ORDER_ALREADY_REFUNDED',
+                reverseResult: await reversePaymentGrantForOrder(order, {
+                    reason: input.reason || '',
+                    actor: input.actor || null,
+                }),
+            },
+        };
+    }
+    if (
+        currentStatus !== PAYMENT_ORDER_STATUS.PAID &&
+        currentStatus !== PAYMENT_ORDER_STATUS.COMPLETED
+    ) {
+        throw new Error(`Order is not refundable in status ${order.status}`);
+    }
+
+    const refundResult = await provider.refundPayment({
+        order,
+        reason: input.reason || '',
+        actor: input.actor || null,
+    });
+
+    await createPaymentAttemptRecord({
+        id: crypto.randomUUID(),
+        orderId: order.id,
+        backend: order.backend,
+        provider: refundResult.providerName || order.provider,
+        action: 'refund',
+        status: refundResult.accepted ? 'success' : 'failed',
+        requestPayload: {
+            orderId: order.id,
+            provider: order.provider,
+            reason: input.reason || '',
+        },
+        responsePayload: refundResult.raw || {},
+    });
+
+    let nextOrder = order;
+    let reverseResult = null;
+    if (normalizePaymentStatus(refundResult.status) === PAYMENT_ORDER_STATUS.REFUNDED) {
+        reverseResult = await reversePaymentGrantForOrder(order, {
+            reason: input.reason || '',
+            actor: input.actor || null,
+        });
+        nextOrder = await updatePaymentOrderStatus(order.id, {
+            status: PAYMENT_ORDER_STATUS.REFUNDED,
+            failedReason: null,
+            metadata: {
+                ...(order.metadata || {}),
+                paymentProvider: refundResult.providerName || order.provider,
+                refund: {
+                    status: 'refunded',
+                    accepted: true,
+                    providerRefundId: refundResult.providerRefundId || null,
+                    refundReason: String(input.reason || '').trim(),
+                    reversedGrant: reverseResult?.reversed || false,
+                    reverseReason: reverseResult?.reason || '',
+                    updatedAt: new Date().toISOString(),
+                    response: refundResult.raw || {},
+                },
+            },
+        });
+    } else {
+        nextOrder = await updatePaymentOrderStatus(order.id, {
+            status: order.status,
+            failedReason: null,
+            metadata: {
+                ...(order.metadata || {}),
+                paymentProvider: refundResult.providerName || order.provider,
+                refund: {
+                    status: normalizePaymentStatus(refundResult.status) || 'PENDING',
+                    accepted: refundResult.accepted !== false,
+                    providerRefundId: refundResult.providerRefundId || null,
+                    refundReason: String(input.reason || '').trim(),
+                    updatedAt: new Date().toISOString(),
+                    response: refundResult.raw || {},
+                },
+            },
+        });
+    }
+
+    return {
+        order: nextOrder,
+        duplicated: false,
+        refund: {
+            accepted: refundResult.accepted !== false,
+            providerRefundId: refundResult.providerRefundId || null,
+            status: normalizePaymentStatus(refundResult.status),
+            reverseResult,
+            raw: refundResult.raw || {},
+        },
     };
 }

@@ -156,7 +156,6 @@ fn main() {
             set_proxy,
             unset_proxy,
             run_binary,
-            open_devtools,
             register_shortcut_by_frontend,
             update_tray,
             updater_window,

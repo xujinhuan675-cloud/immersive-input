@@ -3,12 +3,15 @@ import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { appWindow } from '@tauri-apps/api/window';
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { listen } from '@tauri-apps/api/event';
-import { Button } from '@nextui-org/react';
-import { BsPinFill } from 'react-icons/bs';
 import { atom, useAtom } from 'jotai';
 
-import WindowControl from '../../components/WindowControl';
+import WindowHeader, {
+    WindowHeaderCloseButton,
+    WindowHeaderPinButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
 import { store } from '../../utils/store';
 import { osType } from '../../utils/env';
 import { useConfig } from '../../hooks';
@@ -51,6 +54,7 @@ void listen('tauri://focus', () => {
 });
 
 export default function Recognize() {
+    const { t } = useTranslation();
     const [pluginList, setPluginList] = useAtom(pluginListAtom);
     const [closeOnBlur] = useConfig('recognize_close_on_blur', false);
     const [pined, setPined] = useState(false);
@@ -106,43 +110,32 @@ export default function Recognize() {
         pluginList &&
         serviceInstanceConfigMap !== null && (
             <div
-                className={`bg-background h-screen ${
+                className={`bg-background h-screen flex flex-col ${
                     osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
                 }`}
             >
-                <div
-                    data-tauri-drag-region='true'
-                    className='fixed top-[5px] left-[5px] right-[5px] h-[30px]'
-                />
-                <div className={`h-[35px] flex ${osType === 'Darwin' ? 'justify-end' : 'justify-between'}`}>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='flat'
-                        disableAnimation
-                        className='my-auto mx-[5px] bg-transparent'
-                        onPress={() => {
-                            if (pined) {
-                                if (closeOnBlur) {
-                                    unlisten = listenBlur();
+                <WindowHeader
+                    left={
+                        <WindowHeaderPinButton
+                            active={pined}
+                            onClick={() => {
+                                if (pined) {
+                                    if (closeOnBlur) {
+                                        unlisten = listenBlur();
+                                    }
+                                    appWindow.setAlwaysOnTop(false);
+                                } else {
+                                    unlistenBlur();
+                                    appWindow.setAlwaysOnTop(true);
                                 }
-                                appWindow.setAlwaysOnTop(false);
-                            } else {
-                                unlistenBlur();
-                                appWindow.setAlwaysOnTop(true);
-                            }
-                            setPined(!pined);
-                        }}
-                    >
-                        <BsPinFill className={`text-[20px] ${pined ? 'text-primary' : 'text-default-400'}`} />
-                    </Button>
-                    {osType !== 'Darwin' && <WindowControl />}
-                </div>
-                <div
-                    className={`${
-                        osType === 'Linux' ? 'h-[calc(100vh-87px)]' : 'h-[calc(100vh-85px)]'
-                    } grid grid-cols-2`}
-                >
+                                setPined(!pined);
+                            }}
+                        />
+                    }
+                    center={<WindowHeaderTitle>{t('config.recognize.label')}</WindowHeaderTitle>}
+                    right={<WindowHeaderCloseButton hideOnDarwin />}
+                />
+                <div className='flex-1 min-h-0 grid grid-cols-2'>
                     <ImageArea />
                     <TextArea serviceInstanceConfigMap={serviceInstanceConfigMap} />
                 </div>

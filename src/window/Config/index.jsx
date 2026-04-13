@@ -1,76 +1,71 @@
-import { useLocation, useRoutes } from 'react-router-dom';
-import React, { useEffect } from 'react';
-import { appWindow } from '@tauri-apps/api/window';
-import { Card, Divider } from '@nextui-org/react';
-import { useTranslation } from 'react-i18next';
-import WindowControl from '../../components/WindowControl';
+import { useRoutes } from 'react-router-dom';
+import React from 'react';
+import { Card } from '@nextui-org/react';
+import WindowHeader, {
+    WindowHeaderTitle,
+    WindowHeaderWindowControls,
+} from '../../components/WindowHeader';
 import SideBar from './components/SideBar';
 import { osType } from '../../utils/env';
-import { useConfig } from '../../hooks';
 import routes from './routes';
 import './style.css';
 
 export default function Config() {
-    const { t } = useTranslation();
-    const location = useLocation();
     const page = useRoutes(routes);
 
     // loading 递层由 main.jsx 的 requestAnimationFrame 负责移除，无需在组件内处理
 
     return (
-        <>
-            <Card
-                shadow='none'
-                className={`bg-content1 float-left w-[230px] h-screen rounded-none ${
-                    osType === 'Linux' && 'rounded-l-[10px] border-1'
-                } border-r-1 border-default-100 select-none cursor-default`}
-            >
-                <div className='h-[35px] p-[5px]'>
-                    <div
-                        className='w-full h-full'
-                        data-tauri-drag-region='true'
-                    />
-                </div>
-                <div className='px-[5px] pt-[2px] pb-[10px]'>
-                    <div data-tauri-drag-region='true' className='flex flex-col items-center gap-[6px]'>
-                        <img
-                            alt='Immersive Input'
-                            src='icon.svg'
-                            className='h-[52px] w-[52px]'
-                            draggable={false}
-                        />
-                        <span className='text-[13px] font-semibold text-default-600 tracking-wide select-none'>
-                            Immersive Input
-                        </span>
-                    </div>
-                </div>
-                <SideBar />
-            </Card>
-            <div
-                className={`bg-background ml-[230px] h-screen select-none cursor-default ${
-                    osType === 'Linux' && 'rounded-r-[10px] border-1 border-l-0 border-default-100'
-                }`}
-            >
-                <div
-                    data-tauri-drag-region='true'
-                    className='top-[5px] left-[235px] right-[5px] h-[30px] fixed'
-                />
-                <div className='h-[35px] flex justify-between'>
-                    <div className='flex'>
-                        <h2 className='m-auto ml-[10px]'>{t(`config.${location.pathname.slice(1)}.title`)}</h2>
-                    </div>
-
-                    <div className='flex'>{osType !== 'Darwin' && <WindowControl />}</div>
-                </div>
-                <Divider />
-                <div
-                    className={`p-[10px] overflow-y-auto ${
-                        osType === 'Linux' ? 'h-[calc(100vh-38px)]' : 'h-[calc(100vh-36px)]'
-                    }`}
+        <div
+            className={`bg-content1 h-screen flex flex-col overflow-hidden select-none cursor-default ${
+                osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
+            }`}
+        >
+            <WindowHeader
+                style={{ background: 'transparent' }}
+                left={
+                    <WindowHeaderTitle
+                        icon={
+                            <img
+                                alt='Immersive Input'
+                                src='icon.svg'
+                                draggable={false}
+                                style={{ width: 18, height: 18 }}
+                            />
+                        }
+                        textStyle={{ fontSize: 13 }}
+                    >
+                        Immersive Input
+                    </WindowHeaderTitle>
+                }
+                right={<WindowHeaderWindowControls hideOnDarwin />}
+            />
+            <div className='flex flex-1 min-h-0'>
+                <Card
+                    shadow='none'
+                    className='bg-content1 w-[230px] h-full rounded-none border-r-1 border-default-100 shrink-0'
                 >
+                    <div className='py-[10px]'>
+                        <div className='px-[8px] pt-[2px] pb-[12px]'>
+                            <div className='flex flex-col items-center gap-[6px]'>
+                                <img
+                                    alt='Immersive Input'
+                                    src='icon.svg'
+                                    className='h-[52px] w-[52px]'
+                                    draggable={false}
+                                />
+                                <span className='text-[13px] font-semibold text-default-600 tracking-wide select-none'>
+                                    Immersive Input
+                                </span>
+                            </div>
+                        </div>
+                        <SideBar />
+                    </div>
+                </Card>
+                <div className='bg-background flex-1 min-h-0 overflow-y-auto p-[10px]'>
                     {page}
                 </div>
             </div>
-        </>
+        </div>
     );
 }

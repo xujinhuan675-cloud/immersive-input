@@ -3,6 +3,12 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import WindowHeader, {
+    WindowHeaderButton,
+    WindowHeaderCloseButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
+import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getRecords, addRecord, updateRecord, deleteRecord, getAllTags } from './vaultDb';
 
 // ─────────────────────────────────────────────
@@ -50,7 +56,7 @@ const STRENGTH_COLOR = ['#ccc', '#e53935', '#fb8c00', '#fdd835', '#7cb342', '#43
 const S = {
     root: {
         display: 'flex', flexDirection: 'column', height: '100vh',
-        fontFamily: '-apple-system, "Microsoft YaHei", sans-serif',
+        fontFamily: APP_FONT_FAMILY_VAR,
         fontSize: '13px', background: '#f5f5f5', color: '#333', overflow: 'hidden',
     },
     header: {
@@ -262,7 +268,22 @@ function EditView({ record, allTags, onSave, onCancel }) {
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* 标题栏 */}
-            <div style={S.header}>
+            <WindowHeader
+                center={
+                    <WindowHeaderTitle icon='🔑'>
+                        {isNew ? t('vault.new_record') : t('vault.edit_record')}
+                    </WindowHeaderTitle>
+                }
+                right={
+                    <>
+                        <WindowHeaderButton onClick={onCancel}>{t('common.cancel')}</WindowHeaderButton>
+                        <WindowHeaderButton variant='primary' onClick={handleSave} disabled={saving}>
+                            {saving ? t('vault.saving') : t('vault.save')}
+                        </WindowHeaderButton>
+                    </>
+                }
+            />
+            {false && <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
                 <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>
                     {isNew ? `➕ ${t('vault.new_record')}` : `✏️ ${t('vault.edit_record')}`}
@@ -273,7 +294,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
                         {saving ? t('vault.saving') : t('vault.save')}
                     </button>
                 </div>
-            </div>
+            </div>}
 
             <div style={S.panel}>
                 {error && <div style={{ color: '#e53935', fontSize: '12px' }}>{error}</div>}
@@ -511,12 +532,16 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* 顶部标题栏 */}
-            <div style={S.header}>
+            <WindowHeader
+                center={<WindowHeaderTitle icon='🔐'>{t('vault.title')}</WindowHeaderTitle>}
+                right={<WindowHeaderCloseButton />}
+            />
+            {false && <div style={S.header}>
                 <div style={S.dragOverlay} data-tauri-drag-region="true" />
                 <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>🔐 {t('vault.title')}</span>
                 <button style={{ ...S.btn(), position: 'relative', zIndex: 1 }}
                     onClick={() => appWindow.close()}>✕ {t('vault.close')}</button>
-            </div>
+            </div>}
 
             {/* 工具栏 */}
             <div style={S.toolbar}>

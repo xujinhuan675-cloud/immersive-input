@@ -12,8 +12,7 @@ export const sourceLanguageAtom = atom();
 export const targetLanguageAtom = atom();
 
 export default function LanguageArea() {
-    const [rememberLanguage] = useConfig('translate_remember_language', false);
-    const [translateSourceLanguage, setTranslateSourceLanguage] = useConfig('translate_source_language', 'auto');
+    const [translateSourceLanguage] = useConfig('translate_source_language', 'auto');
     const [translateTargetLanguage, setTranslateTargetLanguage] = useConfig('translate_target_language', 'zh_cn');
     const [translateSecondLanguage] = useConfig('translate_second_language', 'en');
 
@@ -30,13 +29,6 @@ export default function LanguageArea() {
             setTargetLanguage(translateTargetLanguage);
         }
     }, [translateSourceLanguage, translateTargetLanguage]);
-
-    useEffect(() => {
-        if (rememberLanguage !== null && rememberLanguage) {
-            setTranslateSourceLanguage(sourceLanguage);
-            setTranslateTargetLanguage(targetLanguage);
-        }
-    }, [sourceLanguage, targetLanguage, rememberLanguage]);
 
     return (
         <Card
@@ -90,7 +82,7 @@ export default function LanguageArea() {
                                     if (targetLanguage === translateSecondLanguage) {
                                         setTargetLanguage(translateTargetLanguage);
                                     } else {
-                                        setTargetLanguage(secondLanguage);
+                                        setTargetLanguage(translateSecondLanguage);
                                     }
                                 }
                             }
@@ -114,6 +106,7 @@ export default function LanguageArea() {
                             className='max-h-[50vh] overflow-y-auto'
                             onAction={(key) => {
                                 setTargetLanguage(key);
+                                setTranslateTargetLanguage(key);
                             }}
                         >
                             {languageList.map((x) => {

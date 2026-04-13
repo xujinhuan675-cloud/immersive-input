@@ -28,35 +28,45 @@ export const SUBSCRIPTION_PRODUCTS = Object.freeze({
     membership_basic_month: {
         tier: BILLING_TIERS.BASIC,
         durationDays: 30,
+        billingCycle: 'month',
     },
     membership_basic_year: {
         tier: BILLING_TIERS.BASIC,
         durationDays: 365,
+        billingCycle: 'year',
     },
     membership_pro_month: {
         tier: BILLING_TIERS.PRO,
         durationDays: 30,
+        billingCycle: 'month',
     },
     membership_pro_year: {
         tier: BILLING_TIERS.PRO,
         durationDays: 365,
+        billingCycle: 'year',
     },
     membership_enterprise_month: {
         tier: BILLING_TIERS.ENTERPRISE,
         durationDays: 30,
+        billingCycle: 'month',
     },
     membership_enterprise_year: {
         tier: BILLING_TIERS.ENTERPRISE,
         durationDays: 365,
+        billingCycle: 'year',
     },
 });
 
 export function resolveTierRule(tier) {
-    const key = String(tier || '').trim().toLowerCase();
+    const key = String(tier || '')
+        .trim()
+        .toLowerCase();
     return TIER_RULES[key] || TIER_RULES[BILLING_TIERS.FREE];
 }
 
 export function resolveSubscriptionProduct(productCode) {
-    const key = String(productCode || '').trim().toLowerCase();
+    const key = String(productCode || '')
+        .trim()
+        .toLowerCase();
     return SUBSCRIPTION_PRODUCTS[key] || null;
 }

@@ -1,7 +1,4 @@
-export const PAYMENT_BACKENDS = Object.freeze({
-    SUB2APIPAY: 'sub2apipay',
-    CUSTOM_ORCHESTRATOR: 'custom_orchestrator',
-});
+export const PAYMENT_BACKEND = 'custom_orchestrator';
 
 export const PAYMENT_ORDER_STATUS = Object.freeze({
     PENDING: 'PENDING',

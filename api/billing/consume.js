@@ -1,18 +1,15 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
+import { resolveActingUserId } from '../_lib/requestAuth.js';
 import { consumeBillingUnits } from '../_lib/billing/service.js';
 
-function resolveUserId(req, body) {
-    const url = new URL(req.url, 'http://localhost');
-    return String(
-        body?.userId || req.headers['x-user-id'] || url.searchParams.get('userId') || ''
-    ).trim();
-}
-
 export default async function handler(req, res) {
-    setCors(req, res, {
+    const cors = setCors(req, res, {
         methods: 'POST, OPTIONS',
-        headers: 'Content-Type, Authorization, X-Idempotency-Key, X-User-Id',
+        headers: 'Content-Type, Authorization, X-Idempotency-Key, X-User-Id, X-Admin-Token',
     });
+    if (!cors.originAllowed) {
+        return sendJson(res, 403, { message: 'Origin not allowed' });
+    }
     if (req.method === 'OPTIONS') {
         res.statusCode = 204;
         return res.end();
@@ -23,8 +20,7 @@ export default async function handler(req, res) {
 
     try {
         const body = await readJsonBody(req);
-        const userId = resolveUserId(req, body);
-        if (!userId) return sendJson(res, 400, { message: 'Missing userId' });
+        const { userId } = await resolveActingUserId(req, body, { allowAdmin: true });
 
         const result = await consumeBillingUnits({
             userId,
@@ -39,7 +35,7 @@ export default async function handler(req, res) {
         return sendJson(res, status, result);
     } catch (e) {
         const msg = String(e?.message || 'Internal Server Error');
-        const status = msg.includes('Missing userId') ? 400 : 500;
+        const status = getErrorStatus(e, msg.includes('Missing userId') ? 400 : 500);
         return sendJson(res, status, { message: msg });
     }
 }

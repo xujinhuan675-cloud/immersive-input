@@ -166,6 +166,31 @@ export async function findPaymentOrderByExternalOrderId(externalOrderId) {
     });
 }
 
+export async function findLaterSuccessfulSubscriptionOrders({
+    userId,
+    excludeOrderId = '',
+    afterTimestamp = null,
+} = {}) {
+    await ensurePaymentTables();
+    return withClient(async (client) => {
+        const timestamp = afterTimestamp || '1970-01-01T00:00:00.000Z';
+        const { rows } = await client.query(
+            `
+                select *
+                from public.payment_orders
+                where user_id = $1
+                  and order_type = 'subscription'
+                  and id <> $2
+                  and status in ('PAID', 'COMPLETED')
+                  and coalesce(paid_at, created_at) > $3::timestamptz
+                order by coalesce(paid_at, created_at) asc
+            `,
+            [userId, excludeOrderId || '', timestamp]
+        );
+        return rows.map((row) => mapOrder(row));
+    });
+}
+
 export async function findPaymentOrderByUserIdempotency(userId, idempotencyKey) {
     if (!idempotencyKey) return null;
     await ensurePaymentTables();

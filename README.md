@@ -145,42 +145,64 @@ immersive-input/
 5. **开始使用**：登录成功后即可使用所有功能
 
 > 💡 密码保存在本地设备，不会上传到云端。如忘记密码，可点击"忘记密码"通过邮箱重置。
-## 支付双方案（sub2apipay 默认生效）
+## 支付自编排方案（单路径）
 
-项目已内置统一支付网关，支持两套后端实现并通过环境变量切换：
+项目支付已收敛为“以当前项目为核心”的单一自编排方案，不再依赖 `sub2apipay/sub2api` 双后端切换。支付链路统一为：
 
-- 方案 A（默认生效）：`sub2apipay`
-- 方案 B（完整预置，默认关闭）：`custom_orchestrator`（自定义编排层 + 适配器）
+`创建订单 -> 拉起收银 -> 回调验签 -> 状态机推进 -> 会员/积分发放`
 
-### 核心开关
+### 核心配置（仅一套）
 
-- `PAYMENT_ACTIVE_BACKEND=sub2apipay`（默认）
-- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=false`（默认）
-
-当 `PAYMENT_ACTIVE_BACKEND=custom_orchestrator` 且 `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=true` 时，才会真正切到方案 B。
-
-### sub2apipay 相关配置
-
-- `SUB2APIPAY_BASE_URL`
-- `SUB2APIPAY_API_TOKEN`
-- `SUB2APIPAY_CREATE_ORDER_PATH`（默认 `/api/orders`）
-- `SUB2APIPAY_QUERY_ORDER_PATH`（默认 `/api/orders/{orderId}`）
-- `SUB2APIPAY_NOTIFY_URL`
-- `SUB2APIPAY_RETURN_URL`
-- `SUB2APIPAY_WEBHOOK_SECRET`
-
-### 自定义编排层（方案 B）相关配置
-
-- `CUSTOM_ORCHESTRATOR_ADAPTER`（默认 `noop`）
-- `CUSTOM_ORCHESTRATOR_WEBHOOK_SECRET`
+- `CUSTOM_ORCHESTRATOR_ADAPTER`（默认 `stripe`，可回退 `easypay` / `noop`）
+- `CUSTOM_ORCHESTRATOR_TIMEOUT_MS`
 - `CUSTOM_ORCHESTRATOR_PLACEHOLDER_CHECKOUT_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_API_BASE`
+- `STRIPE_CREATE_CHECKOUT_PATH`
+- `STRIPE_RETRIEVE_CHECKOUT_PATH`
+- `STRIPE_SUCCESS_URL`
+- `STRIPE_CANCEL_URL`
+- `STRIPE_MODE`（默认 `payment`）
+- `STRIPE_PAYMENT_METHOD_TYPES`（如 `card` / `alipay` / `wechat_pay`）
+- `STRIPE_DEFAULT_CURRENCY`
+- `STRIPE_WEBHOOK_TOLERANCE_SECONDS`
+- `STRIPE_TIMEOUT_MS`
+
+以下是 EasyPay 适配器参数（作为可选回退）：
+- `EASYPAY_PID`
+- `EASYPAY_KEY`
+- `EASYPAY_API_BASE`
+- `EASYPAY_CREATE_ORDER_PATH`
+- `EASYPAY_QUERY_ORDER_PATH`
+- `EASYPAY_NOTIFY_URL`
+- `EASYPAY_RETURN_URL`
+- `EASYPAY_DEFAULT_TYPE`（`alipay` / `wxpay` 等）
+- `EASYPAY_SIGN_TYPE`（默认 `MD5`）
+- `EASYPAY_TIMEOUT_MS`
+
+以下是给非 EasyPay 适配器预留的通用 webhook 安全项：
+- `CUSTOM_ORCHESTRATOR_WEBHOOK_SECRET`
+- `CUSTOM_ORCHESTRATOR_WEBHOOK_SIGNATURE_HEADER`
+- `CUSTOM_ORCHESTRATOR_WEBHOOK_TIMESTAMP_HEADER`
+- `CUSTOM_ORCHESTRATOR_WEBHOOK_TOLERANCE_SECONDS`
+- `CUSTOM_ORCHESTRATOR_ENFORCE_WEBHOOK_TIMESTAMP`
+
+### 风险控制（借鉴成熟支付方案）
+
+- 下单幂等：`user_id + idempotency_key` 唯一约束，重复请求不重复建单
+- 回调验签：Stripe 回调按 `Stripe-Signature` 做 HMAC 校验；其他适配器按各自协议验签
+- 防重放：webhook 事件去重 + 决定性事件 ID；自定义适配器支持时间戳容忍窗口
+- 事件去重：webhook 事件表 + 决定性事件 ID（无 `event_id` 时按签名与原始报文生成）
+- 状态机约束：仅允许合法状态迁移，避免回调乱序导致状态回滚
+- 入账幂等：支付发放使用 `grant_key` 幂等，重复回调不会重复发放权益
 
 ### 支付 API 入口
 
-- `GET /api/payment/config`：查看当前生效后端与开关状态
+- `GET /api/payment/config`：查看当前自编排网关状态与风控配置
 - `POST /api/payment/create-order`：创建支付订单（统一入口）
 - `GET|POST /api/payment/order-status`：查询并同步订单状态
-- `POST /api/payment/webhook?provider=sub2apipay|custom_orchestrator`：支付回调入口
+- `POST /api/payment/webhook`：支付回调入口
 
 ### 会员与计费模型（已内置）
 
@@ -210,18 +232,19 @@ immersive-input/
 
 1. 准备环境变量  
    复制 `payment.env.example`，至少配置：
-   - `PAYMENT_ACTIVE_BACKEND`
-   - `SUB2APIPAY_BASE_URL` / `SUB2APIPAY_API_TOKEN`
-   - `SUB2APIPAY_NOTIFY_URL`（指向你的 `/api/payment/webhook?provider=sub2apipay`）
-   - `SUB2APIPAY_WEBHOOK_SECRET`
+   - `CUSTOM_ORCHESTRATOR_ADAPTER=stripe`
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `STRIPE_SUCCESS_URL`
+   - `STRIPE_CANCEL_URL`
 2. 启动服务后先确认网关状态  
-   `GET /api/payment/config`，应看到 `activeBackend=sub2apipay`（或你期望的方案）
+   `GET /api/payment/config`，应看到 `activeBackend=custom_orchestrator`
 3. 创建订单  
    `POST /api/payment/create-order`，建议带 `idempotencyKey`，返回 `order.id` 与 `checkoutUrl`
 4. 拉起支付页完成支付  
    使用返回的 `checkoutUrl` 打开收银台，用户完成付款
 5. 接收回调并验签  
-   支付平台回调 `POST /api/payment/webhook?...`，系统会幂等更新订单并自动发放会员/积分
+   Stripe 回调 `POST /api/payment/webhook`，系统会按 `Stripe-Signature` 验签并幂等更新订单、自动发放会员/积分
 6. 主动查询最终状态  
    轮询 `GET|POST /api/payment/order-status`，看到 `order.status=COMPLETED` 代表已完成发放
 7. 查询会员档案核对权益  
@@ -260,24 +283,15 @@ curl -X POST "http://127.0.0.1:3000/api/billing/consume" \
   }'
 ```
 
-### 方案切换（A/B）
+### 扩展方式
 
-保持当前生产路径（方案 A）：
-
-- `PAYMENT_ACTIVE_BACKEND=sub2apipay`
-- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=false`
-
-切换到方案 B（预置完整实现）：
-
-- `PAYMENT_ACTIVE_BACKEND=custom_orchestrator`
-- `PAYMENT_ENABLE_CUSTOM_ORCHESTRATOR=true`
-- 按需设置 `CUSTOM_ORCHESTRATOR_ADAPTER`
+当前只保留“自编排支付”一套主线，默认内置 `stripe` 真实渠道，并提供 `easypay` / `noop` 作为回退适配器。后续如果要接入更多真实渠道，建议在 `custom/adapters` 下新增适配器并复用现有风控能力（验签、防重放、状态机、幂等账本），而不是再引入并行后端。
 
 ### 自动化测试
 
 已提供 Node 内置测试（无需额外测试框架）：
 
-- `tests/payment-core.test.mjs`：支付开关、状态归一化、状态机转移
+- `tests/payment-core.test.mjs`：单后端配置、签名验签与防重放、状态归一化、状态机转移
 - `tests/billing-engine.test.mjs`：额度扣减、积分回退、订阅发放、充值换算
 - `tests/billing-service.test.mjs`：计费服务幂等与支付发放行为（内存存储模拟）
 

@@ -36,8 +36,8 @@ export const languageList = [
 // https://flagicons.lipis.dev/
 export enum LanguageFlag {
     zh_cn = 'cn',
-    zh_tw = 'cn',
-    mn_mo = 'cn',
+    zh_tw = 'tw',
+    mn_mo = 'mo',
     en = 'gb',
     ja = 'jp',
     ko = 'kr',
@@ -53,7 +53,7 @@ export enum LanguageFlag {
     id = 'id',
     th = 'th',
     ms = 'ms',
-    ar = 'ae',
+    ar = 'arab',
     hi = 'in',
     km = 'kh',
     mn_cy = 'mn',
@@ -65,4 +65,41 @@ export enum LanguageFlag {
     nl = 'nl',
     uk = 'ua',
     he = 'il',
+}
+
+const LANGUAGE_NORMALIZATION_MAP: Record<string, keyof typeof LanguageFlag> = {
+    zh_cn: 'zh_cn',
+    zh_hans: 'zh_cn',
+    zh_tw: 'zh_tw',
+    zh_hant: 'zh_tw',
+    pt_pt: 'pt_pt',
+    pt_br: 'pt_br',
+    nb_no: 'nb_no',
+    nn_no: 'nn_no',
+    mn_mo: 'mn_mo',
+    mn_cy: 'mn_cy',
+    fa_ir: 'fa',
+    uk_ua: 'uk',
+    he_il: 'he',
+};
+
+const UNKNOWN_LANGUAGE_FLAG = 'xx';
+
+export function normalizeLanguageKey(language?: string | null): string {
+    if (!language) {
+        return '';
+    }
+
+    const normalized = language.trim().toLowerCase().replace(/-/g, '_');
+    return LANGUAGE_NORMALIZATION_MAP[normalized] ?? normalized;
+}
+
+export function getLanguageFlag(language?: string | null): string {
+    const normalized = normalizeLanguageKey(language);
+
+    if (!normalized) {
+        return UNKNOWN_LANGUAGE_FLAG;
+    }
+
+    return LanguageFlag[normalized as keyof typeof LanguageFlag] ?? UNKNOWN_LANGUAGE_FLAG;
 }
