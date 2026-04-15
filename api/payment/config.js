@@ -1,5 +1,4 @@
 import { getErrorStatus, sendJson, setCors } from '../_lib/http.js';
-import { getRequestAuthContext } from '../_lib/requestAuth.js';
 import { getPaymentGatewayStatus } from '../_lib/payment/gateway.js';
 
 export default async function handler(req, res) {
@@ -19,7 +18,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        await getRequestAuthContext(req, { allowAdmin: true });
         const status = getPaymentGatewayStatus();
         return sendJson(res, 200, { ok: true, ...status });
     } catch (e) {

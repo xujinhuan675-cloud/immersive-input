@@ -40,6 +40,7 @@ function getAllowedOrigins() {
         process.env.STRIPE_CANCEL_URL,
         process.env.EASYPAY_RETURN_URL,
         process.env.ALIPAY_RETURN_URL,
+        process.env.WXPAY_RETURN_URL,
     ]
         .map(toOrigin)
         .filter(Boolean)

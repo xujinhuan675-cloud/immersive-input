@@ -163,6 +163,7 @@ export function getPaymentRuntimeConfig() {
                 notifyUrl:
                     trimOrEmpty(process.env.WXPAY_NOTIFY_URL) ||
                     defaultWebhookUrl(appBaseUrl, 'wxpay'),
+                returnUrl: trimOrEmpty(process.env.WXPAY_RETURN_URL),
                 publicKey: resolveFileValue(process.env.WXPAY_PUBLIC_KEY),
                 publicKeyId: trimOrEmpty(process.env.WXPAY_PUBLIC_KEY_ID),
                 apiBase:

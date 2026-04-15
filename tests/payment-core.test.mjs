@@ -9,6 +9,7 @@ import { createAlipayAdapter } from '../api/_lib/payment/custom/adapters/alipay.
 import { createEasyPayAdapter } from '../api/_lib/payment/custom/adapters/easypay.js';
 import { createStripeAdapter } from '../api/_lib/payment/custom/adapters/stripe.js';
 import { createWxpayAdapter } from '../api/_lib/payment/custom/adapters/wxpay.js';
+import paymentConfigHandler from '../api/payment/config.js';
 import {
     buildDeterministicWebhookEventId,
     verifyWebhookSignature,
@@ -138,6 +139,14 @@ test('payment config supports multiple enabled adapters', () => {
     assert.equal(cfg.customOrchestrator.defaultAdapter, 'stripe');
     assert.deepEqual(cfg.customOrchestrator.enabledAdapters, ['stripe', 'alipay', 'wxpay']);
 });
+
+test('payment config exposes wxpay return url when configured', () => {
+    restoreEnv();
+    process.env.WXPAY_RETURN_URL = 'https://pay.example.com/';
+    const cfg = getPaymentRuntimeConfig();
+    assert.equal(cfg.customOrchestrator.wxpay.returnUrl, 'https://pay.example.com/');
+});
+
 test('buildDeterministicWebhookEventId is stable for same payload and signature', () => {
     const first = buildDeterministicWebhookEventId({
         provider: 'custom_orchestrator',
@@ -278,4 +287,86 @@ test('wxpay adapter runtime status reports required env keys when missing', () =
         'WXPAY_PUBLIC_KEY',
         'WXPAY_NOTIFY_URL or APP_BASE_URL',
     ]);
+});
+
+test('payment config endpoint is publicly readable without bearer token', async () => {
+    restoreEnv();
+    const headers = new Map();
+    let body = '';
+    const res = {
+        statusCode: 0,
+        setHeader(name, value) {
+            headers.set(name, value);
+        },
+        end(value) {
+            body = String(value || '');
+        },
+    };
+
+    await paymentConfigHandler(
+        {
+            method: 'GET',
+            headers: {},
+        },
+        res
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(headers.get('Content-Type'), 'application/json; charset=utf-8');
+    assert.equal(JSON.parse(body).ok, true);
+});
+
+test('wxpay adapter appends H5 redirect_url when return url is configured', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.WXPAY_APP_ID = 'wx123';
+    process.env.WXPAY_MCH_ID = 'mch123';
+    process.env.WXPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.WXPAY_CERT_SERIAL = 'serial123';
+    process.env.WXPAY_API_V3_KEY = '12345678901234567890123456789012';
+    process.env.WXPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.WXPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+    process.env.WXPAY_RETURN_URL = 'https://pay.example.com/';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        async text() {
+            return JSON.stringify({
+                h5_url: 'https://wx.tenpay.com/cgi-bin/mmpayweb-bin/checkmweb?prepay_id=wx123',
+            });
+        },
+    });
+
+    try {
+        const adapter = createWxpayAdapter();
+        const result = await adapter.createPayment({
+            order: {
+                id: 'order_123',
+                amountCents: 2990,
+                description: 'membership topup',
+                productCode: 'membership_topup',
+                metadata: {},
+            },
+            requestContext: {
+                isMobile: true,
+                clientIp: '127.0.0.1',
+                userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+            },
+        });
+
+        const checkoutUrl = new URL(result.checkoutUrl);
+        assert.equal(checkoutUrl.origin, 'https://wx.tenpay.com');
+        assert.equal(checkoutUrl.searchParams.get('prepay_id'), 'wx123');
+        assert.equal(
+            checkoutUrl.searchParams.get('redirect_url'),
+            'https://pay.example.com/?orderId=order_123&provider=wxpay'
+        );
+        assert.equal(result.raw.checkoutPresentation.returnUrl, 'https://pay.example.com/?orderId=order_123&provider=wxpay');
+    } finally {
+        global.fetch = originalFetch;
+    }
 });

@@ -89,6 +89,42 @@ function getClientIp(requestContext, order) {
     );
 }
 
+function buildReturnUrl(order) {
+    const cfg = getWxpayConfig();
+    const base = trim(cfg.returnUrl);
+    if (!base) return '';
+
+    let url;
+    try {
+        url = new URL(base);
+    } catch {
+        return '';
+    }
+
+    if (!url.searchParams.has('orderId') && trim(order?.id)) {
+        url.searchParams.set('orderId', trim(order.id));
+    }
+    if (!url.searchParams.has('provider')) {
+        url.searchParams.set('provider', 'wxpay');
+    }
+    return url.toString();
+}
+
+function appendRedirectUrl(h5Url, returnUrl) {
+    const checkoutUrl = trim(h5Url);
+    const redirectUrl = trim(returnUrl);
+    if (!checkoutUrl || !redirectUrl) return checkoutUrl;
+
+    let url;
+    try {
+        url = new URL(checkoutUrl);
+    } catch {
+        return checkoutUrl;
+    }
+    url.searchParams.set('redirect_url', redirectUrl);
+    return url.toString();
+}
+
 function buildAuthorization(method, path, bodyText) {
     const cfg = getWxpayConfig();
     const nonce = crypto.randomBytes(16).toString('hex');
@@ -195,6 +231,7 @@ export function createWxpayAdapter() {
             const description = trim(order.description) || trim(order.productCode) || `order_${order.id}`;
             const isMobile = isMobileRequest(requestContext, order);
             const clientIp = getClientIp(requestContext, order);
+            const returnUrl = buildReturnUrl(order);
 
             if (isMobile && clientIp) {
                 try {
@@ -219,15 +256,17 @@ export function createWxpayAdapter() {
                             },
                         },
                     });
+                    const checkoutUrl = appendRedirectUrl(data.h5_url, returnUrl);
                     return {
                         providerOrderId: '',
-                        checkoutUrl: trim(data.h5_url),
+                        checkoutUrl,
                         status: PAYMENT_ORDER_STATUS.REQUIRES_ACTION,
                         raw: {
                             ...data,
                             checkoutPresentation: {
                                 type: 'redirect',
-                                url: trim(data.h5_url),
+                                url: checkoutUrl,
+                                returnUrl,
                             },
                         },
                     };
