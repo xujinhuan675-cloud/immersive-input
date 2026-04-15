@@ -210,6 +210,7 @@ function getRuntimeStatus() {
         supportsMobileH5: true,
         supportsDesktopQr: trim(cfg.desktopMode).toLowerCase() === 'qr',
         supportsDesktopRedirect: trim(cfg.desktopMode).toLowerCase() !== 'qr',
+        verifyResponseSign: !!cfg.verifyResponseSign,
     };
 }
 
@@ -302,7 +303,11 @@ async function executeAlipay(method, bizContent) {
         const data = JSON.parse(rawText || '{}');
         const responseKey = `${method.replace(/\./g, '_')}_response`;
         const responseSign = trim(data.sign);
-        if (responseSign && !verifyResponseSign(rawText, responseKey, cfg.publicKey, responseSign)) {
+        if (
+            cfg.verifyResponseSign &&
+            responseSign &&
+            !verifyResponseSign(rawText, responseKey, cfg.publicKey, responseSign)
+        ) {
             throw new Error(
                 `Alipay API response signature verification failed for ${method}. Check ALIPAY_PUBLIC_KEY is the Alipay platform public key for the same app/environment, not your app public key.`
             );

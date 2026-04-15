@@ -243,6 +243,112 @@ test('alipay adapter runtime status reports required env keys when missing', () 
     ]);
 });
 
+test('alipay adapter does not require response signature verification by default', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        async arrayBuffer() {
+            return Buffer.from(
+                JSON.stringify({
+                    alipay_trade_query_response: {
+                        code: '10000',
+                        msg: 'Success',
+                        trade_status: 'WAIT_BUYER_PAY',
+                        trade_no: '202604150001',
+                        out_trade_no: 'order_query',
+                    },
+                    sign: 'invalid-signature',
+                })
+            );
+        },
+        headers: {
+            get(name) {
+                return String(name || '').toLowerCase() === 'content-type'
+                    ? 'application/json; charset=utf-8'
+                    : '';
+            },
+        },
+    });
+
+    try {
+        const adapter = createAlipayAdapter();
+        const result = await adapter.queryPayment({
+            order: {
+                id: 'order_query',
+                checkoutUrl: 'https://openapi.alipay.com/gateway.do?...',
+            },
+        });
+
+        assert.equal(result.providerOrderId, '202604150001');
+        assert.equal(result.status, PAYMENT_ORDER_STATUS.REQUIRES_ACTION);
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test('alipay adapter can enforce response signature verification when enabled', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+    process.env.ALIPAY_VERIFY_RESPONSE_SIGNATURE = 'true';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        async arrayBuffer() {
+            return Buffer.from(
+                JSON.stringify({
+                    alipay_trade_query_response: {
+                        code: '10000',
+                        msg: 'Success',
+                        trade_status: 'WAIT_BUYER_PAY',
+                        trade_no: '202604150001',
+                        out_trade_no: 'order_query',
+                    },
+                    sign: 'invalid-signature',
+                })
+            );
+        },
+        headers: {
+            get(name) {
+                return String(name || '').toLowerCase() === 'content-type'
+                    ? 'application/json; charset=utf-8'
+                    : '';
+            },
+        },
+    });
+
+    try {
+        const adapter = createAlipayAdapter();
+        await assert.rejects(
+            () =>
+                adapter.queryPayment({
+                    order: {
+                        id: 'order_query',
+                        checkoutUrl: 'https://openapi.alipay.com/gateway.do?...',
+                    },
+                }),
+            /response signature verification failed/
+        );
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test('alipay adapter uses browser cashier redirect on desktop by default', async () => {
     restoreEnv();
     const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
