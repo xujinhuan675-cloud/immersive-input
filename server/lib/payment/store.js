@@ -247,6 +247,7 @@ export async function updatePaymentOrderStatus(orderId, input) {
                     failed_reason = $3,
                     metadata = $4::jsonb,
                     paid_at = coalesce($5, paid_at),
+                    external_order_id = coalesce($6, external_order_id),
                     updated_at = now()
                 where id = $1
                 returning *
@@ -257,6 +258,7 @@ export async function updatePaymentOrderStatus(orderId, input) {
                 input.failedReason || null,
                 JSON.stringify(input.metadata || {}),
                 input.paidAt || null,
+                input.externalOrderId || null,
             ]
         );
         return mapOrder(rows[0]);

@@ -274,6 +274,7 @@ export async function queryUnifiedOrder(orderId) {
                     ? (result.raw?.message || order.failedReason || 'Payment failed')
                     : null,
             paidAt: nextStatus === PAYMENT_ORDER_STATUS.PAID ? new Date().toISOString() : null,
+            externalOrderId: result.providerOrderId || order.externalOrderId || null,
             metadata: {
                 ...(order.metadata || {}),
                 paymentProvider: result.providerName || order.provider,
@@ -376,6 +377,7 @@ export async function handleUnifiedWebhook(input) {
                     nextStatus === PAYMENT_ORDER_STATUS.FAILED
                         ? (event.rawPayload?.message || order.failedReason || 'Payment failed')
                         : null,
+                externalOrderId: event.externalOrderId || order.externalOrderId || null,
                 metadata: {
                     ...(order.metadata || {}),
                     paymentProvider: effectiveProviderName,

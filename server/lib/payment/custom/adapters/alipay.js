@@ -354,6 +354,21 @@ function mapAlipayRefundStatus(result) {
     return PAYMENT_ORDER_STATUS.PENDING;
 }
 
+function isTradeNotExistError(error) {
+    return error instanceof Error && error.message.includes('[ACQ.TRADE_NOT_EXIST]');
+}
+
+function resolveTradeNo(order) {
+    return trim(
+        pickFirst(
+            order?.externalOrderId,
+            order?.metadata?.gatewayQueryResponse?.trade_no,
+            order?.metadata?.webhookPayload?.trade_no,
+            order?.metadata?.gatewayCreateResponse?.trade_no
+        )
+    );
+}
+
 export function createAlipayAdapter() {
     return {
         name: 'alipay',
@@ -416,7 +431,7 @@ export function createAlipayAdapter() {
                     raw: result,
                 };
             } catch (error) {
-                if (error instanceof Error && error.message.includes('[ACQ.TRADE_NOT_EXIST]')) {
+                if (isTradeNotExistError(error)) {
                     return {
                         providerOrderId: trim(order.externalOrderId),
                         checkoutUrl: trim(order.checkoutUrl),
@@ -434,12 +449,27 @@ export function createAlipayAdapter() {
             const bizContent = {
                 out_trade_no: order.id,
             };
-            if (trim(order.externalOrderId)) {
-                bizContent.trade_no = trim(order.externalOrderId);
+            const tradeNo = resolveTradeNo(order);
+            if (tradeNo) {
+                bizContent.trade_no = tradeNo;
             }
-            const result = await executeAlipay('alipay.trade.close', bizContent);
+            let result;
+            try {
+                result = await executeAlipay('alipay.trade.close', bizContent);
+            } catch (error) {
+                if (!isTradeNotExistError(error)) {
+                    throw error;
+                }
+                result = {
+                    code: '10000',
+                    msg: 'Success',
+                    out_trade_no: order.id,
+                    trade_no: tradeNo,
+                    trade_status: 'TRADE_NOT_EXIST',
+                };
+            }
             return {
-                providerOrderId: trim(result.trade_no) || trim(order.externalOrderId) || trim(order.id),
+                providerOrderId: trim(result.trade_no) || tradeNo || trim(order.id),
                 status: PAYMENT_ORDER_STATUS.CANCELED,
                 accepted: true,
                 raw: result,
@@ -452,15 +482,16 @@ export function createAlipayAdapter() {
                 refund_amount: (Number(order.amountCents || 0) / 100).toFixed(2),
                 out_request_no: `refund_${order.id}`,
             };
-            if (trim(order.externalOrderId)) {
-                bizContent.trade_no = trim(order.externalOrderId);
+            const tradeNo = resolveTradeNo(order);
+            if (tradeNo) {
+                bizContent.trade_no = tradeNo;
             }
             if (trim(reason)) {
                 bizContent.refund_reason = trim(reason);
             }
             const result = await executeAlipay('alipay.trade.refund', bizContent);
             return {
-                providerRefundId: trim(result.trade_no) || `alipay_refund_${order.id}`,
+                providerRefundId: trim(result.trade_no) || tradeNo || `alipay_refund_${order.id}`,
                 status: mapAlipayRefundStatus(result),
                 accepted: true,
                 raw: result,

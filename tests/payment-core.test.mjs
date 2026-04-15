@@ -526,6 +526,120 @@ test('alipay adapter cancels order via trade.close', async () => {
     }
 });
 
+test('alipay adapter closes with trade_no from latest query metadata when external id is missing', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    let requestBody = '';
+    global.fetch = async (_, init = {}) => {
+        requestBody = String(init.body || '');
+        return {
+            ok: true,
+            async arrayBuffer() {
+                return Buffer.from(
+                    JSON.stringify({
+                        alipay_trade_close_response: {
+                            code: '10000',
+                            msg: 'Success',
+                            trade_no: '2026041500002',
+                            out_trade_no: 'order_cancel_meta',
+                        },
+                    })
+                );
+            },
+            headers: {
+                get(name) {
+                    return String(name || '').toLowerCase() === 'content-type'
+                        ? 'application/json; charset=utf-8'
+                        : '';
+                },
+            },
+        };
+    };
+
+    try {
+        const adapter = createAlipayAdapter();
+        const result = await adapter.cancelPayment({
+            order: {
+                id: 'order_cancel_meta',
+                metadata: {
+                    gatewayQueryResponse: {
+                        trade_no: '2026041500002',
+                    },
+                },
+            },
+        });
+
+        const params = new URLSearchParams(requestBody);
+        const bizContent = JSON.parse(params.get('biz_content') || '{}');
+
+        assert.equal(bizContent.trade_no, '2026041500002');
+        assert.equal(bizContent.out_trade_no, 'order_cancel_meta');
+        assert.equal(result.providerOrderId, '2026041500002');
+        assert.equal(result.status, PAYMENT_ORDER_STATUS.CANCELED);
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test('alipay adapter treats trade.close ACQ.TRADE_NOT_EXIST as idempotent cancel', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        async arrayBuffer() {
+            return Buffer.from(
+                JSON.stringify({
+                    alipay_trade_close_response: {
+                        code: '40004',
+                        msg: 'Business Failed',
+                        sub_code: 'ACQ.TRADE_NOT_EXIST',
+                        sub_msg: 'trade not exist',
+                    },
+                })
+            );
+        },
+        headers: {
+            get(name) {
+                return String(name || '').toLowerCase() === 'content-type'
+                    ? 'application/json; charset=utf-8'
+                    : '';
+            },
+        },
+    });
+
+    try {
+        const adapter = createAlipayAdapter();
+        const result = await adapter.cancelPayment({
+            order: {
+                id: 'order_cancel_missing',
+            },
+        });
+
+        assert.equal(result.providerOrderId, 'order_cancel_missing');
+        assert.equal(result.status, PAYMENT_ORDER_STATUS.CANCELED);
+        assert.equal(result.accepted, true);
+        assert.equal(result.raw.trade_status, 'TRADE_NOT_EXIST');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test('stripe adapter runtime status reports required env keys when missing', () => {
     restoreEnv();
     delete process.env.STRIPE_SECRET_KEY;
