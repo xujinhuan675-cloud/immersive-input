@@ -1,4 +1,4 @@
-import { getCurrentUser } from './auth';
+import { getCurrentUser, requireAccessToken } from './auth';
 import { requestBackend } from './backendApi';
 
 function buildAdminHeaders(adminToken) {
@@ -30,6 +30,7 @@ export async function createPaymentOrder({
 }) {
     const { user } = getCurrentUser();
     if (!user?.id) throw new Error('Not logged in');
+    await requireAccessToken();
     return requestBackend('/api/payment/create-order', {
         method: 'POST',
         body: {
@@ -47,6 +48,9 @@ export async function createPaymentOrder({
 }
 
 export async function getPaymentOrderStatus(orderId, options = {}) {
+    if (!resolveAdminToken(options)) {
+        await requireAccessToken();
+    }
     return requestBackend('/api/payment/order-status', {
         method: 'POST',
         headers: buildAdminHeaders(resolveAdminToken(options)),
@@ -59,6 +63,9 @@ export async function getPaymentOrderStatus(orderId, options = {}) {
 export async function cancelPaymentOrder({ orderId, reason = '', adminToken } = {}) {
     const targetOrderId = String(orderId || '').trim();
     if (!targetOrderId) throw new Error('Missing orderId');
+    if (!String(adminToken || '').trim()) {
+        await requireAccessToken();
+    }
     return requestBackend('/api/payment/cancel-order', {
         method: 'POST',
         headers: buildAdminHeaders(String(adminToken || '').trim()),

@@ -18,15 +18,9 @@ function removeApiPrefix(path) {
     return path;
 }
 
-function removeTrailingApiFromBase(base) {
-    return base.endsWith('/api') ? base.slice(0, -4) : base;
-}
-
 function buildCandidateUrls(path) {
     const base = getApiBase();
     const normalizedPath = normalizePath(path);
-    const noApiPath = removeApiPrefix(normalizedPath);
-    const rootBase = removeTrailingApiFromBase(base);
     const urls = [];
 
     function push(url) {
@@ -35,16 +29,16 @@ function buildCandidateUrls(path) {
     }
 
     if (base) {
-        push(`${base}${normalizedPath}`);
-        push(`${base}${noApiPath}`);
-    }
-    if (rootBase && rootBase !== base) {
-        push(`${rootBase}${normalizedPath}`);
-        push(`${rootBase}${noApiPath}`);
+        if (base.endsWith('/api')) {
+            push(`${base}${removeApiPrefix(normalizedPath)}`);
+        } else {
+            push(`${base}${normalizedPath}`);
+        }
+        return urls;
     }
 
     push(normalizedPath);
-    push(noApiPath);
+    push(removeApiPrefix(normalizedPath));
     return urls;
 }
 
@@ -67,6 +61,7 @@ export async function requestBackend(path, { method = 'GET', headers = {}, body 
     let latestNotFound = null;
     let latestError = null;
     const authHeaders = {};
+
     if (!('Authorization' in headers) && !('authorization' in headers)) {
         const accessToken = await getAccessToken();
         if (accessToken) {
@@ -93,15 +88,22 @@ export async function requestBackend(path, { method = 'GET', headers = {}, body 
                 latestNotFound = url;
                 continue;
             }
-            throw new Error(data?.message || `请求失败(${res.status})`);
+
+            const error = new Error(data?.message || `Request failed (${res.status})`);
+            error.nonRetryable = true;
+            error.url = url;
+            error.status = res.status;
+            throw error;
         } catch (error) {
             latestError = error;
-            if (i >= urls.length - 1) throw error;
+            if (error?.nonRetryable || i >= urls.length - 1) {
+                throw error;
+            }
         }
     }
 
     if (latestNotFound) {
-        throw new Error(`接口不存在：${latestNotFound}，请检查 API 部署或 VITE_AUTH_API_BASE 配置`);
+        throw new Error(`Endpoint not found: ${latestNotFound}`);
     }
-    throw latestError || new Error('请求失败');
+    throw latestError || new Error('Request failed');
 }

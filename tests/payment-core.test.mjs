@@ -49,6 +49,11 @@ test('payment cors allows tauri dev localhost origin by default', () => {
     assert.equal(isOriginAllowed('http://127.0.0.1:1420'), true);
 });
 
+test('payment cors allows null origin for desktop webviews', () => {
+    restoreEnv();
+    assert.equal(isOriginAllowed('null'), true);
+});
+
 test('payment config loads webhook hardening settings', () => {
     restoreEnv();
     process.env.CUSTOM_ORCHESTRATOR_WEBHOOK_SIGNATURE_HEADER = 'x-signature';

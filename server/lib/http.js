@@ -1,4 +1,5 @@
 const DEFAULT_ALLOWED_ORIGINS = [
+    'null',
     'tauri://localhost',
     'http://tauri.localhost',
     'https://tauri.localhost',

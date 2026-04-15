@@ -261,10 +261,20 @@ export async function getAccessToken() {
             persistStoredSession(session.user, session.access_token);
             return session.access_token;
         }
+        clearStoredSession();
+        return null;
     } catch {
         // fall back to the locally cached token when session refresh is unavailable
     }
     return storedToken || null;
+}
+
+export async function requireAccessToken() {
+    const token = await getAccessToken();
+    if (!token) {
+        throw new Error('登录已过期，请重新登录');
+    }
+    return token;
 }
 
 /**
