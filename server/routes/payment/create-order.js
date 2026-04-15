@@ -1,11 +1,11 @@
-import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../lib/http.js';
 import {
     getRequestClientIp,
     getRequestUserAgent,
     isMobileUserAgent,
     resolveActingUserId,
-} from '../../../api/_lib/requestAuth.js';
-import { createUnifiedOrder } from '../../../api/_lib/payment/gateway.js';
+} from '../../lib/requestAuth.js';
+import { createUnifiedOrder } from '../../lib/payment/gateway.js';
 
 export default async function handler(req, res) {
     const cors = setCors(req, res, {

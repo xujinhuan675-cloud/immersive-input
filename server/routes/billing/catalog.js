@@ -1,6 +1,6 @@
-import { getErrorStatus, sendJson, setCors } from '../../../api/_lib/http.js';
-import { getBillingCatalog } from '../../../api/_lib/billing/config.js';
-import { getRequestAuthContext } from '../../../api/_lib/requestAuth.js';
+import { getErrorStatus, sendJson, setCors } from '../../lib/http.js';
+import { getBillingCatalog } from '../../lib/billing/config.js';
+import { getRequestAuthContext } from '../../lib/requestAuth.js';
 
 export default async function handler(req, res) {
     const cors = setCors(req, res, {

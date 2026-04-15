@@ -1,7 +1,7 @@
-import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
-import { cancelUnifiedOrder } from '../../../api/_lib/payment/gateway.js';
-import { findPaymentOrderById } from '../../../api/_lib/payment/store.js';
-import { assertOrderAccess, getRequestAuthContext } from '../../../api/_lib/requestAuth.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../lib/http.js';
+import { cancelUnifiedOrder } from '../../lib/payment/gateway.js';
+import { findPaymentOrderById } from '../../lib/payment/store.js';
+import { assertOrderAccess, getRequestAuthContext } from '../../lib/requestAuth.js';
 
 function buildActor(context) {
     if (context.role === 'admin') {

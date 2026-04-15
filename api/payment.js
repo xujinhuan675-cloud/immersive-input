@@ -1,4 +1,4 @@
-import { sendJson, setCors } from './_lib/http.js';
+import { sendJson, setCors } from '../server/lib/http.js';
 
 function getRoute(req) {
     const url = new URL(req.url, 'http://localhost');

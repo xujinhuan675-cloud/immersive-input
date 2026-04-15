@@ -2,19 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
-import { getPaymentRuntimeConfig } from '../api/_lib/payment/config.js';
-import { isOriginAllowed } from '../api/_lib/http.js';
-import { canTransition } from '../api/_lib/payment/stateMachine.js';
-import { normalizePaymentStatus, PAYMENT_ORDER_STATUS } from '../api/_lib/payment/constants.js';
-import { createAlipayAdapter } from '../api/_lib/payment/custom/adapters/alipay.js';
-import { createEasyPayAdapter } from '../api/_lib/payment/custom/adapters/easypay.js';
-import { createStripeAdapter } from '../api/_lib/payment/custom/adapters/stripe.js';
-import { createWxpayAdapter } from '../api/_lib/payment/custom/adapters/wxpay.js';
+import { getPaymentRuntimeConfig } from '../server/lib/payment/config.js';
+import { isOriginAllowed } from '../server/lib/http.js';
+import { canTransition } from '../server/lib/payment/stateMachine.js';
+import { normalizePaymentStatus, PAYMENT_ORDER_STATUS } from '../server/lib/payment/constants.js';
+import { createAlipayAdapter } from '../server/lib/payment/custom/adapters/alipay.js';
+import { createEasyPayAdapter } from '../server/lib/payment/custom/adapters/easypay.js';
+import { createStripeAdapter } from '../server/lib/payment/custom/adapters/stripe.js';
+import { createWxpayAdapter } from '../server/lib/payment/custom/adapters/wxpay.js';
 import paymentApiHandler from '../api/payment.js';
 import {
     buildDeterministicWebhookEventId,
     verifyWebhookSignature,
-} from '../api/_lib/payment/custom/webhookSecurity.js';
+} from '../server/lib/payment/custom/webhookSecurity.js';
 
 const ORIGINAL_ENV = { ...process.env };
 

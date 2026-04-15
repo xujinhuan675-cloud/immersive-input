@@ -1,7 +1,7 @@
-import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
-import { assertOrderAccess, getRequestAuthContext } from '../../../api/_lib/requestAuth.js';
-import { queryUnifiedOrder } from '../../../api/_lib/payment/gateway.js';
-import { findPaymentOrderById } from '../../../api/_lib/payment/store.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../lib/http.js';
+import { assertOrderAccess, getRequestAuthContext } from '../../lib/requestAuth.js';
+import { queryUnifiedOrder } from '../../lib/payment/gateway.js';
+import { findPaymentOrderById } from '../../lib/payment/store.js';
 
 function getOrderIdFromUrl(req) {
     const url = new URL(req.url, 'http://localhost');

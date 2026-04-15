@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getBillingCatalog } from '../api/_lib/billing/config.js';
+import { getBillingCatalog } from '../server/lib/billing/config.js';
 
 function withEnv(overrides, run) {
     const previous = new Map();

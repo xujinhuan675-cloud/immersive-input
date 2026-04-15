@@ -1,7 +1,7 @@
-import { readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
-import { hashCode } from '../../../api/_lib/otp.js';
-import { clearEmailOtp, getEmailOtp } from '../../../api/_lib/otpStore.js';
-import { supabaseAdmin } from '../../../api/_lib/supabaseAdmin.js';
+import { readJsonBody, sendJson, setCors } from '../../lib/http.js';
+import { hashCode } from '../../lib/otp.js';
+import { clearEmailOtp, getEmailOtp } from '../../lib/otpStore.js';
+import { supabaseAdmin } from '../../lib/supabaseAdmin.js';
 
 function isValidEmail(email) {
     return typeof email === 'string' && email.includes('@') && email.length <= 254;

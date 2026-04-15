@@ -1,7 +1,7 @@
-import { readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
-import { addMinutes, generateCode, hashCode, nowIso } from '../../../api/_lib/otp.js';
-import { getEmailOtp, upsertEmailOtp } from '../../../api/_lib/otpStore.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../../../api/_lib/resend.js';
+import { readJsonBody, sendJson, setCors } from '../../lib/http.js';
+import { addMinutes, generateCode, hashCode, nowIso } from '../../lib/otp.js';
+import { getEmailOtp, upsertEmailOtp } from '../../lib/otpStore.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../../lib/resend.js';
 
 function isValidEmail(email) {
     return typeof email === 'string' && email.includes('@') && email.length <= 254;

@@ -6,8 +6,8 @@ import {
     computeTopupCredits,
     computeUsageDecision,
     normalizeBillingProfile,
-} from '../api/_lib/billing/engine.js';
-import { createBillingService } from '../api/_lib/billing/service.js';
+} from '../server/lib/billing/engine.js';
+import { createBillingService } from '../server/lib/billing/service.js';
 
 function createMemoryBillingService({
     freeDailyQuota = 20,

@@ -7,7 +7,7 @@ import {
     computeUsageDecision,
     normalizeBillingProfile,
     todayDateString,
-} from '../api/_lib/billing/engine.js';
+} from '../server/lib/billing/engine.js';
 
 test('normalizeBillingProfile fills defaults for minimal input', () => {
     const profile = normalizeBillingProfile({ userId: 'u_1' });
