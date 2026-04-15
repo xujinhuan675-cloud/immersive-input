@@ -10,6 +10,7 @@ import { createAlipayAdapter } from '../server/lib/payment/custom/adapters/alipa
 import { createEasyPayAdapter } from '../server/lib/payment/custom/adapters/easypay.js';
 import { createStripeAdapter } from '../server/lib/payment/custom/adapters/stripe.js';
 import { createWxpayAdapter } from '../server/lib/payment/custom/adapters/wxpay.js';
+import { generatePaymentOrderId } from '../server/lib/payment/gateway.js';
 import paymentApiHandler from '../api/payment.js';
 import {
     buildDeterministicWebhookEventId,
@@ -52,6 +53,12 @@ test('payment cors allows tauri dev localhost origin by default', () => {
 test('payment cors allows null origin for desktop webviews', () => {
     restoreEnv();
     assert.equal(isOriginAllowed('null'), true);
+});
+
+test('generated payment order id is gateway-safe for wxpay and alipay', () => {
+    const orderId = generatePaymentOrderId();
+    assert.match(orderId, /^[0-9a-z_*|-]{6,32}$/);
+    assert.ok(orderId.length <= 32);
 });
 
 test('payment config loads webhook hardening settings', () => {
@@ -236,7 +243,7 @@ test('alipay adapter runtime status reports required env keys when missing', () 
     ]);
 });
 
-test('alipay adapter creates desktop QR payment via precreate', async () => {
+test('alipay adapter uses browser cashier redirect on desktop by default', async () => {
     restoreEnv();
     const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: 2048,
@@ -245,6 +252,41 @@ test('alipay adapter creates desktop QR payment via precreate', async () => {
     process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
     process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
     process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    process.env.ALIPAY_RETURN_URL = 'https://pay.example.com/pay/result';
+    process.env.ALIPAY_API_BASE = 'https://openapi.alipay.com/gateway.do';
+
+    const adapter = createAlipayAdapter();
+    const result = await adapter.createPayment({
+        order: {
+            id: 'order_desktop',
+            amountCents: 2990,
+            description: 'membership topup',
+            productCode: 'membership_topup',
+            metadata: {},
+        },
+        requestContext: {
+            isMobile: false,
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        },
+    });
+
+    assert.match(result.checkoutUrl, /^https:\/\/openapi\.alipay\.com\/gateway\.do\?/);
+    assert.equal(result.raw.method, 'alipay.trade.page.pay');
+    assert.equal(result.raw.isMobile, false);
+    assert.equal(result.raw.checkoutPresentation.type, 'redirect');
+});
+
+test('alipay adapter can still create desktop QR payment when explicitly enabled', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+    process.env.ALIPAY_DESKTOP_MODE = 'qr';
 
     const originalFetch = global.fetch;
     global.fetch = async () => ({

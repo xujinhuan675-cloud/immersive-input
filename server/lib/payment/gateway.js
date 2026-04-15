@@ -27,6 +27,16 @@ function ensureProvider() {
     return customOrchestratorProvider;
 }
 
+export function generatePaymentOrderId(prefix = 'po') {
+    const safePrefix = String(prefix || 'po')
+        .toLowerCase()
+        .replace(/[^a-z0-9_*|-]/g, '')
+        .slice(0, 4) || 'po';
+    const timePart = Date.now().toString(36);
+    const randomPart = crypto.randomBytes(10).toString('hex');
+    return `${safePrefix}${timePart}${randomPart}`.slice(0, 32);
+}
+
 function toAmountCents(amount, amountCents) {
     if (Number.isInteger(amountCents) && amountCents > 0) return amountCents;
     const numeric = Number(amount);
@@ -145,7 +155,7 @@ export async function createUnifiedOrder(input) {
         },
     });
     const order = await createPaymentOrderRecord({
-        id: crypto.randomUUID(),
+        id: generatePaymentOrderId(),
         userId,
         provider: providerName,
         backend,

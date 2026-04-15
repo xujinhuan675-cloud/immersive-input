@@ -144,6 +144,7 @@ export function getPaymentRuntimeConfig() {
                 appId: trimOrEmpty(process.env.ALIPAY_APP_ID),
                 privateKey: resolveFileValue(process.env.ALIPAY_PRIVATE_KEY),
                 publicKey: resolveFileValue(process.env.ALIPAY_PUBLIC_KEY),
+                desktopMode: trimOrEmpty(process.env.ALIPAY_DESKTOP_MODE) || 'redirect',
                 gatewayBase:
                     normalizeBaseUrl(process.env.ALIPAY_API_BASE) ||
                     'https://openapi.alipay.com/gateway.do',

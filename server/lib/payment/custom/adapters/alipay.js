@@ -208,8 +208,8 @@ function getRuntimeStatus() {
         ready: missingFields.length === 0,
         missingFields,
         supportsMobileH5: true,
-        supportsDesktopQr: true,
-        supportsDesktopRedirect: false,
+        supportsDesktopQr: trim(cfg.desktopMode).toLowerCase() === 'qr',
+        supportsDesktopRedirect: trim(cfg.desktopMode).toLowerCase() !== 'qr',
     };
 }
 
@@ -221,14 +221,21 @@ function assertReady() {
 }
 
 function resolvePaymentMethod(requestContext, order) {
+    const cfg = getAlipayConfig();
     const isMobile =
         !!order?.metadata?.isMobile ||
         !!requestContext?.isMobile ||
         /mobile/i.test(trim(requestContext?.userAgent));
+    const desktopMode = trim(cfg.desktopMode).toLowerCase() === 'qr' ? 'qr' : 'redirect';
     return {
         isMobile,
-        method: isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.precreate',
-        productCode: isMobile ? 'QUICK_WAP_WAY' : '',
+        desktopMode,
+        method: isMobile
+            ? 'alipay.trade.wap.pay'
+            : desktopMode === 'qr'
+              ? 'alipay.trade.precreate'
+              : 'alipay.trade.page.pay',
+        productCode: isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY',
     };
 }
 
@@ -304,6 +311,11 @@ async function executeAlipay(method, bizContent) {
             throw new Error(`Alipay API error: unexpected response format for ${method}`);
         }
         if (trim(result.code) !== '10000') {
+            if (trim(result.sub_code) === 'ACQ.ACCESS_FORBIDDEN') {
+                throw new Error(
+                    'Alipay QR payment is not enabled for this app yet. Open the Face-to-Face / precreate capability, complete app go-live, or switch desktop Alipay back to browser checkout.'
+                );
+            }
             throw new Error(
                 `Alipay API error: [${result.sub_code || result.code}] ${result.sub_msg || result.msg}`
             );
@@ -342,7 +354,7 @@ export function createAlipayAdapter() {
         async createPayment({ order, requestContext = {} }) {
             assertReady();
             const payment = resolvePaymentMethod(requestContext, order);
-            if (!payment.isMobile) {
+            if (!payment.isMobile && payment.desktopMode === 'qr') {
                 const result = await executeAlipay('alipay.trade.precreate', {
                     out_trade_no: order.id,
                     total_amount: (Number(order.amountCents || 0) / 100).toFixed(2),
@@ -377,6 +389,10 @@ export function createAlipayAdapter() {
                     payUrl: page.url,
                     method: page.method,
                     isMobile: page.isMobile,
+                    checkoutPresentation: {
+                        type: 'redirect',
+                        url: page.url,
+                    },
                 },
             };
         },
