@@ -1,6 +1,6 @@
-import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
-import { resolveActingUserId } from '../_lib/requestAuth.js';
-import { getBillingProfileSummary } from '../_lib/billing/service.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
+import { resolveActingUserId } from '../../../api/_lib/requestAuth.js';
+import { getBillingProfileSummary } from '../../../api/_lib/billing/service.js';
 
 export default async function handler(req, res) {
     const cors = setCors(req, res, {

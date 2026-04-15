@@ -10,7 +10,7 @@ import { createAlipayAdapter } from '../api/_lib/payment/custom/adapters/alipay.
 import { createEasyPayAdapter } from '../api/_lib/payment/custom/adapters/easypay.js';
 import { createStripeAdapter } from '../api/_lib/payment/custom/adapters/stripe.js';
 import { createWxpayAdapter } from '../api/_lib/payment/custom/adapters/wxpay.js';
-import paymentConfigHandler from '../api/payment/config.js';
+import paymentApiHandler from '../api/payment.js';
 import {
     buildDeterministicWebhookEventId,
     verifyWebhookSignature,
@@ -452,10 +452,11 @@ test('payment config endpoint is publicly readable without bearer token', async 
         },
     };
 
-    await paymentConfigHandler(
+    await paymentApiHandler(
         {
             method: 'GET',
             headers: {},
+            url: '/api/payment?route=config',
         },
         res
     );

@@ -2,23 +2,75 @@
     "rewrites": [
         {
             "source": "/api/auth/send-register-code",
-            "destination": "/api/auth/send-code?scene=register"
+            "destination": "/api/auth?route=send-code&scene=register"
         },
         {
             "source": "/api/auth/send-reset-code",
-            "destination": "/api/auth/send-code?scene=reset"
+            "destination": "/api/auth?route=send-code&scene=reset"
+        },
+        {
+            "source": "/api/auth/send-code",
+            "destination": "/api/auth?route=send-code"
+        },
+        {
+            "source": "/api/auth/register",
+            "destination": "/api/auth?route=register"
+        },
+        {
+            "source": "/api/auth/reset-password",
+            "destination": "/api/auth?route=reset-password"
+        },
+        {
+            "source": "/api/billing/catalog",
+            "destination": "/api/billing?route=catalog"
+        },
+        {
+            "source": "/api/billing/consume",
+            "destination": "/api/billing?route=consume"
+        },
+        {
+            "source": "/api/billing/profile",
+            "destination": "/api/billing?route=profile"
         },
         {
             "source": "/api/billing/admin-membership",
-            "destination": "/api/admin/billing?action=membership"
+            "destination": "/api/admin?route=billing&action=membership"
         },
         {
             "source": "/api/billing/grant",
-            "destination": "/api/admin/billing?action=grant"
+            "destination": "/api/admin?route=billing&action=grant"
         },
         {
             "source": "/api/payment/refund",
-            "destination": "/api/admin/billing?action=refund"
+            "destination": "/api/admin?route=billing&action=refund"
+        },
+        {
+            "source": "/api/payment/config",
+            "destination": "/api/payment?route=config"
+        },
+        {
+            "source": "/api/payment/create-order",
+            "destination": "/api/payment?route=create-order"
+        },
+        {
+            "source": "/api/payment/order-status",
+            "destination": "/api/payment?route=order-status"
+        },
+        {
+            "source": "/api/payment/cancel-order",
+            "destination": "/api/payment?route=cancel-order"
+        },
+        {
+            "source": "/api/payment/webhook",
+            "destination": "/api/payment?route=webhook"
+        },
+        {
+            "source": "/api/admin/billing",
+            "destination": "/api/admin?route=billing"
+        },
+        {
+            "source": "/api/admin/init-db",
+            "destination": "/api/admin?route=init-db"
         },
         {
             "source": "/admin/billing",

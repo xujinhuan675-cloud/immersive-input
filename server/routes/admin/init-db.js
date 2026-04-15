@@ -1,5 +1,5 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
-import { getDbPool } from '../_lib/db.js';
+import { readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
+import { getDbPool } from '../../../api/_lib/db.js';
 
 function timingSafeEqualStr(a, b) {
     if (typeof a !== 'string' || typeof b !== 'string') return false;

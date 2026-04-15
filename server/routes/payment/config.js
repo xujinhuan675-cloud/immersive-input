@@ -1,5 +1,5 @@
-import { getErrorStatus, sendJson, setCors } from '../_lib/http.js';
-import { getPaymentGatewayStatus } from '../_lib/payment/gateway.js';
+import { getErrorStatus, sendJson, setCors } from '../../../api/_lib/http.js';
+import { getPaymentGatewayStatus } from '../../../api/_lib/payment/gateway.js';
 
 export default async function handler(req, res) {
     const cors = setCors(req, res, {

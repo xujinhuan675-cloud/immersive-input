@@ -1,7 +1,7 @@
-import { readJsonBody, sendJson, setCors } from '../_lib/http.js';
-import { hashCode } from '../_lib/otp.js';
-import { clearEmailOtp, getEmailOtp } from '../_lib/otpStore.js';
-import { supabaseAdmin } from '../_lib/supabaseAdmin.js';
+import { readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
+import { hashCode } from '../../../api/_lib/otp.js';
+import { clearEmailOtp, getEmailOtp } from '../../../api/_lib/otpStore.js';
+import { supabaseAdmin } from '../../../api/_lib/supabaseAdmin.js';
 
 function isValidEmail(email) {
     return typeof email === 'string' && email.includes('@') && email.length <= 254;
@@ -21,12 +21,14 @@ export default async function handler(req, res) {
     try {
         const body = await readJsonBody(req);
         const email = String(body.email || '').trim().toLowerCase();
+        const password = String(body.password || '');
+        const username = String(body.username || '').trim();
         const code = String(body.code || '').trim();
-        const newPassword = String(body.password || '');
 
+        if (!username) return sendJson(res, 400, { message: 'Missing username' });
         if (!isValidEmail(email)) return sendJson(res, 400, { message: 'Invalid email' });
+        if (!password || password.length < 8) return sendJson(res, 400, { message: 'Invalid password' });
         if (!code || code.length < 4) return sendJson(res, 400, { message: 'Invalid code' });
-        if (!newPassword || newPassword.length < 8) return sendJson(res, 400, { message: 'Invalid password' });
 
         const otp = await getEmailOtp(email);
         if (!otp) return sendJson(res, 400, { message: 'Code not found' });
@@ -45,32 +47,23 @@ export default async function handler(req, res) {
             return sendJson(res, 400, { message: 'Invalid code' });
         }
 
-        // 查找用户
-        const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-        if (listError) {
-            return sendJson(res, 500, { message: listError.message });
-        }
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: {
+                display_name: username,
+            },
+        });
 
-        const user = users.users.find(u => u.email === email);
-        if (!user) {
-            return sendJson(res, 404, { message: 'User not found' });
-        }
-
-        // 更新密码
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-            user.id,
-            { password: newPassword }
-        );
-
-        if (updateError) {
-            return sendJson(res, 400, { message: updateError.message });
+        if (error) {
+            return sendJson(res, 400, { message: error.message });
         }
 
         await clearEmailOtp(email);
 
-        return sendJson(res, 200, { ok: true });
+        return sendJson(res, 200, { ok: true, user_id: data.user?.id });
     } catch (e) {
-        console.error('Reset password error:', e);
         return sendJson(res, 500, { message: e?.message || 'Internal Server Error' });
     }
 }

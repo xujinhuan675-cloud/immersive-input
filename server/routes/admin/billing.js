@@ -1,8 +1,8 @@
-import { getErrorStatus, readJsonBody, sendJson, setCors } from '../_lib/http.js';
-import { applyPaymentGrantForOrder, setMembershipStatus } from '../_lib/billing/service.js';
-import { refundUnifiedOrder } from '../_lib/payment/gateway.js';
-import { findPaymentOrderById } from '../_lib/payment/store.js';
-import { requireAdminRequest } from '../_lib/requestAuth.js';
+import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../../api/_lib/http.js';
+import { applyPaymentGrantForOrder, setMembershipStatus } from '../../../api/_lib/billing/service.js';
+import { refundUnifiedOrder } from '../../../api/_lib/payment/gateway.js';
+import { findPaymentOrderById } from '../../../api/_lib/payment/store.js';
+import { requireAdminRequest } from '../../../api/_lib/requestAuth.js';
 
 function getAction(req) {
     const url = new URL(req.url, 'http://localhost');
