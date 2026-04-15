@@ -208,7 +208,8 @@ function getRuntimeStatus() {
         ready: missingFields.length === 0,
         missingFields,
         supportsMobileH5: true,
-        supportsDesktopRedirect: true,
+        supportsDesktopQr: true,
+        supportsDesktopRedirect: false,
     };
 }
 
@@ -226,8 +227,8 @@ function resolvePaymentMethod(requestContext, order) {
         /mobile/i.test(trim(requestContext?.userAgent));
     return {
         isMobile,
-        method: isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.page.pay',
-        productCode: isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY',
+        method: isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.precreate',
+        productCode: isMobile ? 'QUICK_WAP_WAY' : '',
     };
 }
 
@@ -340,6 +341,33 @@ export function createAlipayAdapter() {
         getRuntimeStatus,
         async createPayment({ order, requestContext = {} }) {
             assertReady();
+            const payment = resolvePaymentMethod(requestContext, order);
+            if (!payment.isMobile) {
+                const result = await executeAlipay('alipay.trade.precreate', {
+                    out_trade_no: order.id,
+                    total_amount: (Number(order.amountCents || 0) / 100).toFixed(2),
+                    subject: trim(order.description) || trim(order.productCode) || `order_${order.id}`,
+                });
+                const qrCode = trim(result.qr_code);
+                if (!qrCode) {
+                    throw new Error('Alipay API error: missing qr_code in precreate response');
+                }
+                return {
+                    providerOrderId: trim(result.out_trade_no),
+                    checkoutUrl: qrCode,
+                    status: PAYMENT_ORDER_STATUS.REQUIRES_ACTION,
+                    raw: {
+                        qrCode,
+                        method: 'alipay.trade.precreate',
+                        isMobile: false,
+                        checkoutPresentation: {
+                            type: 'qr',
+                            qrContent: qrCode,
+                        },
+                        response: result,
+                    },
+                };
+            }
             const page = buildPageUrl({ order, requestContext });
             return {
                 providerOrderId: '',
@@ -377,6 +405,22 @@ export function createAlipayAdapter() {
                 }
                 throw error;
             }
+        },
+        async cancelPayment({ order }) {
+            assertReady();
+            const bizContent = {
+                out_trade_no: order.id,
+            };
+            if (trim(order.externalOrderId)) {
+                bizContent.trade_no = trim(order.externalOrderId);
+            }
+            const result = await executeAlipay('alipay.trade.close', bizContent);
+            return {
+                providerOrderId: trim(result.trade_no) || trim(order.externalOrderId) || trim(order.id),
+                status: PAYMENT_ORDER_STATUS.CANCELED,
+                accepted: true,
+                raw: result,
+            };
         },
         async refundPayment({ order, reason = '' }) {
             assertReady();

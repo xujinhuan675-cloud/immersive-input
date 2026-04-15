@@ -56,6 +56,19 @@ export async function getPaymentOrderStatus(orderId, options = {}) {
     });
 }
 
+export async function cancelPaymentOrder({ orderId, reason = '', adminToken } = {}) {
+    const targetOrderId = String(orderId || '').trim();
+    if (!targetOrderId) throw new Error('Missing orderId');
+    return requestBackend('/api/payment/cancel-order', {
+        method: 'POST',
+        headers: buildAdminHeaders(String(adminToken || '').trim()),
+        body: {
+            orderId: targetOrderId,
+            reason,
+        },
+    });
+}
+
 export async function refundPaymentOrder({ orderId, reason = '', adminToken } = {}) {
     const token = String(adminToken || '').trim();
     if (!token) throw new Error('Missing admin token');

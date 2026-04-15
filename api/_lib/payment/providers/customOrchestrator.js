@@ -218,6 +218,24 @@ export const customOrchestratorProvider = {
             },
         };
     },
+    async cancelPayment({ order, reason = '', actor = null }) {
+        const adapterName = resolveOrderAdapterName(order, '', { allowDisabled: true });
+        const adapter = registry.get(adapterName);
+        if (!adapter || typeof adapter.cancelPayment !== 'function') {
+            throw new Error(`Payment adapter "${adapterName}" does not support order cancellation`);
+        }
+        const result = await adapter.cancelPayment({ order, reason, actor });
+        return {
+            providerName: adapterName,
+            providerOrderId: result.providerOrderId || order.externalOrderId || '',
+            status: normalizePaymentStatus(result.status || order.status || 'pending'),
+            accepted: result.accepted !== false,
+            raw: {
+                adapter: adapterName,
+                ...(result.raw || {}),
+            },
+        };
+    },
     async verifyWebhook({ headers, rawBody, payload, providerHint }) {
         const adapterName = detectAdapterName({ headers, rawBody, payload, providerHint });
         const adapter = registry.get(adapterName);

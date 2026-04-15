@@ -510,3 +510,104 @@ export async function refundUnifiedOrder(orderId, input = {}) {
         },
     };
 }
+
+export async function cancelUnifiedOrder(orderId, input = {}) {
+    const provider = ensureProvider();
+    const synced = await queryUnifiedOrder(orderId);
+    const order = synced?.order || null;
+    if (!order?.id) {
+        throw new Error('Order not found');
+    }
+
+    const currentStatus = normalizePaymentStatus(order.status);
+    if (currentStatus === PAYMENT_ORDER_STATUS.CANCELED) {
+        return {
+            order,
+            duplicated: true,
+            cancel: {
+                accepted: true,
+                reason: 'ORDER_ALREADY_CANCELED',
+                status: PAYMENT_ORDER_STATUS.CANCELED,
+            },
+        };
+    }
+    if (
+        currentStatus === PAYMENT_ORDER_STATUS.PAID ||
+        currentStatus === PAYMENT_ORDER_STATUS.COMPLETED ||
+        currentStatus === PAYMENT_ORDER_STATUS.REFUNDED ||
+        currentStatus === PAYMENT_ORDER_STATUS.FAILED
+    ) {
+        throw new Error(`Order is not cancelable in status ${order.status}`);
+    }
+
+    let cancelResult;
+    try {
+        cancelResult = await provider.cancelPayment({
+            order,
+            reason: input.reason || '',
+            actor: input.actor || null,
+        });
+    } catch (error) {
+        await createPaymentAttemptRecord({
+            id: crypto.randomUUID(),
+            orderId: order.id,
+            backend: order.backend,
+            provider: order.provider,
+            action: 'cancel',
+            status: 'failed',
+            requestPayload: {
+                orderId: order.id,
+                provider: order.provider,
+                reason: input.reason || '',
+            },
+            responsePayload: { message: error?.message || 'Unknown error' },
+        });
+        throw error;
+    }
+
+    await createPaymentAttemptRecord({
+        id: crypto.randomUUID(),
+        orderId: order.id,
+        backend: order.backend,
+        provider: cancelResult.providerName || order.provider,
+        action: 'cancel',
+        status: cancelResult.accepted === false ? 'failed' : 'success',
+        requestPayload: {
+            orderId: order.id,
+            provider: order.provider,
+            reason: input.reason || '',
+        },
+        responsePayload: cancelResult.raw || {},
+    });
+
+    const nextStatus = normalizePaymentStatus(cancelResult.status || PAYMENT_ORDER_STATUS.CANCELED);
+    const statusToPersist = canTransition(order.status, nextStatus) ? nextStatus : order.status;
+    const nextOrder = await updatePaymentOrderStatus(order.id, {
+        status: statusToPersist,
+        failedReason: null,
+        metadata: {
+            ...(order.metadata || {}),
+            paymentProvider: cancelResult.providerName || order.provider,
+            cancel: {
+                status: nextStatus,
+                accepted: cancelResult.accepted !== false,
+                providerOrderId: cancelResult.providerOrderId || order.externalOrderId || null,
+                reason: String(input.reason || '').trim(),
+                actor: input.actor || null,
+                updatedAt: new Date().toISOString(),
+                response: cancelResult.raw || {},
+            },
+        },
+    });
+
+    return {
+        order: nextOrder,
+        duplicated: false,
+        cancel: {
+            accepted: cancelResult.accepted !== false,
+            providerOrderId: cancelResult.providerOrderId || order.externalOrderId || null,
+            status: nextStatus,
+            raw: cancelResult.raw || {},
+        },
+    };
+}

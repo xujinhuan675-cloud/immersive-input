@@ -16,7 +16,7 @@
 - 配置 `ALIPAY_PUBLIC_KEY`。
 - 配置 `ALIPAY_NOTIFY_URL={{APP_BASE_URL}}/api/payment/webhook`。
 - 配置 `ALIPAY_RETURN_URL` 为你的支付完成页。
-- 在支付宝开放平台中确认应用已开通网页支付能力。
+- 在支付宝开放平台中确认应用已开通网页支付能力；如果桌面端要走程序内二维码，还需开通支持 `alipay.trade.precreate` 的扫码/当面付能力。
 - 确认回调地址与应用公钥、支付宝公钥一致，没有混用沙箱和正式环境。
 
 ## 3. 微信支付官方联调

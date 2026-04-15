@@ -322,6 +322,24 @@ export function createWxpayAdapter() {
                 raw: data,
             };
         },
+        async cancelPayment({ order }) {
+            assertReady();
+            const cfg = getWxpayConfig();
+            const path = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(order.id)}/close`;
+            const data = await requestWxpay({
+                method: 'POST',
+                path,
+                body: {
+                    mchid: cfg.mchId,
+                },
+            });
+            return {
+                providerOrderId: trim(order.externalOrderId) || trim(order.id),
+                status: PAYMENT_ORDER_STATUS.CANCELED,
+                accepted: true,
+                raw: data,
+            };
+        },
         async refundPayment({ order, reason = '' }) {
             assertReady();
             const cfg = getWxpayConfig();

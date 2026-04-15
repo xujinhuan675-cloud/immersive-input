@@ -3,7 +3,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
     'http://tauri.localhost',
     'https://tauri.localhost',
     'http://localhost',
+    'http://localhost:1420',
     'http://127.0.0.1',
+    'http://127.0.0.1:1420',
     'https://localhost',
     'https://127.0.0.1',
 ];

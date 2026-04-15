@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
 import { getPaymentRuntimeConfig } from '../api/_lib/payment/config.js';
+import { isOriginAllowed } from '../api/_lib/http.js';
 import { canTransition } from '../api/_lib/payment/stateMachine.js';
 import { normalizePaymentStatus, PAYMENT_ORDER_STATUS } from '../api/_lib/payment/constants.js';
 import { createAlipayAdapter } from '../api/_lib/payment/custom/adapters/alipay.js';
@@ -40,6 +41,12 @@ test('payment config always runs custom orchestrator as active backend', () => {
     assert.equal(cfg.customOrchestratorEnabled, true);
     assert.equal(cfg.customOrchestrator.adapter, 'stripe');
     assert.deepEqual(cfg.customOrchestrator.enabledAdapters, ['stripe']);
+});
+
+test('payment cors allows tauri dev localhost origin by default', () => {
+    restoreEnv();
+    assert.equal(isOriginAllowed('http://localhost:1420'), true);
+    assert.equal(isOriginAllowed('http://127.0.0.1:1420'), true);
 });
 
 test('payment config loads webhook hardening settings', () => {
@@ -224,6 +231,148 @@ test('alipay adapter runtime status reports required env keys when missing', () 
     ]);
 });
 
+test('alipay adapter creates desktop QR payment via precreate', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        async arrayBuffer() {
+            return Buffer.from(
+                JSON.stringify({
+                    alipay_trade_precreate_response: {
+                        code: '10000',
+                        msg: 'Success',
+                        out_trade_no: 'order_desktop',
+                        qr_code: 'https://qr.alipay.example/order_desktop',
+                    },
+                })
+            );
+        },
+        headers: {
+            get(name) {
+                return String(name || '').toLowerCase() === 'content-type'
+                    ? 'application/json; charset=utf-8'
+                    : '';
+            },
+        },
+    });
+
+    try {
+        const adapter = createAlipayAdapter();
+        const result = await adapter.createPayment({
+            order: {
+                id: 'order_desktop',
+                amountCents: 2990,
+                description: 'membership topup',
+                productCode: 'membership_topup',
+                metadata: {},
+            },
+            requestContext: {
+                isMobile: false,
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            },
+        });
+
+        assert.equal(result.checkoutUrl, 'https://qr.alipay.example/order_desktop');
+        assert.equal(result.raw.method, 'alipay.trade.precreate');
+        assert.equal(result.raw.checkoutPresentation.type, 'qr');
+        assert.equal(result.raw.checkoutPresentation.qrContent, 'https://qr.alipay.example/order_desktop');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test('alipay adapter keeps mobile checkout as redirect page', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+    process.env.ALIPAY_RETURN_URL = 'https://pay.example.com/pay/result';
+    process.env.ALIPAY_API_BASE = 'https://openapi.alipay.com/gateway.do';
+
+    const adapter = createAlipayAdapter();
+    const result = await adapter.createPayment({
+        order: {
+            id: 'order_mobile',
+            amountCents: 990,
+            description: 'membership topup',
+            productCode: 'membership_topup',
+            metadata: {},
+        },
+        requestContext: {
+            isMobile: true,
+            userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile',
+        },
+    });
+
+    assert.match(result.checkoutUrl, /^https:\/\/openapi\.alipay\.com\/gateway\.do\?/);
+    assert.equal(result.raw.method, 'alipay.trade.wap.pay');
+    assert.equal(result.raw.isMobile, true);
+});
+
+test('alipay adapter cancels order via trade.close', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.ALIPAY_APP_ID = '2026000000000000';
+    process.env.ALIPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.ALIPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.ALIPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: true,
+        async arrayBuffer() {
+            return Buffer.from(
+                JSON.stringify({
+                    alipay_trade_close_response: {
+                        code: '10000',
+                        msg: 'Success',
+                        trade_no: '2026041500001',
+                        out_trade_no: 'order_cancel',
+                    },
+                })
+            );
+        },
+        headers: {
+            get(name) {
+                return String(name || '').toLowerCase() === 'content-type'
+                    ? 'application/json; charset=utf-8'
+                    : '';
+            },
+        },
+    });
+
+    try {
+        const adapter = createAlipayAdapter();
+        const result = await adapter.cancelPayment({
+            order: {
+                id: 'order_cancel',
+                externalOrderId: '2026041500001',
+            },
+        });
+
+        assert.equal(result.providerOrderId, '2026041500001');
+        assert.equal(result.status, PAYMENT_ORDER_STATUS.CANCELED);
+        assert.equal(result.accepted, true);
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test('stripe adapter runtime status reports required env keys when missing', () => {
     restoreEnv();
     delete process.env.STRIPE_SECRET_KEY;
@@ -366,6 +515,53 @@ test('wxpay adapter appends H5 redirect_url when return url is configured', asyn
             'https://pay.example.com/?orderId=order_123&provider=wxpay'
         );
         assert.equal(result.raw.checkoutPresentation.returnUrl, 'https://pay.example.com/?orderId=order_123&provider=wxpay');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test('wxpay adapter closes order via close endpoint', async () => {
+    restoreEnv();
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    process.env.WXPAY_APP_ID = 'wx123';
+    process.env.WXPAY_MCH_ID = 'mch123';
+    process.env.WXPAY_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    process.env.WXPAY_CERT_SERIAL = 'serial123';
+    process.env.WXPAY_API_V3_KEY = '12345678901234567890123456789012';
+    process.env.WXPAY_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    process.env.WXPAY_NOTIFY_URL = 'https://pay.example.com/api/payment/webhook';
+
+    const originalFetch = global.fetch;
+    const requests = [];
+    global.fetch = async (url, options = {}) => {
+        requests.push({
+            url: String(url),
+            method: options.method || 'GET',
+            body: String(options.body || ''),
+        });
+        return {
+            status: 204,
+        };
+    };
+
+    try {
+        const adapter = createWxpayAdapter();
+        const result = await adapter.cancelPayment({
+            order: {
+                id: 'order_close',
+                externalOrderId: 'wx_tx_1',
+            },
+        });
+
+        assert.equal(requests.length, 1);
+        assert.match(requests[0].url, /\/v3\/pay\/transactions\/out-trade-no\/order_close\/close$/);
+        assert.equal(requests[0].method, 'POST');
+        assert.equal(requests[0].body, JSON.stringify({ mchid: 'mch123' }));
+        assert.equal(result.providerOrderId, 'wx_tx_1');
+        assert.equal(result.status, PAYMENT_ORDER_STATUS.CANCELED);
+        assert.equal(result.accepted, true);
     } finally {
         global.fetch = originalFetch;
     }

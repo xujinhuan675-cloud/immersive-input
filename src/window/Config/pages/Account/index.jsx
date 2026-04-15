@@ -21,6 +21,7 @@ import { getCurrentUser, logout } from '../../../../utils/auth';
 import { clearStoredAdminToken, getStoredAdminToken, saveStoredAdminToken } from '../../../../utils/admin';
 import { getBillingCatalog, getBillingProfile, updateAdminMembership } from '../../../../utils/billing';
 import {
+    cancelPaymentOrder,
     createPaymentOrder,
     getPaymentGatewayConfig,
     getPaymentOrderStatus,
@@ -55,6 +56,7 @@ function getProviderOptions(paymentConfig) {
 
 function getOrderQrPayload(order) {
     if (!order) return '';
+    if (isTerminalOrderStatus(order.status)) return '';
     const presentation = order?.metadata?.checkoutPresentation || {};
     const gatewayPresentation = order?.metadata?.gatewayCreateResponse?.checkoutPresentation || {};
     const qrValue =
@@ -125,6 +127,7 @@ export default function Account() {
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [activePurchaseKey, setActivePurchaseKey] = useState('');
     const [refreshingOrder, setRefreshingOrder] = useState(false);
+    const [cancelingOrder, setCancelingOrder] = useState(false);
     const [latestOrder, setLatestOrder] = useState(null);
     const [selectedPaymentProvider, setSelectedPaymentProvider] = useState('');
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
@@ -273,6 +276,7 @@ export default function Account() {
         }
 
         if (!isTerminalOrderStatus(status)) return;
+        setQrModalOpen(false);
         const terminalKey = `${orderId}:${status}`;
         if (terminalNoticeRef.current.has(terminalKey)) return;
         terminalNoticeRef.current.add(terminalKey);
@@ -444,6 +448,23 @@ export default function Account() {
             toast.error(error.message || t('config.account.payment_refresh_failed'));
         } finally {
             setRefreshingOrder(false);
+        }
+    }
+
+    async function handleCancelLatestOrder() {
+        if (!latestOrder?.id || isTerminalOrderStatus(latestOrder.status)) return;
+        setCancelingOrder(true);
+        try {
+            const result = await cancelPaymentOrder({
+                orderId: latestOrder.id,
+            });
+            setLatestOrder(result?.order || latestOrder);
+            setQrModalOpen(false);
+            toast.success(t('config.account.payment_cancel_success'));
+        } catch (error) {
+            toast.error(error.message || t('config.account.payment_cancel_failed'));
+        } finally {
+            setCancelingOrder(false);
         }
     }
 
@@ -691,14 +712,19 @@ export default function Account() {
     const tierConfig = userInfo ? TIER_KEYS[displayTier] ?? TIER_KEYS.free : null;
     const activeBackend = paymentConfig?.activeBackend || '-';
     const customEnabled = paymentConfig?.customOrchestratorEnabled ? 'ON' : 'OFF';
+    const paymentProviderOptions = getProviderOptions(paymentConfig);
+    const selectedProviderDetail = paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) || null;
     const paymentChannel =
+        selectedPaymentProvider ||
         paymentConfig?.providers?.customOrchestrator?.channel ||
         paymentConfig?.providers?.customOrchestrator?.adapter ||
         '-';
-    const paymentReady = paymentConfig?.providers?.customOrchestrator?.ready;
-    const paymentMissingFields = paymentConfig?.providers?.customOrchestrator?.missingFields || [];
-    const paymentProviderOptions = getProviderOptions(paymentConfig);
-    const selectedProviderDetail = paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) || null;
+    const paymentReady =
+        selectedProviderDetail?.ready ?? paymentConfig?.providers?.customOrchestrator?.ready;
+    const paymentMissingFields =
+        selectedProviderDetail?.missingFields ||
+        paymentConfig?.providers?.customOrchestrator?.missingFields ||
+        [];
     const latestOrderQrPayload = getOrderQrPayload(latestOrder);
     const subscriptionPlans = sortSubscriptionPlans(billingCatalog?.subscriptionPlans || []);
     const topupPresets = billingCatalog?.topupPresets || [];
@@ -1122,15 +1148,35 @@ export default function Account() {
                                 {!isTerminalOrderStatus(latestOrder.status) && (
                                     <p className='text-xs text-primary-500'>{t('config.account.payment_polling')}</p>
                                 )}
-                                <div className='flex gap-2'>
-                                    <Button
-                                        size='sm'
-                                        variant='bordered'
-                                        isDisabled={!latestOrder.checkoutUrl || !!latestOrderQrPayload}
-                                        onPress={() => openCheckout(latestOrder.checkoutUrl)}
-                                    >
-                                        {t('config.account.payment_open_checkout')}
-                                    </Button>
+                                {latestOrderQrPayload && (
+                                    <div className='rounded-xl border border-default-200 bg-default-50/70 p-3'>
+                                        <p className='mb-2 text-xs font-medium text-default-600'>
+                                            {t('config.account.payment_qr_inline_title')}
+                                        </p>
+                                        {qrCodeDataUrl ? (
+                                            <img
+                                                src={qrCodeDataUrl}
+                                                alt='payment qr code'
+                                                className='mx-auto h-52 w-52 rounded-xl border border-default-200 bg-white p-3'
+                                            />
+                                        ) : (
+                                            <div className='mx-auto flex h-52 w-52 items-center justify-center rounded-xl border border-default-200 bg-white text-sm text-default-400'>
+                                                {t('config.account.payment_qr_loading')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className='flex flex-wrap gap-2'>
+                                    {!latestOrderQrPayload && (
+                                        <Button
+                                            size='sm'
+                                            variant='bordered'
+                                            isDisabled={!latestOrder.checkoutUrl}
+                                            onPress={() => openCheckout(latestOrder.checkoutUrl)}
+                                        >
+                                            {t('config.account.payment_open_checkout')}
+                                        </Button>
+                                    )}
                                     {latestOrderQrPayload && (
                                         <Button
                                             size='sm'
@@ -1144,11 +1190,29 @@ export default function Account() {
                                         size='sm'
                                         variant='light'
                                         isLoading={refreshingOrder}
+                                        isDisabled={cancelingOrder}
                                         onPress={handleRefreshOrderStatus}
                                     >
                                         {t('config.account.payment_refresh')}
                                     </Button>
+                                    {!isTerminalOrderStatus(latestOrder.status) && (
+                                        <Button
+                                            size='sm'
+                                            variant='light'
+                                            color='danger'
+                                            isLoading={cancelingOrder}
+                                            isDisabled={refreshingOrder}
+                                            onPress={handleCancelLatestOrder}
+                                        >
+                                            {t('config.account.payment_cancel_order')}
+                                        </Button>
+                                    )}
                                 </div>
+                                {!isTerminalOrderStatus(latestOrder.status) && (
+                                    <p className='text-[11px] text-default-400'>
+                                        {t('config.account.payment_cancel_order_hint')}
+                                    </p>
+                                )}
                             </div>
                         )}
                     </CardBody>
