@@ -117,6 +117,19 @@ function sortSubscriptionPlans(plans) {
 }
 
 const PLAN_DISPLAY_ORDER = Object.freeze(['free', 'basic', 'pro']);
+const BILLING_REGION_CONFIG = Object.freeze({
+    global: {
+        key: 'global',
+        labelKey: 'billing_region_global',
+        providerNames: ['stripe'],
+    },
+    cn: {
+        key: 'cn',
+        labelKey: 'billing_region_cn',
+        providerNames: ['alipay', 'wxpay', 'easypay'],
+    },
+});
+const BILLING_REGION_ORDER = Object.freeze(['global', 'cn']);
 const PLAN_CARD_STYLES = Object.freeze({
     free: {
         border: 'border-default-200',
@@ -150,6 +163,43 @@ function getAvailableBillingCycles(plans) {
     ).sort((left, right) => getBillingCycleSortWeight(left) - getBillingCycleSortWeight(right));
 }
 
+function getRegionProviderNames(regionKey) {
+    return BILLING_REGION_CONFIG[regionKey]?.providerNames || [];
+}
+
+function filterProvidersByRegion(providerOptions, regionKey) {
+    const allowedNames = getRegionProviderNames(regionKey);
+    return (providerOptions || []).filter((item) =>
+        allowedNames.includes(String(item?.name || '').trim().toLowerCase())
+    );
+}
+
+function getPreferredProviderForRegion(providerOptions, regionKey, { readyOnly = false } = {}) {
+    const regionProviders = filterProvidersByRegion(providerOptions, regionKey);
+    if (readyOnly) {
+        const readyProvider = regionProviders.find((item) => item?.ready !== false);
+        if (readyProvider?.name) return String(readyProvider.name).trim();
+    }
+    return regionProviders[0]?.name ? String(regionProviders[0].name).trim() : '';
+}
+
+function getCatalogProviderForRegion(providerOptions, regionKey, selectedProvider = '') {
+    const normalizedSelectedProvider = String(selectedProvider || '').trim().toLowerCase();
+    const regionProviders = filterProvidersByRegion(providerOptions, regionKey);
+    const hasSelectedProviderInRegion = regionProviders.some(
+        (item) => String(item?.name || '').trim().toLowerCase() === normalizedSelectedProvider
+    );
+    if (normalizedSelectedProvider && hasSelectedProviderInRegion) {
+        return String(selectedProvider).trim();
+    }
+    return (
+        getPreferredProviderForRegion(providerOptions, regionKey, { readyOnly: true }) ||
+        getPreferredProviderForRegion(providerOptions, regionKey) ||
+        getRegionProviderNames(regionKey)[0] ||
+        ''
+    );
+}
+
 function getPlanYearlySavings(plan, allPlans) {
     if (!plan || plan.billingCycle !== 'year') return null;
     const yearAmount = Number(plan.amount);
@@ -175,6 +225,7 @@ export default function Account() {
     const [billingLoading, setBillingLoading] = useState(false);
     const [catalogLoading, setCatalogLoading] = useState(false);
     const [selectedPlanCycles, setSelectedPlanCycles] = useState({});
+    const [pricingRegion, setPricingRegion] = useState('global');
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [activePurchaseKey, setActivePurchaseKey] = useState('');
     const [refreshingOrder, setRefreshingOrder] = useState(false);
@@ -233,7 +284,6 @@ export default function Account() {
         }
         loadPaymentConfig({ silent: true });
         loadBillingProfile(userInfo.id, { silent: true });
-        loadBillingCatalog({ silent: true });
     }, [userInfo?.id]);
 
     useEffect(() => {
@@ -245,21 +295,28 @@ export default function Account() {
 
     useEffect(() => {
         const providerOptions = getProviderOptions(paymentConfig);
-        if (providerOptions.length === 0) {
+        const regionProviders = filterProvidersByRegion(providerOptions, pricingRegion);
+        if (regionProviders.length === 0) {
             setSelectedPaymentProvider('');
             return;
         }
-        const availableValues = providerOptions.map((item) => String(item.name || '').trim());
-        const nextDefault = paymentConfig?.providers?.customOrchestrator?.defaultAdapter || availableValues[0] || '';
+        const availableValues = regionProviders.map((item) => String(item.name || '').trim());
+        const nextDefault = getCatalogProviderForRegion(providerOptions, pricingRegion);
         if (!selectedPaymentProvider || !availableValues.includes(selectedPaymentProvider)) {
             setSelectedPaymentProvider(nextDefault);
         }
-    }, [paymentConfig, selectedPaymentProvider]);
+    }, [paymentConfig, pricingRegion, selectedPaymentProvider]);
 
     useEffect(() => {
-        if (!userInfo?.id || !selectedPaymentProvider) return;
-        loadBillingCatalog({ silent: true, paymentProvider: selectedPaymentProvider });
-    }, [selectedPaymentProvider, userInfo?.id]);
+        if (!userInfo?.id) return;
+        const providerOptions = getProviderOptions(paymentConfig);
+        const paymentProvider = getCatalogProviderForRegion(
+            providerOptions,
+            pricingRegion,
+            selectedPaymentProvider
+        );
+        loadBillingCatalog({ silent: true, paymentProvider });
+    }, [paymentConfig, pricingRegion, selectedPaymentProvider, userInfo?.id]);
 
     useEffect(() => {
         if (subscriptionPlans.length === 0) return;
@@ -411,12 +468,19 @@ export default function Account() {
 
     async function loadBillingCatalog({
         silent = false,
-        paymentProvider = selectedPaymentProvider,
+        paymentProvider,
     } = {}) {
         if (!userInfo?.id) return;
         if (!silent) setCatalogLoading(true);
         try {
-            const data = await getBillingCatalog({ paymentProvider });
+            const resolvedPaymentProvider =
+                paymentProvider ??
+                getCatalogProviderForRegion(
+                    getProviderOptions(paymentConfig),
+                    pricingRegion,
+                    selectedPaymentProvider
+                );
+            const data = await getBillingCatalog({ paymentProvider: resolvedPaymentProvider });
             setBillingCatalog(data?.catalog || null);
         } catch (error) {
             if (!silent) {
@@ -532,6 +596,7 @@ export default function Account() {
             orderType: 'topup',
             productCode: 'membership_topup',
             amount,
+            currency: billingCatalog?.currency || 'USD',
             description: `Membership recharge for ${userInfo?.email || userInfo?.id || 'user'}`,
         });
     }
@@ -568,7 +633,7 @@ export default function Account() {
             return;
         }
         if (paymentIntent.type === 'subscription') {
-            await handlePurchaseSubscription(paymentIntent.plan);
+            await handlePurchaseSubscription(paymentIntentResolvedPlan || paymentIntent.plan);
         }
     }
 
@@ -882,7 +947,11 @@ export default function Account() {
     const activeBackend = paymentConfig?.activeBackend || '-';
     const customEnabled = paymentConfig?.customOrchestratorEnabled ? 'ON' : 'OFF';
     const paymentProviderOptions = getProviderOptions(paymentConfig);
-    const selectedProviderDetail = paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) || null;
+    const regionPaymentProviderOptions = filterProvidersByRegion(paymentProviderOptions, pricingRegion);
+    const selectedProviderDetail =
+        regionPaymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
+        paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
+        null;
     const paymentChannel =
         selectedPaymentProvider ||
         paymentConfig?.providers?.customOrchestrator?.channel ||
@@ -894,10 +963,7 @@ export default function Account() {
         selectedProviderDetail?.missingFields ||
         paymentConfig?.providers?.customOrchestrator?.missingFields ||
         [];
-    const hasReadyPaymentProvider =
-        paymentProviderOptions.length > 0
-            ? paymentProviderOptions.some((item) => item.ready !== false)
-            : paymentReady !== false;
+    const hasReadyPaymentProvider = regionPaymentProviderOptions.some((item) => item.ready !== false);
     const topupCreditsPerUnit = Number(
         billingCatalog?.topupCreditsPerUnit ?? billingCatalog?.topupCreditsPerCny
     );
@@ -913,12 +979,20 @@ export default function Account() {
     const adminRefundMeta = adminManagedOrder?.metadata?.refund || null;
     const currentBillingTierKey = tierConfig?.key || 'free';
     const paymentIntentType = paymentIntent?.type || '';
-    const paymentIntentPlan = paymentIntentType === 'subscription' ? paymentIntent?.plan || null : null;
     const paymentIntentTopupAmount =
         paymentIntentType === 'topup' ? Number(paymentIntent?.amount) || 0 : 0;
     const paymentIntentEstimatedCredits =
         Number.isFinite(topupCreditsPerUnit) && Number.isFinite(paymentIntentTopupAmount)
             ? Math.max(0, Math.floor(paymentIntentTopupAmount * topupCreditsPerUnit))
+            : null;
+    const paymentIntentResolvedPlan =
+        paymentIntentType === 'subscription'
+            ? subscriptionPlans.find(
+                  (plan) =>
+                      String(plan?.productCode || '').trim() ===
+                      String(paymentIntent?.plan?.productCode || '').trim()
+              ) ||
+              (paymentIntent?.plan || null)
             : null;
     const paymentIntentOrderType =
         paymentIntentType === 'subscription'
@@ -928,19 +1002,19 @@ export default function Account() {
               : '';
     const paymentIntentProductCode =
         paymentIntentType === 'subscription'
-            ? String(paymentIntentPlan?.productCode || '').trim()
+            ? String(paymentIntentResolvedPlan?.productCode || '').trim()
             : paymentIntentType === 'topup'
               ? 'membership_topup'
               : '';
     const paymentIntentTitle =
-        paymentIntentType === 'subscription' && paymentIntentPlan
-            ? `${t(`config.account.tier_${paymentIntentPlan.tier}`)} ${t(
-                  `config.account.subscription_cycle_${paymentIntentPlan.billingCycle}`
+        paymentIntentType === 'subscription' && paymentIntentResolvedPlan
+            ? `${t(`config.account.tier_${paymentIntentResolvedPlan.tier}`)} ${t(
+                  `config.account.subscription_cycle_${paymentIntentResolvedPlan.billingCycle}`
               )}`
             : t('config.account.order_type_topup');
     const paymentIntentAmountLabel =
-        paymentIntentType === 'subscription' && paymentIntentPlan
-            ? formatMoney(paymentIntentPlan.amount, paymentIntentPlan.currency)
+        paymentIntentType === 'subscription' && paymentIntentResolvedPlan
+            ? formatMoney(paymentIntentResolvedPlan.amount, paymentIntentResolvedPlan.currency)
             : formatMoney(paymentIntentTopupAmount, billingCatalog?.currency || 'CNY');
     const paymentFlowOrder =
         latestOrder &&
@@ -1165,24 +1239,29 @@ export default function Account() {
                                         </p>
                                         {topupPresets.length > 0 && (
                                             <div className='flex flex-wrap gap-2'>
-                                                {topupPresets.map((preset) => (
-                                                    <Button
-                                                        key={`${preset.productCode}_${preset.amount}`}
-                                                        size='sm'
-                                                        variant={
-                                                            Number(rechargeAmount) ===
-                                                            Number(preset.amount)
-                                                                ? 'solid'
-                                                                : 'bordered'
-                                                        }
-                                                        color='primary'
-                                                        onPress={() =>
-                                                            setRechargeAmount(String(preset.amount))
-                                                        }
-                                                    >
-                                                        {formatMoney(preset.amount, preset.currency)}
-                                                    </Button>
-                                                ))}
+                                                {topupPresets.map((preset) => {
+                                                    return (
+                                                        <Button
+                                                            key={`${preset.productCode}_${preset.amount}`}
+                                                            size='sm'
+                                                            variant={
+                                                                Number(rechargeAmount) ===
+                                                                Number(preset.amount)
+                                                                    ? 'solid'
+                                                                    : 'bordered'
+                                                            }
+                                                            color='primary'
+                                                            className='min-h-[44px]'
+                                                            onPress={() =>
+                                                                setRechargeAmount(
+                                                                    String(preset.amount)
+                                                                )
+                                                            }
+                                                        >
+                                                            {formatMoney(preset.amount, preset.currency)}
+                                                        </Button>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -1229,23 +1308,47 @@ export default function Account() {
                     className='border-1 border-default-100'
                 >
                     <CardBody className='space-y-3'>
-                        <div className='flex items-center justify-between gap-2'>
-                            <p className='text-sm font-semibold text-default-800'>
-                                {t('config.account.subscription_title')}
-                            </p>
-                            <Button
-                                size='sm'
-                                variant='light'
-                                isLoading={catalogLoading}
-                                onPress={() => loadBillingCatalog({ silent: false })}
-                            >
-                                {t('config.account.billing_reload')}
-                            </Button>
+                        <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+                            <div>
+                                <p className='text-sm font-semibold text-default-800'>
+                                    {t('config.account.subscription_title')}
+                                </p>
+                                <p className='mt-1 text-xs text-default-500'>
+                                    {t('config.account.subscription_subtitle')}
+                                </p>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
+                                <Button
+                                    size='sm'
+                                    variant='light'
+                                    isLoading={catalogLoading}
+                                    onPress={() => loadBillingCatalog({ silent: false })}
+                                >
+                                    {t('config.account.billing_reload')}
+                                </Button>
+                                <div className='inline-flex rounded-full bg-default-100 p-1'>
+                                    {BILLING_REGION_ORDER.map((regionKey) => {
+                                        const active = pricingRegion === regionKey;
+                                        return (
+                                            <button
+                                                key={regionKey}
+                                                type='button'
+                                                className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                                                    active
+                                                        ? 'bg-default-900 text-white shadow-sm'
+                                                        : 'text-default-500 hover:text-default-800'
+                                                }`}
+                                                onClick={() => setPricingRegion(regionKey)}
+                                            >
+                                                {t(
+                                                    `config.account.${BILLING_REGION_CONFIG[regionKey].labelKey}`
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
-
-                        <p className='text-xs text-default-500'>
-                            {t('config.account.subscription_subtitle')}
-                        </p>
 
                         {subscriptionPlanCards.length > 0 ? (
                             <div className='grid gap-4 xl:grid-cols-3'>
@@ -1576,26 +1679,34 @@ export default function Account() {
                             </div>
                         </div>
 
-                        {paymentProviderOptions.length > 0 && (
+                        {regionPaymentProviderOptions.length > 0 && (
                             <div className='space-y-2'>
                                 <label className='text-xs text-default-500'>
                                     {t('config.account.payment_provider_label')}
                                 </label>
-                                <select
-                                    value={selectedPaymentProvider}
-                                    onChange={(event) => setSelectedPaymentProvider(event.target.value)}
-                                    className='w-full rounded-lg border border-default-200 bg-transparent px-3 py-2 text-sm text-default-700 outline-none'
-                                >
-                                    {paymentProviderOptions.map((item) => (
-                                        <option
-                                            key={item.name}
-                                            value={item.name}
-                                        >
-                                            {getProviderDisplayName(item.name)}
-                                            {item.ready === false ? ` (${t('config.account.payment_ready_no')})` : ''}
-                                        </option>
-                                    ))}
-                                </select>
+                                {regionPaymentProviderOptions.length > 1 ? (
+                                    <select
+                                        value={selectedPaymentProvider}
+                                        onChange={(event) => setSelectedPaymentProvider(event.target.value)}
+                                        className='w-full rounded-lg border border-default-200 bg-transparent px-3 py-2 text-sm text-default-700 outline-none'
+                                    >
+                                        {regionPaymentProviderOptions.map((item) => (
+                                            <option
+                                                key={item.name}
+                                                value={item.name}
+                                            >
+                                                {getProviderDisplayName(item.name)}
+                                                {item.ready === false
+                                                    ? ` (${t('config.account.payment_ready_no')})`
+                                                    : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <div className='rounded-lg border border-default-200 bg-default-50 px-3 py-2 text-sm text-default-700'>
+                                        {getProviderDisplayName(regionPaymentProviderOptions[0]?.name)}
+                                    </div>
+                                )}
                                 {selectedProviderDetail?.missingFields?.length > 0 && (
                                     <p className='text-xs text-danger-500'>
                                         {t('config.account.payment_provider_missing')}:{' '}
@@ -1610,13 +1721,14 @@ export default function Account() {
                         <Button
                             size='md'
                             color={
-                                paymentIntentType === 'subscription' && paymentIntentPlan?.tier === 'pro'
+                                paymentIntentType === 'subscription' &&
+                                paymentIntentResolvedPlan?.tier === 'pro'
                                     ? 'secondary'
                                     : 'primary'
                             }
                             isLoading={
                                 paymentIntentType === 'subscription'
-                                    ? activePurchaseKey === paymentIntentPlan?.productCode
+                                    ? activePurchaseKey === paymentIntentResolvedPlan?.productCode
                                     : activePurchaseKey === 'topup_custom'
                             }
                             isDisabled={!paymentIntent || selectedProviderDetail?.ready === false}

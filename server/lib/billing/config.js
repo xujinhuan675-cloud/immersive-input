@@ -29,6 +29,11 @@ const DEFAULT_TOPUP_CREDITS_PER_UNIT = Object.freeze({
     USD: 700,
 });
 
+function resolveUsdToCnyRate() {
+    const rate = Number(process.env.BILLING_USD_TO_CNY_RATE || 7.2);
+    return Number.isFinite(rate) && rate > 0 ? rate : 7.2;
+}
+
 function normalizeCurrency(value, fallback = 'CNY') {
     const normalized = String(value || '')
         .trim()
@@ -146,14 +151,10 @@ export function resolveBillingCurrency(paymentProvider = '') {
     if (providerName && providerCurrencyMap[providerName]) {
         return providerCurrencyMap[providerName];
     }
-    const paymentConfig = getPaymentRuntimeConfig().customOrchestrator;
-    const defaultAdapter = String(paymentConfig?.defaultAdapter || paymentConfig?.adapter || '')
-        .trim()
-        .toLowerCase();
-    if (defaultAdapter && providerCurrencyMap[defaultAdapter]) {
-        return providerCurrencyMap[defaultAdapter];
-    }
-    return normalizeCurrency(process.env.BILLING_CURRENCY, 'CNY');
+    return normalizeCurrency(
+        process.env.BILLING_DEFAULT_DISPLAY_CURRENCY || process.env.BILLING_CURRENCY,
+        'USD'
+    );
 }
 
 export function getBillingRuntimeConfig(options = {}) {
@@ -183,6 +184,9 @@ export function getBillingCatalog(options = {}) {
         currency,
         topupCreditsPerUnit: runtime.topupCreditsPerUnit,
         topupCreditsPerCny: runtime.topupCreditsPerUnit,
+        displayExchangeRates: {
+            usdToCnyRate: resolveUsdToCnyRate(),
+        },
         freeTier: {
             tier: BILLING_TIERS.FREE,
             dailyQuota: runtime.freeDailyQuota,
