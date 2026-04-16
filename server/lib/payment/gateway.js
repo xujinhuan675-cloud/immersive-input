@@ -22,6 +22,7 @@ import {
 import { customOrchestratorProvider } from './providers/customOrchestrator.js';
 import { buildDeterministicWebhookEventId } from './custom/webhookSecurity.js';
 import { applyPaymentGrantForOrder, reversePaymentGrantForOrder } from '../billing/service.js';
+import { resolveBillingCurrency } from '../billing/config.js';
 
 function ensureProvider() {
     return customOrchestratorProvider;
@@ -154,6 +155,9 @@ export async function createUnifiedOrder(input) {
             },
         },
     });
+    const orderCurrency = String(
+        input.currency || resolveBillingCurrency(providerName) || 'CNY'
+    ).toUpperCase();
     const order = await createPaymentOrderRecord({
         id: generatePaymentOrderId(),
         userId,
@@ -161,7 +165,7 @@ export async function createUnifiedOrder(input) {
         backend,
         orderType: String(input.orderType || 'topup'),
         amountCents,
-        currency: String(input.currency || 'CNY').toUpperCase(),
+        currency: orderCurrency,
         status: PAYMENT_ORDER_STATUS.PENDING,
         productCode: input.productCode || null,
         description: input.description || null,

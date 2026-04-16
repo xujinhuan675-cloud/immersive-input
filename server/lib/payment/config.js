@@ -116,6 +116,7 @@ export function getPaymentRuntimeConfig() {
                     defaultWebhookUrl(appBaseUrl, 'easypay'),
                 returnUrl: trimOrEmpty(process.env.EASYPAY_RETURN_URL),
                 defaultType: trimOrEmpty(process.env.EASYPAY_DEFAULT_TYPE) || 'alipay',
+                defaultCurrency: trimOrEmpty(process.env.EASYPAY_DEFAULT_CURRENCY) || 'CNY',
                 signType: trimOrEmpty(process.env.EASYPAY_SIGN_TYPE) || 'MD5',
                 timeoutMs: toPositiveInt(process.env.EASYPAY_TIMEOUT_MS, timeoutMs),
             },

@@ -27,7 +27,9 @@ export async function getBillingProfile(userId, options = {}) {
 }
 
 export async function getBillingCatalog(options = {}) {
-    return requestBackend('/api/billing/catalog', {
+    const paymentProvider = String(options?.paymentProvider || options?.provider || '').trim();
+    const query = paymentProvider ? `?paymentProvider=${encodeURIComponent(paymentProvider)}` : '';
+    return requestBackend(`/api/billing/catalog${query}`, {
         method: 'GET',
         headers: buildAdminHeaders(resolveAdminToken(options)),
     });

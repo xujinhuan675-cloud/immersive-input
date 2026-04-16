@@ -215,8 +215,8 @@ export function createBillingService(overrides = {}) {
             order.orderType === 'subscription'
                 ? deps.computeSubscriptionGrant(current, order.productCode, currentNow)
                 : null;
-        const cfg = deps.getBillingRuntimeConfig();
-        const topupCredits = deps.computeTopupCredits(order.amountCents, cfg.topupCreditsPerCny);
+        const cfg = deps.getBillingRuntimeConfig({ currency: order.currency });
+        const topupCredits = deps.computeTopupCredits(order.amountCents, cfg.topupCreditsPerUnit);
         const next = subscriptionNext
             ? subscriptionNext
             : {
@@ -379,11 +379,11 @@ export function createBillingService(overrides = {}) {
             };
         }
 
-        const cfg = deps.getBillingRuntimeConfig();
+        const cfg = deps.getBillingRuntimeConfig({ currency: order.currency });
         const creditedUnits =
             Number(grantRow?.amountUnits) ||
             Number(order?.metadata?.billingGrant?.creditedUnits) ||
-            deps.computeTopupCredits(order.amountCents, cfg.topupCreditsPerCny);
+            deps.computeTopupCredits(order.amountCents, cfg.topupCreditsPerUnit);
         const nextProfile = {
             ...current,
             bonusCredits: current.bonusCredits - creditedUnits,

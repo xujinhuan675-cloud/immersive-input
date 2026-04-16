@@ -36,7 +36,7 @@ export default async function handler(req, res) {
             orderType: body.orderType || 'topup',
             amount: body.amount,
             amountCents: body.amountCents,
-            currency: body.currency || 'CNY',
+            currency: body.currency || '',
             productCode: body.productCode || null,
             description: body.description || null,
             metadata: body.metadata || {},

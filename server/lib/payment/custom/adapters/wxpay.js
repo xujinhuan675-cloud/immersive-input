@@ -62,6 +62,7 @@ function getRuntimeStatus() {
         mode: 'official',
         ready: missingFields.length === 0,
         missingFields,
+        defaultCurrency: String(cfg.defaultCurrency || 'CNY').toUpperCase(),
         supportsMobileH5: true,
         supportsDesktopQr: true,
     };

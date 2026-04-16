@@ -146,6 +146,7 @@ function getRuntimeStatus() {
         mode: 'real_channel',
         ready: missingFields.length === 0,
         missingFields,
+        defaultCurrency: String(cfg.defaultCurrency || 'USD').toUpperCase(),
         paymentMethodTypes: listPaymentMethodTypes(cfg.paymentMethodTypes),
         apiBaseConfigured: !!cfg.apiBase,
     };

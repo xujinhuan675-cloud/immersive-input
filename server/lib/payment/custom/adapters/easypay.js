@@ -107,6 +107,7 @@ function getRuntimeStatus() {
         mode: 'real_channel',
         ready: missingFields.length === 0,
         missingFields,
+        defaultCurrency: String(cfg.defaultCurrency || 'CNY').toUpperCase(),
         defaultType: cfg.defaultType,
         signType: cfg.signType,
         apiBaseConfigured: !!cfg.apiBase,
