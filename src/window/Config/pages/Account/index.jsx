@@ -222,13 +222,10 @@ export default function Account() {
     const [paymentConfig, setPaymentConfig] = useState(null);
     const [billingProfile, setBillingProfile] = useState(null);
     const [billingCatalog, setBillingCatalog] = useState(null);
-    const [billingLoading, setBillingLoading] = useState(false);
-    const [catalogLoading, setCatalogLoading] = useState(false);
     const [selectedPlanCycles, setSelectedPlanCycles] = useState({});
     const [pricingRegion, setPricingRegion] = useState('global');
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [activePurchaseKey, setActivePurchaseKey] = useState('');
-    const [refreshingOrder, setRefreshingOrder] = useState(false);
     const [cancelingOrder, setCancelingOrder] = useState(false);
     const [latestOrder, setLatestOrder] = useState(null);
     const [selectedPaymentProvider, setSelectedPaymentProvider] = useState('');
@@ -254,17 +251,54 @@ export default function Account() {
     const successNoticeRef = useRef(new Set());
     const terminalNoticeRef = useRef(new Set());
     const adminUserPrefilledRef = useRef(false);
+    const lastTriggeredRefreshAtRef = useRef(0);
     const subscriptionPlans = sortSubscriptionPlans(billingCatalog?.subscriptionPlans || []);
 
     function refreshUser() {
         const { user } = getCurrentUser();
         setUserInfo(user);
+        return user;
+    }
+
+    async function triggerAccountRefresh({
+        includeUser = true,
+        includePaymentConfig = true,
+        includeProfile = true,
+        includeCatalog = true,
+        dedupeMs = 0,
+    } = {}) {
+        const now = Date.now();
+        if (dedupeMs > 0 && now - lastTriggeredRefreshAtRef.current < dedupeMs) {
+            return;
+        }
+        lastTriggeredRefreshAtRef.current = now;
+
+        const currentUser = includeUser ? refreshUser() : userInfo;
+        const resolvedUserId = currentUser?.id || userInfo?.id;
+        const tasks = [];
+
+        if (includePaymentConfig) {
+            tasks.push(loadPaymentConfig({ silent: true }));
+        }
+        if (includeProfile && resolvedUserId) {
+            tasks.push(loadBillingProfile(resolvedUserId, { silent: true }));
+        }
+        if (includeCatalog && resolvedUserId) {
+            const paymentProvider = getCatalogProviderForRegion(
+                getProviderOptions(paymentConfig),
+                pricingRegion,
+                selectedPaymentProvider
+            );
+            tasks.push(loadBillingCatalog({ silent: true, paymentProvider }));
+        }
+
+        if (tasks.length > 0) {
+            await Promise.allSettled(tasks);
+        }
     }
 
     useEffect(() => {
         refreshUser();
-        const timer = setInterval(refreshUser, 1500);
-        return () => clearInterval(timer);
     }, []);
 
     useEffect(() => {
@@ -340,6 +374,28 @@ export default function Account() {
     }, [billingCatalog]);
 
     useEffect(() => {
+        if (!userInfo?.id) return undefined;
+
+        function handleWindowFocus() {
+            triggerAccountRefresh({ dedupeMs: 1200 });
+        }
+
+        function handleVisibilityChange() {
+            if (document.visibilityState === 'visible') {
+                triggerAccountRefresh({ dedupeMs: 1200 });
+            }
+        }
+
+        window.addEventListener('focus', handleWindowFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.removeEventListener('focus', handleWindowFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [paymentConfig, pricingRegion, selectedPaymentProvider, userInfo?.id]);
+
+    useEffect(() => {
         const qrPayload = getOrderQrPayload(latestOrder);
         if (!qrPayload) {
             setQrCodeDataUrl('');
@@ -396,7 +452,7 @@ export default function Account() {
                     return nextOrder || current;
                 });
             } catch {
-                // keep polling quietly; manual refresh remains available to the user
+                // keep polling quietly while the order is still in progress
             } finally {
                 pollingInFlightRef.current = false;
             }
@@ -419,7 +475,12 @@ export default function Account() {
             if (successNoticeRef.current.has(successKey)) return;
             successNoticeRef.current.add(successKey);
             setQrModalOpen(false);
-            loadBillingProfile(userInfo?.id, { silent: true });
+            triggerAccountRefresh({
+                includeUser: false,
+                includePaymentConfig: false,
+                includeProfile: true,
+                includeCatalog: false,
+            });
             toast.success(t('config.account.payment_auto_refresh_success'));
             return;
         }
@@ -435,7 +496,12 @@ export default function Account() {
         } else if (status === 'CANCELED') {
             toast(t('config.account.payment_status_canceled_notice'));
         } else if (status === 'REFUNDED') {
-            loadBillingProfile(userInfo?.id, { silent: true });
+            triggerAccountRefresh({
+                includeUser: false,
+                includePaymentConfig: false,
+                includeProfile: true,
+                includeCatalog: false,
+            });
             toast(t('config.account.payment_status_refunded_notice'));
         }
     }, [latestOrder?.id, latestOrder?.status, t, userInfo?.id]);
@@ -453,7 +519,6 @@ export default function Account() {
 
     async function loadBillingProfile(userId = userInfo?.id, { silent = false } = {}) {
         if (!userId) return;
-        if (!silent) setBillingLoading(true);
         try {
             const data = await getBillingProfile(userId);
             setBillingProfile(data?.profile || null);
@@ -461,8 +526,6 @@ export default function Account() {
             if (!silent) {
                 toast.error(error.message || t('config.account.billing_load_failed'));
             }
-        } finally {
-            if (!silent) setBillingLoading(false);
         }
     }
 
@@ -471,7 +534,6 @@ export default function Account() {
         paymentProvider,
     } = {}) {
         if (!userInfo?.id) return;
-        if (!silent) setCatalogLoading(true);
         try {
             const resolvedPaymentProvider =
                 paymentProvider ??
@@ -486,8 +548,6 @@ export default function Account() {
             if (!silent) {
                 toast.error(error.message || t('config.account.billing_catalog_load_failed'));
             }
-        } finally {
-            if (!silent) setCatalogLoading(false);
         }
     }
 
@@ -554,6 +614,12 @@ export default function Account() {
                 paymentProvider: selectedPaymentProvider,
             });
             setLatestOrder(result?.order || null);
+            triggerAccountRefresh({
+                includeUser: false,
+                includePaymentConfig: false,
+                includeProfile: true,
+                includeCatalog: false,
+            });
             toast.success(t('config.account.payment_create_success'));
             if (getOrderQrPayload(result?.order)) {
                 setQrModalOpen(true);
@@ -634,21 +700,6 @@ export default function Account() {
         }
         if (paymentIntent.type === 'subscription') {
             await handlePurchaseSubscription(paymentIntentResolvedPlan || paymentIntent.plan);
-        }
-    }
-
-    async function handleRefreshOrderStatus() {
-        if (!latestOrder?.id) return;
-        setRefreshingOrder(true);
-        try {
-            const result = await getPaymentOrderStatus(latestOrder.id);
-            setLatestOrder(result?.order || latestOrder);
-            await loadBillingProfile(userInfo?.id, { silent: true });
-            toast.success(t('config.account.payment_refresh_success'));
-        } catch (error) {
-            toast.error(error.message || t('config.account.payment_refresh_failed'));
-        } finally {
-            setRefreshingOrder(false);
         }
     }
 
@@ -1151,18 +1202,10 @@ export default function Account() {
 
                             <div className='grid gap-3 xl:grid-cols-[minmax(320px,0.95fr)_minmax(380px,1.05fr)]'>
                                 <div className='rounded-[22px] border border-sky-100 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.18),transparent_36%),linear-gradient(135deg,#f8fbff_0%,#eef4ff_100%)] p-4 shadow-sm shadow-sky-100/50'>
-                                    <div className='flex items-center justify-between gap-2'>
+                                    <div className='flex items-center gap-2'>
                                         <p className='text-sm font-semibold text-default-900'>
                                             {t('config.account.billing_title')}
                                         </p>
-                                        <Button
-                                            size='sm'
-                                            variant='light'
-                                            isLoading={billingLoading}
-                                            onPress={() => loadBillingProfile(userInfo.id)}
-                                        >
-                                            {t('config.account.billing_reload')}
-                                        </Button>
                                     </div>
 
                                     {billingProfile ? (
@@ -1318,14 +1361,6 @@ export default function Account() {
                                 </p>
                             </div>
                             <div className='flex flex-wrap items-center gap-2 lg:justify-end'>
-                                <Button
-                                    size='sm'
-                                    variant='light'
-                                    isLoading={catalogLoading}
-                                    onPress={() => loadBillingCatalog({ silent: false })}
-                                >
-                                    {t('config.account.billing_reload')}
-                                </Button>
                                 <div className='inline-flex rounded-full bg-default-100 p-1'>
                                     {BILLING_REGION_ORDER.map((regionKey) => {
                                         const active = pricingRegion === regionKey;
@@ -1633,17 +1668,10 @@ export default function Account() {
                         </div>
 
                         <div className='rounded-[24px] border border-default-200 p-4'>
-                            <div className='mb-3 flex items-center justify-between gap-2'>
+                            <div className='mb-3 flex items-center gap-2'>
                                 <p className='text-sm font-semibold text-default-800'>
                                     {t('config.account.payment_title')}
                                 </p>
-                                <Button
-                                    size='sm'
-                                    variant='light'
-                                    onPress={() => loadPaymentConfig({ silent: false })}
-                                >
-                                    {t('config.account.payment_reload')}
-                                </Button>
                             </div>
                             <div className='space-y-1 text-xs text-default-500'>
                                 <p>
@@ -1824,22 +1852,12 @@ export default function Account() {
                                             {t('config.account.payment_show_qr')}
                                         </Button>
                                     )}
-                                    <Button
-                                        size='sm'
-                                        variant='light'
-                                        isLoading={refreshingOrder}
-                                        isDisabled={cancelingOrder}
-                                        onPress={handleRefreshOrderStatus}
-                                    >
-                                        {t('config.account.payment_refresh')}
-                                    </Button>
                                     {!isTerminalOrderStatus(paymentFlowOrder.status) && (
                                         <Button
                                             size='sm'
                                             variant='light'
                                             color='danger'
                                             isLoading={cancelingOrder}
-                                            isDisabled={refreshingOrder}
                                             onPress={handleCancelLatestOrder}
                                         >
                                             {t('config.account.payment_cancel_order')}

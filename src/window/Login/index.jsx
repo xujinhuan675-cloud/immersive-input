@@ -1,44 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { appWindow } from '@tauri-apps/api/window';
-import { Toaster } from 'react-hot-toast';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { HiGlobeAlt } from 'react-icons/hi';
+import { HiCheck, HiChevronDown, HiGlobeAlt } from 'react-icons/hi';
 
 import WindowControl from '../../components/WindowControl';
+import { osType } from '../../utils/env';
+import { getLanguagePreference, saveLanguagePreference } from '../../utils/auth';
+import { normalizeLanguageKey } from '../../utils/language';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ResetPasswordForm from './components/ResetPasswordForm';
-import { getLanguagePreference, saveLanguagePreference } from '../../utils/auth';
-import { osType } from '../../utils/env';
+
+const LOGIN_LANGUAGE_OPTIONS = Object.freeze([
+    { key: 'en', label: 'English' },
+    { key: 'zh_cn', label: '简体中文' },
+]);
+
+function resolveLoginLanguageKey(language) {
+    const normalized = normalizeLanguageKey(language);
+    if (normalized === 'zh_cn' || normalized === 'zh_tw') {
+        return 'zh_cn';
+    }
+    return 'en';
+}
 
 export default function Login({ embedded = false, onSuccess }) {
     const { t, i18n } = useTranslation();
-    const [tab, setTab] = useState('login'); // 'login' | 'register' | 'reset'
+    const [tab, setTab] = useState('login');
+    const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+    const languageMenuRef = useRef(null);
+    const currentLanguageKey = resolveLoginLanguageKey(i18n.resolvedLanguage || i18n.language || 'en');
+    const currentLanguageOption = useMemo(
+        () =>
+            LOGIN_LANGUAGE_OPTIONS.find((option) => option.key === currentLanguageKey) ||
+            LOGIN_LANGUAGE_OPTIONS[0],
+        [currentLanguageKey]
+    );
 
     useEffect(() => {
-        // 读取保存的语言偏好，如果没有则默认英文
-        const savedLanguage = getLanguagePreference();
-        if (i18n.language !== savedLanguage) {
+        const savedLanguage = resolveLoginLanguageKey(getLanguagePreference());
+        if (currentLanguageKey !== savedLanguage) {
             i18n.changeLanguage(savedLanguage);
         }
-        
+
         if (!embedded && appWindow.label === 'login') {
             appWindow.show();
         }
-    }, [embedded, i18n]);
+    }, [currentLanguageKey, embedded, i18n]);
 
-    function toggleLanguage() {
-        const newLang = i18n.language === 'zh_cn' ? 'en' : 'zh_cn';
-        i18n.changeLanguage(newLang);
-        // 保存语言偏好
-        saveLanguagePreference(newLang);
+    useEffect(() => {
+        if (!languageMenuOpen) return undefined;
+
+        function handlePointerDown(event) {
+            if (languageMenuRef.current && !languageMenuRef.current.contains(event.target)) {
+                setLanguageMenuOpen(false);
+            }
+        }
+
+        function handleEscape(event) {
+            if (event.key === 'Escape') {
+                setLanguageMenuOpen(false);
+            }
+        }
+
+        document.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [languageMenuOpen]);
+
+    function handleLanguageChange(nextLanguage) {
+        if (!nextLanguage || nextLanguage === currentLanguageKey) {
+            setLanguageMenuOpen(false);
+            return;
+        }
+
+        i18n.changeLanguage(nextLanguage);
+        saveLanguagePreference(nextLanguage);
+        setLanguageMenuOpen(false);
     }
 
     function handleSuccess({ user }) {
-        // 登录/注册成功后的处理
-        // 后续可在这里 emit Tauri 事件通知其他窗口用户已登录
-        // emit('auth-state-changed', { action: 'login', user });
         onSuccess?.({ user });
         if (!embedded) {
             setTimeout(() => {
@@ -54,63 +100,98 @@ export default function Login({ embedded = false, onSuccess }) {
 
     return (
         <div
-            className={`${embedded ? '' : 'h-screen'} overflow-y-auto flex flex-col bg-background select-none cursor-default`}
+            className={`${embedded ? '' : 'h-screen'} flex select-none flex-col overflow-y-auto bg-background cursor-default`}
             style={{ userSelect: 'none' }}
         >
-            {/* 标题栏（拖拽区 + 窗口控制按钮）*/}
             {!embedded && (
                 <div
                     data-tauri-drag-region='true'
-                    className='h-[35px] flex items-center justify-between shrink-0 px-2'
+                    className='flex h-[35px] shrink-0 items-center justify-between px-2'
                 >
-                    {/* 左侧拖拽区域 */}
                     <div
                         data-tauri-drag-region='true'
-                        className='flex-1 h-full'
+                        className='h-full flex-1'
                     />
-                    {/* 右侧窗口控制 */}
-                    {osType !== 'Darwin' && <WindowControl />}
+                    {osType !== 'Darwin' ? <WindowControl /> : null}
                 </div>
             )}
 
-            {/* 中央卡片 */}
-            <div className='flex-1 flex items-center justify-center px-6 py-2'>
-                <div
-                    className='w-full max-w-[430px] bg-content1 rounded-2xl shadow-xl px-8 pt-7 pb-8'
-                >
-                    {/* 品牌区 */}
-                    <div className='flex flex-col items-center mb-6'>
+            <div className='flex flex-1 items-center justify-center px-6 py-2'>
+                <div className='w-full max-w-[430px] rounded-2xl bg-content1 px-8 pb-8 pt-7 shadow-xl'>
+                    <div className='mb-6 flex flex-col items-center'>
                         <img
                             src='icon.svg'
                             alt='Logo'
-                            className='h-[60px] w-[60px] mb-3'
+                            className='mb-3 h-[60px] w-[60px]'
                             draggable={false}
                         />
-                        <h1 className='text-xl font-bold text-default-800 tracking-wide'>
+                        <h1 className='text-xl font-bold tracking-wide text-default-800'>
                             Immersive Input
                         </h1>
-                        <p className='text-xs text-default-400 mt-1 tracking-widest'>
+                        <p className='mt-1 text-xs tracking-widest text-default-400'>
                             {t('login.subtitle')}
                         </p>
-                        
-                        {/* 语言切换按钮 */}
-                        <button
-                            onClick={toggleLanguage}
-                            className='mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs text-default-600 hover:text-primary hover:bg-default-100 rounded-lg transition-colors'
-                            title={i18n.language === 'zh_cn' ? 'Switch to English' : '切换到中文'}
-                        >
-                            <HiGlobeAlt className='text-base' />
-                            <span>{i18n.language === 'zh_cn' ? 'English' : '中文'}</span>
-                        </button>
+
+                        <div className='mt-4 flex flex-col items-center gap-1.5'>
+                            <p className='text-[10px] font-medium uppercase tracking-[0.22em] text-default-400'>
+                                {t('login.language_label')}
+                            </p>
+                            <div
+                                ref={languageMenuRef}
+                                className='relative'
+                            >
+                                <button
+                                    type='button'
+                                    className='group inline-flex items-center gap-2 rounded-full border border-default-200 bg-white/90 px-4 py-2 text-sm font-medium text-default-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-default-900 hover:shadow-md'
+                                    aria-haspopup='menu'
+                                    aria-expanded={languageMenuOpen}
+                                    title={t('login.language_label')}
+                                    onClick={() => setLanguageMenuOpen((open) => !open)}
+                                >
+                                    <HiGlobeAlt className='text-base text-default-500 transition-colors group-hover:text-primary' />
+                                    <span>{currentLanguageOption.label}</span>
+                                    <HiChevronDown
+                                        className={`text-base text-default-400 transition-transform duration-200 ${
+                                            languageMenuOpen ? 'rotate-180' : ''
+                                        }`}
+                                    />
+                                </button>
+
+                                {languageMenuOpen ? (
+                                    <div className='absolute left-1/2 top-full z-20 mt-2 w-48 -translate-x-1/2 rounded-2xl border border-default-200 bg-white/95 p-1.5 shadow-xl backdrop-blur'>
+                                        {LOGIN_LANGUAGE_OPTIONS.map((option) => {
+                                            const active = option.key === currentLanguageOption.key;
+                                            return (
+                                                <button
+                                                    key={option.key}
+                                                    type='button'
+                                                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                                                        active
+                                                            ? 'bg-primary-50 text-primary-700'
+                                                            : 'text-default-600 hover:bg-default-100 hover:text-default-900'
+                                                    }`}
+                                                    onClick={() => handleLanguageChange(option.key)}
+                                                >
+                                                    <span>{option.label}</span>
+                                                    {active ? <HiCheck className='text-base' /> : null}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
+                            </div>
+                            <p className='text-[11px] text-default-400'>
+                                {t('login.language_hint')}
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Tab 切换 */}
-                    {tab !== 'reset' && (
-                        <div className='flex bg-default-100 rounded-xl p-1 mb-5'>
+                    {tab !== 'reset' ? (
+                        <div className='mb-5 flex rounded-xl bg-default-100 p-1'>
                             <button
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all duration-200 ${
                                     tab === 'login'
-                                        ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
+                                        ? 'bg-white shadow-sm text-default-800 dark:bg-[#2a2a3e]'
                                         : 'text-default-500 hover:text-default-700'
                                 }`}
                                 onClick={() => setTab('login')}
@@ -118,9 +199,9 @@ export default function Login({ embedded = false, onSuccess }) {
                                 {t('login.tab_login')}
                             </button>
                             <button
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all duration-200 ${
                                     tab === 'register'
-                                        ? 'bg-white dark:bg-[#2a2a3e] shadow-sm text-default-800'
+                                        ? 'bg-white shadow-sm text-default-800 dark:bg-[#2a2a3e]'
                                         : 'text-default-500 hover:text-default-700'
                                 }`}
                                 onClick={() => setTab('register')}
@@ -128,9 +209,8 @@ export default function Login({ embedded = false, onSuccess }) {
                                 {t('login.tab_register')}
                             </button>
                         </div>
-                    )}
+                    ) : null}
 
-                    {/* 表单区 */}
                     {tab === 'login' ? (
                         <LoginForm
                             onSuccess={handleSuccess}
@@ -147,7 +227,6 @@ export default function Login({ embedded = false, onSuccess }) {
                 </div>
             </div>
 
-            {/* Toast 通知 */}
             <Toaster
                 position='top-center'
                 toastOptions={{

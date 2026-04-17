@@ -440,6 +440,8 @@
             "welcome_title": "欢迎使用 Immersive Input",
             "welcome_subtitle": "请先登录以使用完整功能",
             "subtitle": "划词翻译·AI解析",
+            "language_label": "显示语言",
+            "language_hint": "选择你偏好的界面语言",
             "tab_login": "登录账号",
             "tab_register": "注册新账号",
             "email_label": "用户名 / 邮箱",

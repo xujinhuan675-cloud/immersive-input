@@ -440,6 +440,8 @@
             "welcome_title": "Welcome to Immersive Input",
             "welcome_subtitle": "Please sign in to continue",
             "subtitle": "Text Selection \u00b7 AI Analysis",
+            "language_label": "Display Language",
+            "language_hint": "Choose your preferred interface language",
             "tab_login": "Sign In",
             "tab_register": "Register",
             "email_label": "Username / Email",
