@@ -19,6 +19,7 @@ import {
     updateBillingProfile,
 } from './store.js';
 import { findLaterSuccessfulSubscriptionOrders } from '../payment/store.js';
+import { getInviteSummary } from '../invite/service.js';
 
 function defaultProfileForUser(userId, cfg) {
     return {
@@ -101,7 +102,12 @@ export function createBillingService(overrides = {}) {
 
     async function getBillingProfileSummary(userId) {
         const profile = await getOrCreateBillingProfile(userId);
-        return toPublicProfile(profile);
+        const inviteSummary = await getInviteSummary(userId);
+        return {
+            ...toPublicProfile(profile),
+            inviteCode: inviteSummary.inviteCode,
+            inviteStats: inviteSummary.inviteStats,
+        };
     }
 
     async function consumeBillingUnits(input) {

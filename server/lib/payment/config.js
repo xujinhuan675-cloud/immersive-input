@@ -29,6 +29,40 @@ function ensureUnique(values) {
     return Array.from(new Set(values.filter(Boolean)));
 }
 
+function collectImplicitAdapters() {
+    const inferred = [];
+    if (
+        trimOrEmpty(process.env.STRIPE_SECRET_KEY) ||
+        trimOrEmpty(process.env.STRIPE_SUCCESS_URL) ||
+        trimOrEmpty(process.env.STRIPE_CANCEL_URL) ||
+        trimOrEmpty(process.env.STRIPE_WEBHOOK_SECRET)
+    ) {
+        inferred.push('stripe');
+    }
+    if (
+        trimOrEmpty(process.env.ALIPAY_APP_ID) ||
+        trimOrEmpty(process.env.ALIPAY_PRIVATE_KEY) ||
+        trimOrEmpty(process.env.ALIPAY_PUBLIC_KEY)
+    ) {
+        inferred.push('alipay');
+    }
+    if (
+        trimOrEmpty(process.env.WXPAY_APP_ID) ||
+        trimOrEmpty(process.env.WXPAY_MCH_ID) ||
+        trimOrEmpty(process.env.WXPAY_PRIVATE_KEY)
+    ) {
+        inferred.push('wxpay');
+    }
+    if (
+        trimOrEmpty(process.env.EASYPAY_PID) ||
+        trimOrEmpty(process.env.EASYPAY_KEY) ||
+        trimOrEmpty(process.env.EASY_PAY_PKEY)
+    ) {
+        inferred.push('easypay');
+    }
+    return inferred;
+}
+
 function resolveFileValue(value) {
     const raw = trimOrEmpty(value);
     if (!raw) return '';
@@ -66,8 +100,11 @@ export function getPaymentRuntimeConfig() {
         trimOrEmpty(process.env.CUSTOM_ORCHESTRATOR_ADAPTER) ||
         '';
     const defaultAdapter = requestedDefaultAdapter || enabledAdapters[0] || 'stripe';
+    const implicitAdapters = collectImplicitAdapters();
     const providerList = ensureUnique(
-        enabledAdapters.length > 0 ? [...enabledAdapters, defaultAdapter] : [defaultAdapter]
+        enabledAdapters.length > 0
+            ? [...enabledAdapters, defaultAdapter, ...implicitAdapters]
+            : [defaultAdapter, ...implicitAdapters]
     );
 
     return {

@@ -2,6 +2,11 @@ import { readJsonBody, sendJson, setCors } from '../../lib/http.js';
 import { hashCode } from '../../lib/otp.js';
 import { clearEmailOtp, getEmailOtp } from '../../lib/otpStore.js';
 import { supabaseAdmin } from '../../lib/supabaseAdmin.js';
+import {
+    bindInviteCodeToNewUser,
+    getOrCreateInviteProfile,
+    resolveInviteBinding,
+} from '../../lib/invite/service.js';
 
 function isValidEmail(email) {
     return typeof email === 'string' && email.includes('@') && email.length <= 254;
@@ -24,6 +29,7 @@ export default async function handler(req, res) {
         const password = String(body.password || '');
         const username = String(body.username || '').trim();
         const code = String(body.code || '').trim();
+        const inviteCode = String(body.inviteCode || '').trim();
 
         if (!username) return sendJson(res, 400, { message: 'Missing username' });
         if (!isValidEmail(email)) return sendJson(res, 400, { message: 'Invalid email' });
@@ -47,6 +53,8 @@ export default async function handler(req, res) {
             return sendJson(res, 400, { message: 'Invalid code' });
         }
 
+        const inviteBinding = inviteCode ? await resolveInviteBinding(inviteCode) : null;
+
         const { data, error } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
@@ -60,9 +68,31 @@ export default async function handler(req, res) {
             return sendJson(res, 400, { message: error.message });
         }
 
+        let inviteBound = false;
+        let inviteWarning = '';
+        try {
+            await getOrCreateInviteProfile(data.user?.id);
+            if (inviteBinding?.inviteCode) {
+                const bindResult = await bindInviteCodeToNewUser({
+                    inviteeUserId: data.user?.id,
+                    inviteCode: inviteBinding.inviteCode,
+                    inviterUserId: inviteBinding.inviterUserId,
+                });
+                inviteBound = !!bindResult?.bound;
+            }
+        } catch (inviteError) {
+            inviteWarning = inviteError?.message || 'Invite binding failed';
+            console.error('[register] invite binding failed:', inviteWarning);
+        }
+
         await clearEmailOtp(email);
 
-        return sendJson(res, 200, { ok: true, user_id: data.user?.id });
+        return sendJson(res, 200, {
+            ok: true,
+            user_id: data.user?.id,
+            invite_bound: inviteBound,
+            invite_warning: inviteWarning || null,
+        });
     } catch (e) {
         return sendJson(res, 500, { message: e?.message || 'Internal Server Error' });
     }

@@ -42,7 +42,7 @@ async function withClient(cb) {
     }
 }
 
-async function ensureBillingTables() {
+export async function ensureBillingTables() {
     if (_initialized) return;
     await withClient(async (client) => {
         await client.query(`

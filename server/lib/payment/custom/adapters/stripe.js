@@ -135,17 +135,22 @@ function mapStripeRefundStatus(rawStatus) {
 
 function getRuntimeStatus() {
     const cfg = getStripeConfig();
-    const missingFields = [];
-    if (!cfg.secretKey) missingFields.push('STRIPE_SECRET_KEY');
-    if (!cfg.successUrl) missingFields.push('STRIPE_SUCCESS_URL');
-    if (!cfg.cancelUrl) missingFields.push('STRIPE_CANCEL_URL');
+    const createMissingFields = [];
+    if (!cfg.secretKey) createMissingFields.push('STRIPE_SECRET_KEY');
+    if (!cfg.successUrl) createMissingFields.push('STRIPE_SUCCESS_URL');
+    if (!cfg.cancelUrl) createMissingFields.push('STRIPE_CANCEL_URL');
+
+    const missingFields = [...createMissingFields];
     if (!cfg.webhookSecret) missingFields.push('STRIPE_WEBHOOK_SECRET');
 
     return {
         channel: 'stripe',
         mode: 'real_channel',
         ready: missingFields.length === 0,
+        createReady: createMissingFields.length === 0,
         missingFields,
+        createMissingFields,
+        webhookConfigured: !!cfg.webhookSecret,
         defaultCurrency: String(cfg.defaultCurrency || 'USD').toUpperCase(),
         paymentMethodTypes: listPaymentMethodTypes(cfg.paymentMethodTypes),
         apiBaseConfigured: !!cfg.apiBase,

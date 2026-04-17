@@ -99,6 +99,96 @@ function formatOrderAmount(order) {
     return formatMoney(amount, order.currency || 'CNY');
 }
 
+function toInviteToken(value) {
+    return String(value || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase();
+}
+
+function getInviteCode(profile, user) {
+    const profileCode = toInviteToken(profile?.inviteCode);
+    if (profileCode) return profileCode.slice(0, 8);
+
+    const idCode = toInviteToken(user?.id);
+    if (idCode) return idCode.slice(0, 8);
+
+    const emailPrefix = String(user?.email || '')
+        .split('@')[0]
+        .trim();
+    const emailCode = toInviteToken(emailPrefix);
+    if (emailCode) return emailCode.slice(0, 8);
+
+    return '';
+}
+
+function buildInviteLink(inviteCode) {
+    const code = String(inviteCode || '').trim();
+    if (!code) return '';
+
+    const explicitBase = String(
+        import.meta.env.VITE_APP_BASE_URL || import.meta.env.VITE_AUTH_API_BASE || ''
+    )
+        .trim()
+        .replace(/\/api\/?$/i, '');
+    const fallbackBase =
+        typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    const base = explicitBase || fallbackBase;
+
+    try {
+        const url = new URL(base);
+        url.search = '';
+        url.hash = '';
+        url.searchParams.set('invite', code);
+        return url.toString();
+    } catch {
+        return '';
+    }
+}
+
+function pickFirstFiniteNumber(...values) {
+    for (const value of values) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+            return numeric;
+        }
+    }
+    return 0;
+}
+
+function resolveInviteStats(profile, user) {
+    const inviteStats = profile?.inviteStats || user?.inviteStats || {};
+    return {
+        invitedCount: pickFirstFiniteNumber(
+            inviteStats?.invitedCount,
+            inviteStats?.inviteCount,
+            inviteStats?.totalInvites,
+            profile?.invitedCount,
+            profile?.inviteCount,
+            user?.invitedCount,
+            user?.inviteCount
+        ),
+        pendingCount: pickFirstFiniteNumber(
+            inviteStats?.pendingCount,
+            inviteStats?.pendingClaimCount,
+            inviteStats?.pendingRewardCount,
+            profile?.pendingInviteCount,
+            profile?.pendingClaimCount,
+            user?.pendingInviteCount,
+            user?.pendingClaimCount
+        ),
+        rewardedCredits: pickFirstFiniteNumber(
+            inviteStats?.rewardedCredits,
+            inviteStats?.earnedCredits,
+            inviteStats?.claimedCredits,
+            profile?.inviteRewardCredits,
+            profile?.earnedInviteCredits,
+            user?.inviteRewardCredits,
+            user?.earnedInviteCredits
+        ),
+    };
+}
+
 function getPlanSortWeight(plan) {
     const tierWeight = {
         basic: 1,
@@ -174,10 +264,14 @@ function filterProvidersByRegion(providerOptions, regionKey) {
     );
 }
 
+function isProviderReadyForPurchase(provider) {
+    return (provider?.createReady ?? provider?.ready) !== false;
+}
+
 function getPreferredProviderForRegion(providerOptions, regionKey, { readyOnly = false } = {}) {
     const regionProviders = filterProvidersByRegion(providerOptions, regionKey);
     if (readyOnly) {
-        const readyProvider = regionProviders.find((item) => item?.ready !== false);
+        const readyProvider = regionProviders.find((item) => isProviderReadyForPurchase(item));
         if (readyProvider?.name) return String(readyProvider.name).trim();
     }
     return regionProviders[0]?.name ? String(regionProviders[0].name).trim() : '';
@@ -245,7 +339,6 @@ export default function Account() {
     const [adminManagedProfile, setAdminManagedProfile] = useState(null);
     const [adminProfileLookupLoading, setAdminProfileLookupLoading] = useState(false);
     const [adminMembershipAction, setAdminMembershipAction] = useState('');
-    const [quotaCountdownNow, setQuotaCountdownNow] = useState(() => Date.now());
 
     const pollingInFlightRef = useRef(false);
     const successNoticeRef = useRef(new Set());
@@ -422,17 +515,6 @@ export default function Account() {
     }, [latestOrder]);
 
     useEffect(() => {
-        if (!billingProfile?.quotaResetAt) return undefined;
-        setQuotaCountdownNow(Date.now());
-        const intervalId = window.setInterval(() => {
-            setQuotaCountdownNow(Date.now());
-        }, 1000);
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [billingProfile?.quotaResetAt]);
-
-    useEffect(() => {
         const orderId = latestOrder?.id;
         const status = String(latestOrder?.status || '')
             .trim()
@@ -579,6 +661,32 @@ export default function Account() {
         }
     }
 
+    async function handleCopyInviteLink() {
+        if (!inviteLink) {
+            toast.error(t('config.account.invite_share_failed'));
+            return;
+        }
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(inviteLink);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = inviteLink;
+                textArea.setAttribute('readonly', 'readonly');
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+            toast.success(t('config.account.invite_share_copied'));
+        } catch {
+            toast.error(t('config.account.invite_share_failed'));
+        }
+    }
+
     async function createOrder({
         purchaseKey,
         orderType,
@@ -637,16 +745,22 @@ export default function Account() {
         }
     }
 
-    function handlePrepareRechargeOrder() {
-        const amount = Number(rechargeAmount);
-        if (!Number.isFinite(amount) || amount <= 0) {
-            toast.error(t('config.account.payment_invalid_amount'));
-            return;
-        }
+    function updateRechargeAmount(nextValue) {
+        setRechargeAmount(nextValue);
+        setPaymentIntent((current) =>
+            current?.type === 'topup'
+                ? {
+                      ...current,
+                      amount: nextValue,
+                  }
+                : current
+        );
+    }
 
+    function handlePrepareRechargeOrder() {
         openPaymentModal({
             type: 'topup',
-            amount,
+            amount: rechargeAmount,
         });
     }
 
@@ -885,11 +999,23 @@ export default function Account() {
         return String(value);
     }
 
-    function formatBillingDateTime(value) {
+    function formatBillingDate(value) {
         if (!value) return t('config.account.billing_none');
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return String(value);
-        return date.toLocaleString();
+        return date.toLocaleDateString();
+    }
+
+    function formatBillingTime(value) {
+        if (!value) return t('config.account.billing_none');
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'UTC',
+        });
     }
 
     function formatBillingQuota(value) {
@@ -913,23 +1039,6 @@ export default function Account() {
         next.setUTCDate(next.getUTCDate() + 1);
         next.setUTCHours(0, 0, 0, 0);
         return next;
-    }
-
-    function formatQuotaResetCountdown(deadline, nowValue = Date.now()) {
-        if (!(deadline instanceof Date) || Number.isNaN(deadline.getTime())) {
-            return t('config.account.billing_none');
-        }
-        const remainingMs = deadline.getTime() - Number(nowValue || 0);
-        if (remainingMs <= 0) {
-            return t('config.account.billing_quota_reset_due');
-        }
-        const totalSeconds = Math.floor(remainingMs / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        return [hours, minutes, seconds]
-            .map((value) => String(value).padStart(2, '0'))
-            .join(':');
     }
 
     function formatPlanQuota(plan) {
@@ -1003,27 +1112,31 @@ export default function Account() {
         regionPaymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         null;
+    const selectedProviderPurchaseReady = isProviderReadyForPurchase(selectedProviderDetail);
+    const selectedProviderMissingFields =
+        selectedProviderDetail?.createMissingFields || selectedProviderDetail?.missingFields || [];
     const paymentChannel =
         selectedPaymentProvider ||
         paymentConfig?.providers?.customOrchestrator?.channel ||
         paymentConfig?.providers?.customOrchestrator?.adapter ||
         '-';
     const paymentReady =
-        selectedProviderDetail?.ready ?? paymentConfig?.providers?.customOrchestrator?.ready;
+        selectedProviderDetail?.createReady ??
+        selectedProviderDetail?.ready ??
+        paymentConfig?.providers?.customOrchestrator?.ready;
     const paymentMissingFields =
+        selectedProviderDetail?.createMissingFields ||
         selectedProviderDetail?.missingFields ||
         paymentConfig?.providers?.customOrchestrator?.missingFields ||
         [];
-    const hasReadyPaymentProvider = regionPaymentProviderOptions.some((item) => item.ready !== false);
+    const hasReadyPaymentProvider = regionPaymentProviderOptions.some((item) =>
+        isProviderReadyForPurchase(item)
+    );
     const topupCreditsPerUnit = Number(
         billingCatalog?.topupCreditsPerUnit ?? billingCatalog?.topupCreditsPerCny
     );
     const latestOrderQrPayload = getOrderQrPayload(latestOrder);
     const topupPresets = billingCatalog?.topupPresets || [];
-    const estimatedRechargeCredits =
-        Number.isFinite(topupCreditsPerUnit) && Number.isFinite(Number(rechargeAmount))
-            ? Math.max(0, Math.floor(Number(rechargeAmount) * topupCreditsPerUnit))
-            : null;
     const activeAdminToken = String(adminTokenInput || '').trim();
     const hasSavedAdminToken = Boolean(savedAdminToken);
     const adminTokenDirty = activeAdminToken !== savedAdminToken;
@@ -1067,6 +1180,9 @@ export default function Account() {
         paymentIntentType === 'subscription' && paymentIntentResolvedPlan
             ? formatMoney(paymentIntentResolvedPlan.amount, paymentIntentResolvedPlan.currency)
             : formatMoney(paymentIntentTopupAmount, billingCatalog?.currency || 'CNY');
+    const paymentIntentHasValidAmount =
+        paymentIntentType !== 'topup' ||
+        (Number.isFinite(paymentIntentTopupAmount) && paymentIntentTopupAmount > 0);
     const paymentFlowOrder =
         latestOrder &&
         paymentIntentProductCode &&
@@ -1085,11 +1201,10 @@ export default function Account() {
             : formatBillingQuota(billingProfile?.dailyQuota);
     const billingUsageDisplay = `${billingUsedValue}/${billingUsageQuotaLabel}`;
     const billingCreditsDisplay = formatBillingValue(billingProfile?.bonusCredits);
-    const billingExpiryDisplay = formatBillingDateTime(billingProfile?.subscriptionExpiresAt);
+    const billingExpiryDisplay = formatBillingDate(billingProfile?.subscriptionExpiresAt);
     const quotaResetDeadline = resolveQuotaResetDeadline(billingProfile?.quotaResetAt);
-    const quotaResetCountdownDisplay = formatQuotaResetCountdown(quotaResetDeadline, quotaCountdownNow);
-    const quotaResetExactDisplay = quotaResetDeadline
-        ? formatBillingDateTime(quotaResetDeadline)
+    const quotaResetTimeDisplay = quotaResetDeadline
+        ? `${formatBillingTime(quotaResetDeadline)} UTC`
         : t('config.account.billing_none');
     const billingStatusLabel = billingProfile?.status
         ? getBillingStatusLabel(billingProfile.status)
@@ -1097,6 +1212,9 @@ export default function Account() {
     const billingStatusColor = billingProfile?.status
         ? getBillingStatusColor(billingProfile.status)
         : 'default';
+    const inviteCode = getInviteCode(billingProfile, userInfo);
+    const inviteLink = buildInviteLink(inviteCode);
+    const inviteStats = resolveInviteStats(billingProfile, userInfo);
     const comparisonFreePlan = {
         productCode: 'membership_free',
         tier: 'free',
@@ -1144,12 +1262,12 @@ export default function Account() {
             />
 
             {userInfo && (
-                <Card
-                    shadow='none'
-                    className='border-1 border-default-100'
-                >
-                    <CardBody className='space-y-4 p-4 md:p-5'>
-                        <div className='flex flex-col gap-4 rounded-[28px] border border-default-100 bg-gradient-to-br from-white via-default-50 to-white p-5 shadow-sm shadow-default-100/70'>
+                <div className='grid gap-4 xl:grid-cols-[minmax(280px,0.82fr)_minmax(560px,1.18fr)]'>
+                    <Card
+                        shadow='none'
+                        className='self-start border-1 border-default-100 bg-gradient-to-br from-white via-default-50 to-white'
+                    >
+                        <CardBody className='flex flex-col gap-5 p-5'>
                             <div className='flex items-start gap-4'>
                                 <Avatar
                                     name={userInfo.display_name?.charAt(0)?.toUpperCase() ?? 'U'}
@@ -1199,150 +1317,139 @@ export default function Account() {
                                     <MdLogout className='text-lg' />
                                 </Button>
                             </div>
+                        </CardBody>
+                    </Card>
 
-                            <div className='grid gap-3 xl:grid-cols-[minmax(320px,0.95fr)_minmax(380px,1.05fr)]'>
-                                <div className='rounded-[22px] border border-sky-100 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.18),transparent_36%),linear-gradient(135deg,#f8fbff_0%,#eef4ff_100%)] p-4 shadow-sm shadow-sky-100/50'>
-                                    <div className='flex items-center gap-2'>
-                                        <p className='text-sm font-semibold text-default-900'>
-                                            {t('config.account.billing_title')}
-                                        </p>
-                                    </div>
+                    <Card
+                        shadow='none'
+                        className='h-full border-1 border-sky-100 bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_34%),linear-gradient(135deg,#f8fbff_0%,#f2f7ff_100%)]'
+                    >
+                        <CardBody className='p-5'>
+                            <div className='flex flex-wrap items-start justify-between gap-4'>
+                                <div className='space-y-1'>
+                                    <p className='text-sm font-semibold text-default-900'>
+                                        {t('config.account.billing_title')}
+                                    </p>
+                                    <p className='text-xs text-default-500'>
+                                        {t('config.account.credit_topup_subtitle')}
+                                    </p>
+                                </div>
+                                <Button
+                                    size='sm'
+                                    radius='full'
+                                    color='primary'
+                                    isDisabled={!hasReadyPaymentProvider}
+                                    onPress={handlePrepareRechargeOrder}
+                                >
+                                    {t('config.account.credit_purchase_action')}
+                                </Button>
+                            </div>
 
-                                    {billingProfile ? (
-                                        <div className='mt-3 rounded-[18px] border border-white/80 bg-white/88 px-4 py-4 shadow-sm shadow-sky-100/40'>
-                                            <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_220px] lg:items-center'>
-                                                <div className='flex flex-wrap items-end gap-3'>
-                                                    <span className='text-4xl font-semibold tracking-tight text-slate-900 sm:text-[42px]'>
-                                                        {billingUsageDisplay}
-                                                    </span>
-                                                    {Number.isFinite(billingQuotaValue) &&
-                                                        billingQuotaValue < 0 && (
-                                                            <div className='mb-1 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-sky-700'>
-                                                                {t('config.account.billing_unlimited')}
-                                                            </div>
-                                                        )}
-                                                </div>
-
-                                                <div className='space-y-1 lg:border-l lg:border-default-200 lg:pl-4'>
-                                                    <p className='text-[11px] uppercase tracking-[0.18em] text-sky-700/80'>
-                                                        {t('config.account.billing_subscription_expires')}
-                                                    </p>
-                                                    <p className='text-sm font-medium leading-6 text-slate-700'>
-                                                        {billingExpiryDisplay}
-                                                    </p>
-                                                </div>
-
-                                                <div className='space-y-1 lg:border-l lg:border-default-200 lg:pl-4'>
-                                                    <p className='text-[11px] uppercase tracking-[0.18em] text-sky-700/80'>
-                                                        {t('config.account.billing_quota_reset_countdown')}
-                                                    </p>
-                                                    <p className='text-base font-semibold tracking-tight text-slate-900'>
-                                                        {quotaResetCountdownDisplay}
-                                                    </p>
-                                                    <p className='text-xs text-slate-500'>
-                                                        {t('config.account.billing_quota_reset_at')}:
-                                                        <span className='ml-1 text-slate-600'>
-                                                            {quotaResetExactDisplay}
-                                                        </span>
-                                                    </p>
-                                                </div>
+                            {billingProfile ? (
+                                <>
+                                    <div className='mt-5 grid grid-cols-2 gap-3'>
+                                        <div className='rounded-[22px] border border-white/80 bg-white/88 px-5 py-4 shadow-sm shadow-sky-100/30'>
+                                            <p className='text-[10px] font-medium uppercase tracking-[0.18em] text-sky-700/80'>
+                                                {t('config.account.billing_daily_quota')}
+                                            </p>
+                                            <div className='mt-3 flex items-end gap-3'>
+                                                <span className='text-3xl font-semibold tracking-tight text-slate-900'>
+                                                    {billingUsageDisplay}
+                                                </span>
+                                                {Number.isFinite(billingQuotaValue) &&
+                                                billingQuotaValue < 0 ? (
+                                                    <div className='mb-1 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-sky-700'>
+                                                        {t('config.account.billing_unlimited')}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         </div>
-                                    ) : (
-                                        <p className='text-xs text-default-500'>
-                                            {t('config.account.billing_not_ready')}
-                                        </p>
-                                    )}
-                                </div>
 
-                                <div className='rounded-[22px] border border-default-200 bg-gradient-to-br from-default-50 via-white to-default-100 p-4 shadow-sm shadow-default-100/50'>
-                                    <div className='flex items-start justify-between gap-3'>
-                                        <div className='space-y-1'>
-                                            <p className='text-sm font-semibold text-default-900'>
-                                                {t('config.account.credit_topup_title')}
-                                            </p>
-                                            <p className='text-xs text-default-500'>
-                                                {t('config.account.credit_topup_subtitle')}
-                                            </p>
-                                        </div>
-
-                                        <div className='inline-flex min-w-[132px] items-center gap-3 rounded-full border border-default-200 bg-white/90 px-3 py-2 shadow-sm shadow-default-100/60'>
-                                            <p className='text-[11px] uppercase tracking-[0.18em] text-default-500'>
+                                        <div className='rounded-[22px] border border-white/80 bg-white/88 px-5 py-4 shadow-sm shadow-sky-100/30'>
+                                            <p className='text-[10px] font-medium uppercase tracking-[0.18em] text-sky-700/80'>
                                                 {t('config.account.billing_credits')}
                                             </p>
-                                            <p className='text-2xl font-semibold tracking-tight text-default-900'>
+                                            <p className='mt-3 text-3xl font-semibold tracking-tight text-slate-900'>
                                                 {billingCreditsDisplay}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className='mt-4 space-y-2'>
-                                        <p className='text-xs font-medium text-default-600'>
-                                            {t('config.account.topup_presets_title')}
-                                        </p>
-                                        {topupPresets.length > 0 && (
-                                            <div className='flex flex-wrap gap-2'>
-                                                {topupPresets.map((preset) => {
-                                                    return (
-                                                        <Button
-                                                            key={`${preset.productCode}_${preset.amount}`}
-                                                            size='sm'
-                                                            variant={
-                                                                Number(rechargeAmount) ===
-                                                                Number(preset.amount)
-                                                                    ? 'solid'
-                                                                    : 'bordered'
-                                                            }
-                                                            color='primary'
-                                                            className='min-h-[44px]'
-                                                            onPress={() =>
-                                                                setRechargeAmount(
-                                                                    String(preset.amount)
-                                                                )
-                                                            }
-                                                        >
-                                                            {formatMoney(preset.amount, preset.currency)}
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className='mt-4 flex flex-wrap items-end gap-2'>
-                                        <Input
-                                            type='number'
-                                            min={0.01}
-                                            step={0.01}
-                                            size='sm'
-                                            label={t('config.account.credit_purchase_amount')}
-                                            value={rechargeAmount}
-                                            onValueChange={setRechargeAmount}
-                                            className='max-w-[190px]'
-                                        />
-                                        <Button
-                                            size='sm'
-                                            color='primary'
-                                            isDisabled={!hasReadyPaymentProvider}
-                                            onPress={handlePrepareRechargeOrder}
-                                        >
-                                            {t('config.account.credit_purchase_action')}
-                                        </Button>
-
-                                        {estimatedRechargeCredits !== null && (
-                                            <p className='text-xs text-default-500 sm:ml-auto sm:self-center'>
-                                                {t('config.account.topup_credit_estimate')}:
-                                                <span className='ml-1 font-mono text-default-700'>
-                                                    {estimatedRechargeCredits}
-                                                </span>
+                                    <div className='mt-3 grid grid-cols-2 gap-3'>
+                                        <div className='flex items-center justify-between gap-3 rounded-[18px] border border-white/70 bg-white/82 px-4 py-3'>
+                                            <p className='text-[10px] font-medium uppercase tracking-[0.18em] text-sky-700/80'>
+                                                {t('config.account.billing_subscription_expires')}
                                             </p>
-                                        )}
+                                            <p className='text-sm font-medium leading-6 text-slate-900'>
+                                                {billingExpiryDisplay}
+                                            </p>
+                                        </div>
+
+                                        <div className='flex items-center justify-between gap-3 rounded-[18px] border border-white/70 bg-white/82 px-4 py-3'>
+                                            <p className='text-[10px] font-medium uppercase tracking-[0.18em] text-sky-700/80'>
+                                                {t('config.account.billing_quota_reset_at')}
+                                            </p>
+                                            <p className='text-sm font-medium leading-6 text-slate-900'>
+                                                {quotaResetTimeDisplay}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </CardBody>
-                </Card>
+
+                                    <div className='mt-3 rounded-[18px] border border-white/70 bg-white/82 px-4 py-3'>
+                                        <div className='flex flex-wrap items-center gap-3'>
+                                            <span className='text-[10px] font-medium uppercase tracking-[0.18em] text-sky-700/80'>
+                                                {t('config.account.invite_code')}
+                                            </span>
+                                            <span className='min-w-0 flex-1 truncate font-mono text-sm font-semibold tracking-[0.18em] text-slate-900'>
+                                                {inviteCode || t('config.account.billing_none')}
+                                            </span>
+                                            <button
+                                                type='button'
+                                                disabled={!inviteLink}
+                                                className='inline-flex items-center justify-center rounded-full bg-white px-3 py-1.5 text-xs font-medium text-default-600 ring-1 ring-default-200 transition hover:text-default-800 disabled:cursor-not-allowed disabled:opacity-50'
+                                                title={t('config.account.invite_share')}
+                                                onClick={handleCopyInviteLink}
+                                            >
+                                                {t('config.account.invite_share')}
+                                            </button>
+                                        </div>
+
+                                        <div className='mt-3 grid gap-2 sm:grid-cols-3'>
+                                            <div className='flex items-center justify-between gap-2 rounded-[14px] border border-default-200/80 bg-white px-3 py-2.5'>
+                                                <p className='text-[10px] font-medium uppercase tracking-[0.14em] text-default-500'>
+                                                    {t('config.account.invite_invited_count')}
+                                                </p>
+                                                <p className='text-sm font-semibold text-default-800'>
+                                                    {inviteStats.invitedCount}
+                                                </p>
+                                            </div>
+                                            <div className='flex items-center justify-between gap-2 rounded-[14px] border border-default-200/80 bg-white px-3 py-2.5'>
+                                                <p className='text-[10px] font-medium uppercase tracking-[0.14em] text-default-500'>
+                                                    {t('config.account.invite_pending_count')}
+                                                </p>
+                                                <p className='text-sm font-semibold text-default-800'>
+                                                    {inviteStats.pendingCount}
+                                                </p>
+                                            </div>
+                                            <div className='flex items-center justify-between gap-2 rounded-[14px] border border-default-200/80 bg-white px-3 py-2.5'>
+                                                <p className='text-[10px] font-medium uppercase tracking-[0.14em] text-default-500'>
+                                                    {t('config.account.invite_rewarded_credits')}
+                                                </p>
+                                                <p className='text-sm font-semibold text-default-800'>
+                                                    {inviteStats.rewardedCredits}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <p className='mt-4 text-xs text-default-500'>
+                                    {t('config.account.billing_not_ready')}
+                                </p>
+                            )}
+                        </CardBody>
+                    </Card>
+                </div>
             )}
 
             {userInfo && (
@@ -1667,6 +1774,60 @@ export default function Account() {
                             </div>
                         </div>
 
+                        {paymentIntentType === 'topup' && (
+                            <div className='rounded-[24px] border border-default-200 p-4'>
+                                <div className='space-y-1'>
+                                    <p className='text-sm font-semibold text-default-800'>
+                                        {t('config.account.credit_topup_title')}
+                                    </p>
+                                    <p className='text-xs text-default-500'>
+                                        {t('config.account.credit_topup_subtitle')}
+                                    </p>
+                                </div>
+
+                                {topupPresets.length > 0 && (
+                                    <div className='mt-4 space-y-2'>
+                                        <p className='text-xs font-medium text-default-600'>
+                                            {t('config.account.topup_presets_title')}
+                                        </p>
+                                        <div className='flex flex-wrap gap-2'>
+                                            {topupPresets.map((preset) => (
+                                                <Button
+                                                    key={`${preset.productCode}_${preset.amount}`}
+                                                    size='sm'
+                                                    variant={
+                                                        Number(paymentIntent?.amount) === Number(preset.amount)
+                                                            ? 'solid'
+                                                            : 'bordered'
+                                                    }
+                                                    color='primary'
+                                                    className='min-h-[40px]'
+                                                    onPress={() =>
+                                                        updateRechargeAmount(String(preset.amount))
+                                                    }
+                                                >
+                                                    {formatMoney(preset.amount, preset.currency)}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className='mt-4 flex flex-wrap items-end gap-2'>
+                                    <Input
+                                        type='number'
+                                        min={0.01}
+                                        step={0.01}
+                                        size='sm'
+                                        label={t('config.account.credit_purchase_amount')}
+                                        value={String(paymentIntent?.amount ?? rechargeAmount)}
+                                        onValueChange={updateRechargeAmount}
+                                        className='min-w-[220px] flex-1'
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className='rounded-[24px] border border-default-200 p-4'>
                             <div className='mb-3 flex items-center gap-2'>
                                 <p className='text-sm font-semibold text-default-800'>
@@ -1724,7 +1885,7 @@ export default function Account() {
                                                 value={item.name}
                                             >
                                                 {getProviderDisplayName(item.name)}
-                                                {item.ready === false
+                                                {!isProviderReadyForPurchase(item)
                                                     ? ` (${t('config.account.payment_ready_no')})`
                                                     : ''}
                                             </option>
@@ -1735,11 +1896,11 @@ export default function Account() {
                                         {getProviderDisplayName(regionPaymentProviderOptions[0]?.name)}
                                     </div>
                                 )}
-                                {selectedProviderDetail?.missingFields?.length > 0 && (
+                                {selectedProviderMissingFields.length > 0 && (
                                     <p className='text-xs text-danger-500'>
                                         {t('config.account.payment_provider_missing')}:{' '}
                                         <span className='font-mono'>
-                                            {selectedProviderDetail.missingFields.join(', ')}
+                                            {selectedProviderMissingFields.join(', ')}
                                         </span>
                                     </p>
                                 )}
@@ -1759,7 +1920,11 @@ export default function Account() {
                                     ? activePurchaseKey === paymentIntentResolvedPlan?.productCode
                                     : activePurchaseKey === 'topup_custom'
                             }
-                            isDisabled={!paymentIntent || selectedProviderDetail?.ready === false}
+                            isDisabled={
+                                !paymentIntent ||
+                                !paymentIntentHasValidAmount ||
+                                !selectedProviderPurchaseReady
+                            }
                             onPress={handleConfirmPaymentIntent}
                         >
                             {paymentIntentType === 'subscription'

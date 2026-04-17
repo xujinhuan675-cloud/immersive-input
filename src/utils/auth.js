@@ -134,7 +134,7 @@ export async function loginWithPassword({ email, password, rememberMe = false })
 
 /**
  * 邮箱注册
- * @param {{ username: string, email: string, password: string, code: string }} payload
+ * @param {{ username: string, email: string, password: string, code: string, inviteCode?: string }} payload
  * @returns {Promise<{ user: object, token: string }>}
  *
  * Supabase 替换方案:
@@ -145,12 +145,13 @@ export async function loginWithPassword({ email, password, rememberMe = false })
  * if (error) throw new Error(error.message);
  * return { user: data.user, token: data.session?.access_token };
  */
-export async function registerWithEmail({ username, email, password, code }) {
+export async function registerWithEmail({ username, email, password, code, inviteCode = '' }) {
     await postJson('/api/auth/register', {
         username,
         email,
         password,
         code,
+        inviteCode,
     });
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });

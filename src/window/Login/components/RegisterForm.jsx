@@ -25,6 +25,7 @@ export default function RegisterForm({ onSuccess }) {
     const [username, setUsername] = useState('');
     const [emailPrefix, setEmailPrefix] = useState('');
     const [emailDomain, setEmailDomain] = useState('qq.com');
+    const [inviteCode, setInviteCode] = useState('');
     const [code, setCode] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,6 +37,17 @@ export default function RegisterForm({ onSuccess }) {
     const timerRef = useRef(null);
 
     const fullEmail = emailPrefix.trim() ? `${emailPrefix.trim()}@${emailDomain}` : '';
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const incomingInviteCode = String(params.get('invite') || '')
+            .trim()
+            .toUpperCase();
+        if (incomingInviteCode) {
+            setInviteCode(incomingInviteCode);
+        }
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -103,6 +115,7 @@ export default function RegisterForm({ onSuccess }) {
                 email: fullEmail,
                 password,
                 code: code.trim(),
+                inviteCode: inviteCode.trim(),
             });
             toast.success(t('login.success_register'));
             onSuccess?.(result);
@@ -226,6 +239,20 @@ export default function RegisterForm({ onSuccess }) {
             />
 
             {/* 验证码 */}
+            <Input
+                label={t('login.invite_code_label')}
+                placeholder={t('login.invite_code_placeholder')}
+                value={inviteCode}
+                onValueChange={(value) => setInviteCode(String(value || '').toUpperCase())}
+                variant='bordered'
+                size='sm'
+                classNames={{
+                    inputWrapper: INPUT_WRAPPER,
+                    label: 'text-default-500 text-xs',
+                }}
+                description={t('login.invite_code_hint')}
+            />
+
             <div className='flex flex-col gap-1'>
                 <div className='flex items-center gap-2'>
                     <Input
