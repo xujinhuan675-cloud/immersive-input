@@ -11,11 +11,11 @@ export const TIER_RULES = Object.freeze({
         allowCreditFallback: true,
     },
     [BILLING_TIERS.BASIC]: {
-        dailyQuota: 300,
+        dailyQuota: 100,
         allowCreditFallback: true,
     },
     [BILLING_TIERS.PRO]: {
-        dailyQuota: 2000,
+        dailyQuota: 500,
         allowCreditFallback: true,
     },
     [BILLING_TIERS.ENTERPRISE]: {

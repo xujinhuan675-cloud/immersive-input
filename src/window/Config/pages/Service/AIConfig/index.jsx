@@ -1,104 +1,152 @@
+import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
+import { Card, Spacer, Button, useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
-import { CardBody, Input, Slider, Button } from '@nextui-org/react';
-import { Card } from '@nextui-org/react';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { useConfig } from '../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../hooks';
+import { osType } from '../../../../../utils/env';
+import { useConfig, deleteKey } from '../../../../../hooks';
 import { useTranslation } from 'react-i18next';
+import { AI_API_SERVICE_LIST_KEY, ensureAiApiConfigMigration } from '../../../../../utils/aiConfig';
+import ServiceItem from './ServiceItem';
+import SelectModal from './SelectModal';
+import ConfigModal from './ConfigModal';
 
 export default function AIConfig() {
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
-    const [apiUrl, setApiUrl] = useConfig('ai_api_url', 'https://api.openai.com/v1/chat/completions');
-    const [apiKey, setApiKey] = useConfig('ai_api_key', '');
-    const [model, setModel] = useConfig('ai_model', 'gpt-4o-mini');
-    const [temperature, setTemperature] = useConfig('ai_temperature', 0.7);
+    const { isOpen: isSelectOpen, onOpen: onSelectOpen, onOpenChange: onSelectOpenChange } = useDisclosure();
+    const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
+    const [currentConfigKey, setCurrentConfigKey] = useState(null);
+    const [aiApiServiceInstanceList, setAiApiServiceInstanceList] = useConfig(AI_API_SERVICE_LIST_KEY, []);
 
-    const testConnection = async () => {
-        if (!apiUrl || !apiKey || !model) {
-            toast.error(t('ai_config.test_error_fields'), { style: toastStyle });
+    useEffect(() => {
+        let mounted = true;
+
+        ensureAiApiConfigMigration().then((instanceList) => {
+            if (!mounted) return;
+            setAiApiServiceInstanceList(instanceList, true);
+            if (!currentConfigKey && instanceList[0]) {
+                setCurrentConfigKey(instanceList[0]);
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const reorder = (list, startIndex, endIndex) => {
+        const result = Array.from(list);
+        const [removed] = result.splice(startIndex, 1);
+        result.splice(endIndex, 0, removed);
+        return result;
+    };
+
+    const onDragEnd = (result) => {
+        if (!result.destination) return;
+        const items = reorder(aiApiServiceInstanceList, result.source.index, result.destination.index);
+        setAiApiServiceInstanceList(items);
+    };
+
+    const deleteServiceInstance = (instanceKey) => {
+        if (aiApiServiceInstanceList.length === 1) {
+            toast.error(t('config.service.least'), { style: toastStyle });
             return;
         }
-        const id = toast.loading(t('ai_config.test_loading'), { style: toastStyle });
-        try {
-            let url = apiUrl;
-            if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
-            const res = await window.fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: 'Reply with "OK"' }],
-                    temperature: 0.1,
-                    stream: false,
-                }),
-            });
-            const data = await res.json();
-            if (res.ok && data?.choices?.[0]?.message?.content) {
-                toast.success(t('ai_config.test_success', { msg: data.choices[0].message.content.slice(0, 30) }), { id, style: toastStyle });
-            } else {
-                toast.error(t('ai_config.test_failed', { msg: JSON.stringify(data).slice(0, 80) }), { id, style: toastStyle });
-            }
-        } catch (e) {
-            toast.error(t('ai_config.test_error', { msg: e.message }), { id, style: toastStyle });
+
+        setAiApiServiceInstanceList(aiApiServiceInstanceList.filter((item) => item !== instanceKey));
+        deleteKey(instanceKey);
+        if (currentConfigKey === instanceKey) {
+            const nextKey = aiApiServiceInstanceList.find((item) => item !== instanceKey) ?? null;
+            setCurrentConfigKey(nextKey);
         }
     };
 
+    const updateServiceInstanceList = (instanceKey) => {
+        if (aiApiServiceInstanceList.includes(instanceKey)) {
+            return;
+        }
+
+        setAiApiServiceInstanceList([...aiApiServiceInstanceList, instanceKey]);
+        setCurrentConfigKey(instanceKey);
+    };
+
     return (
-        <div className='p-[10px] max-w-[600px]'>
+        <>
             <Toaster />
-            <Card>
-                <CardBody>
-                    <h3 className='text-[15px] font-bold mb-[14px]'>{t('ai_config.title')}</h3>
-                    <div className='space-y-[12px]'>
-                        <Input
-                            label='API URL'
-                            placeholder='https://api.openai.com/v1/chat/completions'
-                            value={apiUrl ?? ''}
-                            onValueChange={(v) => setApiUrl(v)}
-                            size='sm'
-                            variant='bordered'
-                            description={t('ai_config.url_desc')}
-                        />
-                        <Input
-                            label='API Key'
-                            placeholder='sk-...'
-                            value={apiKey ?? ''}
-                            onValueChange={(v) => setApiKey(v)}
-                            size='sm'
-                            variant='bordered'
-                            type='password'
-                        />
-                        <Input
-                            label={t('ai_config.model_label')}
-                            placeholder='gpt-4o-mini'
-                            value={model ?? ''}
-                            onValueChange={(v) => setModel(v)}
-                            size='sm'
-                            variant='bordered'
-                            description={t('ai_config.model_desc')}
-                        />
-                        <div>
-                            <div className='text-[13px] text-default-500 mb-1'>
-                                {t('ai_config.temperature', { n: Number(temperature ?? 0.7).toFixed(1) })}
-                            </div>
-                            <Slider
-                                size='sm'
-                                step={0.1}
-                                minValue={0}
-                                maxValue={2}
-                                value={Number(temperature ?? 0.7)}
-                                onChange={(v) => setTemperature(v)}
-                                className='max-w-md'
-                            />
-                        </div>
-                        <Button size='sm' variant='bordered' onPress={testConnection}>
-                            {t('ai_config.test_btn')}
+            <Card
+                className={`${
+                    osType === 'Linux' ? 'h-[calc(100vh-140px)]' : 'h-[calc(100vh-120px)]'
+                } overflow-y-auto p-5 flex justify-between`}
+            >
+                <div className='flex h-full flex-col'>
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable
+                            droppableId='ai-api-droppable'
+                            direction='vertical'
+                        >
+                            {(provided) => (
+                                <div
+                                    className='overflow-y-auto h-full'
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                >
+                                    {aiApiServiceInstanceList !== null &&
+                                        aiApiServiceInstanceList.map((instanceKey, index) => (
+                                            <Draggable
+                                                key={instanceKey}
+                                                draggableId={instanceKey}
+                                                index={index}
+                                            >
+                                                {(draggableProvided) => (
+                                                    <div
+                                                        ref={draggableProvided.innerRef}
+                                                        {...draggableProvided.draggableProps}
+                                                    >
+                                                        <ServiceItem
+                                                            {...draggableProvided.dragHandleProps}
+                                                            serviceInstanceKey={instanceKey}
+                                                            deleteServiceInstance={deleteServiceInstance}
+                                                            setCurrentConfigKey={setCurrentConfigKey}
+                                                            onConfigOpen={onConfigOpen}
+                                                        />
+                                                        <Spacer y={2} />
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                    {provided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+
+                    <Spacer y={2} />
+
+                    <div className='flex'>
+                        <Button
+                            fullWidth
+                            variant='flat'
+                            onPress={onSelectOpen}
+                        >
+                            {t('config.service.add_builtin_service')}
                         </Button>
                     </div>
-                </CardBody>
+                </div>
             </Card>
-        </div>
+            <SelectModal
+                isOpen={isSelectOpen}
+                onOpenChange={onSelectOpenChange}
+                setCurrentConfigKey={setCurrentConfigKey}
+                onConfigOpen={onConfigOpen}
+            />
+            <ConfigModal
+                serviceInstanceKey={currentConfigKey}
+                isOpen={isConfigOpen}
+                onOpenChange={onConfigOpenChange}
+                updateServiceInstanceList={updateServiceInstanceList}
+            />
+        </>
     );
 }

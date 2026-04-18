@@ -8,7 +8,7 @@ import {
     normalizeBillingProfile,
     todayDateString,
 } from './engine.js';
-import { BILLING_TIERS } from './plans.js';
+import { BILLING_TIERS, resolveTierRule } from './plans.js';
 import {
     createBillingProfile,
     findUsageEventByIdempotency,
@@ -73,6 +73,12 @@ const baseDeps = {
 
 function clonePlainObject(value) {
     return JSON.parse(JSON.stringify(value));
+}
+
+function createServiceError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = Number.isFinite(Number(statusCode)) ? Math.trunc(Number(statusCode)) : 500;
+    return error;
 }
 
 function pickSnapshotFromGrantMetadata(order, ledgerEntry) {
@@ -481,6 +487,85 @@ export function createBillingService(overrides = {}) {
         };
     }
 
+    async function changeMembershipTier(input = {}) {
+        const userId = String(input.userId || '').trim();
+        if (!userId) throw new Error('Missing userId');
+
+        const targetTier = String(input.targetTier || input.tier || '')
+            .trim()
+            .toLowerCase();
+        if (!Object.values(BILLING_TIERS).includes(targetTier)) {
+            throw createServiceError(400, `Unsupported tier: ${targetTier || 'unknown'}`);
+        }
+
+        const rawDurationDays = input.durationDays;
+        const hasDurationDays =
+            rawDurationDays !== undefined &&
+            rawDurationDays !== null &&
+            String(rawDurationDays).trim() !== '';
+        const durationDays = hasDurationDays ? Math.trunc(Number(rawDurationDays)) : 0;
+        if (hasDurationDays && (!Number.isFinite(durationDays) || durationDays < 0)) {
+            throw createServiceError(400, 'Invalid durationDays');
+        }
+
+        const current = await getOrCreateBillingProfile(userId);
+        const beforeProfile = toPublicProfile(current);
+        const now = new Date(deps.now());
+        const tierRule = resolveTierRule(targetTier);
+        const currentExpiry = current.subscriptionExpiresAt ? new Date(current.subscriptionExpiresAt) : null;
+        const hasActiveSubscriptionWindow =
+            currentExpiry &&
+            Number.isFinite(currentExpiry.getTime()) &&
+            currentExpiry.getTime() > now.getTime();
+
+        let subscriptionExpiresAt = null;
+        if (targetTier !== BILLING_TIERS.FREE) {
+            if (durationDays > 0) {
+                const startAt = hasActiveSubscriptionWindow ? currentExpiry : now;
+                subscriptionExpiresAt = new Date(
+                    startAt.getTime() + durationDays * 24 * 60 * 60 * 1000
+                ).toISOString();
+            } else if (hasActiveSubscriptionWindow) {
+                subscriptionExpiresAt = currentExpiry.toISOString();
+            } else {
+                throw createServiceError(400, 'Paid tier requires durationDays when no active subscription');
+            }
+        }
+
+        const updated = await deps.updateBillingProfile({
+            ...current,
+            tier: targetTier,
+            status: 'active',
+            subscriptionExpiresAt,
+            dailyQuota: tierRule.dailyQuota,
+        });
+        const afterProfile = toPublicProfile(updated);
+
+        await deps.insertLedgerEntry({
+            id: deps.uuid(),
+            userId,
+            entryType: 'subscription_tier_changed',
+            amountUnits: 0,
+            orderId: null,
+            grantKey: null,
+            metadata: {
+                action: 'tier_change',
+                reason: String(input.reason || '').trim(),
+                actor: input.actor || null,
+                beforeProfile,
+                afterProfile,
+                targetTier,
+                durationDays,
+            },
+        });
+
+        return {
+            ok: true,
+            tier: targetTier,
+            profile: afterProfile,
+        };
+    }
+
     return {
         getOrCreateBillingProfile,
         getBillingProfileSummary,
@@ -489,6 +574,7 @@ export function createBillingService(overrides = {}) {
         getBillingGrantLedger,
         reversePaymentGrantForOrder,
         setMembershipStatus,
+        changeMembershipTier,
     };
 }
 
@@ -501,3 +587,4 @@ export const applyPaymentGrantForOrder = defaultService.applyPaymentGrantForOrde
 export const getBillingGrantLedger = defaultService.getBillingGrantLedger;
 export const reversePaymentGrantForOrder = defaultService.reversePaymentGrantForOrder;
 export const setMembershipStatus = defaultService.setMembershipStatus;
+export const changeMembershipTier = defaultService.changeMembershipTier;

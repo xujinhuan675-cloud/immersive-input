@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { getCurrentUser } from '../utils/auth';
 import { clearStoredAdminToken, getStoredAdminToken, saveStoredAdminToken } from '../utils/admin';
-import { getBillingProfile, updateAdminMembership } from '../utils/billing';
+import { getBillingProfile, updateAdminMembership, updateAdminMembershipTier } from '../utils/billing';
 import { getPaymentOrderStatus, refundPaymentOrder } from '../utils/payment';
 
 const TIER_KEYS = {
@@ -134,6 +134,10 @@ export default function AdminBillingPage() {
     const [adminManagedProfile, setAdminManagedProfile] = useState(null);
     const [adminProfileLookupLoading, setAdminProfileLookupLoading] = useState(false);
     const [adminMembershipAction, setAdminMembershipAction] = useState('');
+    const [adminTierTarget, setAdminTierTarget] = useState('basic');
+    const [adminTierDurationDays, setAdminTierDurationDays] = useState('');
+    const [adminTierReason, setAdminTierReason] = useState('');
+    const [adminTierActionLoading, setAdminTierActionLoading] = useState(false);
 
     useEffect(() => {
         const { user } = getCurrentUser();
@@ -151,6 +155,15 @@ export default function AdminBillingPage() {
             setAdminUserId(String(userInfo.id));
         }
     }, [userInfo?.id, adminUserId]);
+
+    useEffect(() => {
+        const currentTier = String(adminManagedProfile?.tier || '')
+            .trim()
+            .toLowerCase();
+        if (currentTier && TIER_KEYS[currentTier]) {
+            setAdminTierTarget(currentTier);
+        }
+    }, [adminManagedProfile?.tier]);
 
     function getAdminTokenOrNotify() {
         const token = String(adminTokenInput || '').trim();
@@ -306,6 +319,34 @@ export default function AdminBillingPage() {
             toast.error(error.message || t('config.account.admin_membership_action_failed'));
         } finally {
             setAdminMembershipAction('');
+        }
+    }
+
+    async function handleAdminTierChange() {
+        const token = getAdminTokenOrNotify();
+        if (!token) return;
+        const targetUserId = String(adminUserId || '').trim();
+        if (!targetUserId) {
+            toast.error(t('config.account.admin_requires_user_id'));
+            return;
+        }
+
+        setAdminTierActionLoading(true);
+        try {
+            const result = await updateAdminMembershipTier({
+                userId: targetUserId,
+                targetTier: adminTierTarget,
+                durationDays: adminTierDurationDays,
+                reason: adminTierReason,
+                adminToken: token,
+            });
+            setAdminManagedProfile(result?.profile || null);
+            setAdminTierDurationDays('');
+            toast.success(t('config.account.admin_tier_apply_success'));
+        } catch (error) {
+            toast.error(error.message || t('config.account.admin_tier_apply_failed'));
+        } finally {
+            setAdminTierActionLoading(false);
         }
     }
 
@@ -699,6 +740,83 @@ export default function AdminBillingPage() {
                         </CardBody>
                     </Card>
                 </div>
+
+                <Card
+                    shadow='none'
+                    className='border-1 border-default-100 bg-white/80 backdrop-blur'
+                >
+                    <CardBody className='space-y-3'>
+                        <div className='space-y-1'>
+                            <p className='text-sm font-semibold text-default-800'>
+                                {t('config.account.admin_tier_title')}
+                            </p>
+                            <p className='text-xs text-default-500'>
+                                {t('config.account.admin_tier_subtitle')}
+                            </p>
+                        </div>
+
+                        <Input
+                            size='sm'
+                            label={t('config.account.admin_user_id')}
+                            value={adminUserId}
+                            onValueChange={setAdminUserId}
+                        />
+                        {userInfo?.id && (
+                            <div className='flex justify-start'>
+                                <Button
+                                    size='sm'
+                                    variant='light'
+                                    onPress={() => setAdminUserId(String(userInfo.id))}
+                                >
+                                    {t('config.account.admin_use_current_user')}
+                                </Button>
+                            </div>
+                        )}
+                        <label className='space-y-1 text-sm text-default-700'>
+                            <span className='font-medium'>{t('config.account.admin_tier_target')}</span>
+                            <select
+                                className='w-full rounded-xl border border-default-200 bg-white px-3 py-2 text-sm text-default-700 outline-none transition focus:border-primary'
+                                value={adminTierTarget}
+                                onChange={(event) => setAdminTierTarget(event.target.value)}
+                            >
+                                {Object.values(TIER_KEYS).map((item) => (
+                                    <option key={item.key} value={item.key}>
+                                        {t(`config.account.tier_${item.key}`)}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <Input
+                            size='sm'
+                            type='number'
+                            min='0'
+                            label={t('config.account.admin_tier_duration_days')}
+                            placeholder='30'
+                            value={adminTierDurationDays}
+                            onValueChange={setAdminTierDurationDays}
+                        />
+                        <p className='text-xs text-default-400'>
+                            {t('config.account.admin_tier_duration_hint')}
+                        </p>
+                        <Input
+                            size='sm'
+                            label={t('config.account.admin_membership_reason')}
+                            value={adminTierReason}
+                            onValueChange={setAdminTierReason}
+                        />
+
+                        <div className='flex flex-wrap gap-2'>
+                            <Button
+                                size='sm'
+                                color='primary'
+                                isLoading={adminTierActionLoading}
+                                onPress={handleAdminTierChange}
+                            >
+                                {t('config.account.admin_tier_apply')}
+                            </Button>
+                        </div>
+                    </CardBody>
+                </Card>
             </div>
         </div>
     );

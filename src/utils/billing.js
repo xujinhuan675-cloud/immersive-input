@@ -66,3 +66,29 @@ export async function updateAdminMembership({ userId, action, reason = '', admin
         },
     });
 }
+
+export async function updateAdminMembershipTier({
+    userId,
+    targetTier,
+    durationDays = '',
+    reason = '',
+    adminToken,
+} = {}) {
+    const token = String(adminToken || '').trim();
+    if (!token) throw new Error('Missing admin token');
+    const targetUserId = String(userId || '').trim();
+    if (!targetUserId) throw new Error('Missing userId');
+    const tier = String(targetTier || '').trim().toLowerCase();
+    if (!tier) throw new Error('Missing targetTier');
+
+    return requestBackend('/api/admin/billing?action=tier', {
+        method: 'POST',
+        headers: buildAdminHeaders(token),
+        body: {
+            userId: resolveUserId(targetUserId),
+            targetTier: tier,
+            durationDays,
+            reason,
+        },
+    });
+}

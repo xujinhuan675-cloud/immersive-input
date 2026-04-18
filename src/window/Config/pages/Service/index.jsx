@@ -90,7 +90,7 @@ export default function Service() {
                 </Tab>
                 <Tab
                     key='ai_api'
-                    title='AI API'
+                    title={t('ai_config.title', { defaultValue: 'AI API' })}
                 >
                     <AIConfig />
                 </Tab>

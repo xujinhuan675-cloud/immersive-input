@@ -10,7 +10,7 @@ import WindowHeader, {
 } from '../../components/WindowHeader';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { store } from '../../utils/store';
+import { getActiveAiApiConfig } from '../../utils/aiConfig';
 
 const VERSION_COUNT = 3;
 
@@ -27,15 +27,20 @@ const QUICK_TEMPLATES = [
 function useApiConfig() {
     const [config, setConfig] = useState(null);
     useEffect(() => {
+        let mounted = true;
+
         async function load() {
-            await store.load();
-            const apiUrl = (await store.get('ai_api_url')) || '';
-            const apiKey = (await store.get('ai_api_key')) || '';
-            const model = (await store.get('ai_model')) || 'gpt-4o-mini';
-            const temperature = (await store.get('ai_temperature')) ?? 0.7;
-            setConfig({ apiUrl, apiKey, model, temperature });
+            const nextConfig = await getActiveAiApiConfig();
+            if (mounted) {
+                setConfig(nextConfig);
+            }
         }
+
         load();
+
+        return () => {
+            mounted = false;
+        };
     }, []);
     return config;
 }

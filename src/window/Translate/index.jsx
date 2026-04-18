@@ -23,7 +23,6 @@ import { info } from 'tauri-plugin-log-api';
 
 let blurTimeout = null;
 let resizeTimeout = null;
-let moveTimeout = null;
 
 const listenBlur = () => {
     return listen('tauri://blur', () => {
@@ -71,10 +70,6 @@ void listen('tauri://move', () => {
 
 export default function Translate() {
     const { t } = useTranslation();
-    const [closeOnBlur] = useConfig('translate_close_on_blur', true);
-    const [alwaysOnTop] = useConfig('translate_always_on_top', false);
-    const [windowPosition] = useConfig('translate_window_position', 'mouse');
-    const [rememberWindowSize] = useConfig('translate_remember_window_size', false);
     const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig('translate_service_list', [
         'deepl',
         'bing',
@@ -86,7 +81,10 @@ export default function Translate() {
     const [recognizeServiceInstanceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
     const [ttsServiceInstanceList] = useConfig('tts_service_list', ['lingva_tts']);
     const [collectionServiceInstanceList] = useConfig('collection_service_list', []);
-    const [hideLanguage] = useConfig('hide_language', false);
+    const closeOnBlur = true;
+    const alwaysOnTop = false;
+    const rememberWindowSize = true;
+    const hideLanguage = false;
     const [pined, setPined] = useState(false);
     const [pluginList, setPluginList] = useState(null);
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
@@ -104,69 +102,42 @@ export default function Translate() {
     };
     // 是否自动关闭窗口
     useEffect(() => {
-        if (closeOnBlur !== null && !closeOnBlur) {
+        if (!closeOnBlur) {
             unlistenBlur();
         }
     }, [closeOnBlur]);
     // 是否默认置顶
     useEffect(() => {
-        if (alwaysOnTop !== null && alwaysOnTop) {
+        if (alwaysOnTop) {
             appWindow.setAlwaysOnTop(true);
             unlistenBlur();
             setPined(true);
         }
     }, [alwaysOnTop]);
     // 保存窗口位置
-    useEffect(() => {
-        if (windowPosition !== null && windowPosition === 'pre_state') {
-            const unlistenMove = listen('tauri://move', async () => {
-                if (moveTimeout) {
-                    clearTimeout(moveTimeout);
-                }
-                moveTimeout = setTimeout(async () => {
-                    if (appWindow.label === 'translate') {
-                        let position = await appWindow.outerPosition();
-                        const monitor = await currentMonitor();
-                        const factor = monitor.scaleFactor;
-                        position = position.toLogical(factor);
-                        await store.set('translate_window_position_x', parseInt(position.x));
-                        await store.set('translate_window_position_y', parseInt(position.y));
-                        await store.save();
-                    }
-                }, 100);
-            });
-            return () => {
-                unlistenMove.then((f) => {
-                    f();
-                });
-            };
-        }
-    }, [windowPosition]);
     // 保存窗口大小
     useEffect(() => {
-        if (rememberWindowSize !== null && rememberWindowSize) {
-            const unlistenResize = listen('tauri://resize', async () => {
-                if (resizeTimeout) {
-                    clearTimeout(resizeTimeout);
+        const unlistenResize = listen('tauri://resize', async () => {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            resizeTimeout = setTimeout(async () => {
+                if (appWindow.label === 'translate') {
+                    let size = await appWindow.outerSize();
+                    const monitor = await currentMonitor();
+                    const factor = monitor.scaleFactor;
+                    size = size.toLogical(factor);
+                    await store.set('translate_window_height', parseInt(size.height));
+                    await store.set('translate_window_width', parseInt(size.width));
+                    await store.save();
                 }
-                resizeTimeout = setTimeout(async () => {
-                    if (appWindow.label === 'translate') {
-                        let size = await appWindow.outerSize();
-                        const monitor = await currentMonitor();
-                        const factor = monitor.scaleFactor;
-                        size = size.toLogical(factor);
-                        await store.set('translate_window_height', parseInt(size.height));
-                        await store.set('translate_window_width', parseInt(size.width));
-                        await store.save();
-                    }
-                }, 100);
+            }, 100);
+        });
+        return () => {
+            unlistenResize.then((f) => {
+                f();
             });
-            return () => {
-                unlistenResize.then((f) => {
-                    f();
-                });
-            };
-        }
+        };
     }, [rememberWindowSize]);
 
     const loadPluginList = async () => {

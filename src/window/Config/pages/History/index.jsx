@@ -10,12 +10,12 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Database from 'tauri-plugin-sql-api';
 import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../../../utils/aiHistory';
-import { store } from '../../../../utils/store';
 
 import * as builtinCollectionServices from '../../../../services/collection';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import * as builtinServices from '../../../../services/translate';
 import { useConfig, useToastStyle } from '../../../../hooks';
+import { getActiveAiApiConfig } from '../../../../utils/aiConfig';
 import { normalizeLanguageKey } from '../../../../utils/language';
 import { osType } from '../../../../utils/env';
 import {
@@ -320,11 +320,8 @@ export default function History() {
 
     const generateAiReport = async () => {
         if (aiGenerating) return;
-        const apiUrl = (await store.get('ai_api_url')) ?? 'https://api.openai.com/v1/chat/completions';
-        const apiKey = (await store.get('ai_api_key')) ?? '';
-        const model = (await store.get('ai_model')) ?? 'gpt-4o-mini';
-        const temperature = (await store.get('ai_temperature')) ?? 0.7;
-        if (!apiKey) {
+        const apiConfig = await getActiveAiApiConfig();
+        if (!apiConfig?.apiKey) {
             toast.error(t('history.error_no_api_key'), { style: toastStyle });
             return;
         }
@@ -339,7 +336,7 @@ export default function History() {
         aiAbortRef.current = controller;
         await streamAnalysis(
             records,
-            { apiUrl, apiKey, model, temperature },
+            apiConfig,
             (chunk) => setAiReport((prev) => prev + chunk),
             (_full) => { setAiGenerating(false); aiAbortRef.current = null; },
             (err) => {

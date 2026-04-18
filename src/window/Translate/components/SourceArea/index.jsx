@@ -40,8 +40,8 @@ export default function SourceArea(props) {
     const [recognizeLanguage] = useConfig('recognize_language', 'auto');
     const [recognizeServiceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
     const [ttsServiceList] = useConfig('tts_service_list', ['lingva_tts']);
-    const [hideWindow] = useConfig('translate_hide_window', false);
-    const [hideSource] = useConfig('hide_source', false);
+    const hideWindow = false;
+    const hideSource = false;
     const [ttsPluginInfo, setTtsPluginInfo] = useState();
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
@@ -212,18 +212,16 @@ export default function SourceArea(props) {
     };
 
     useEffect(() => {
-        if (hideWindow !== null) {
-            if (unlisten) {
-                unlisten.then((f) => {
-                    f();
-                });
-            }
-            unlisten = listen('new_text', (event) => {
-                appWindow.setFocus();
-                handleNewText(event.payload);
+        if (unlisten) {
+            unlisten.then((f) => {
+                f();
             });
         }
-    }, [hideWindow]);
+        unlisten = listen('new_text', (event) => {
+            appWindow.setFocus();
+            handleNewText(event.payload);
+        });
+    }, []);
 
     useEffect(() => {
         if (ttsServiceList && getServiceSouceType(ttsServiceList[0]) === ServiceSourceType.PLUGIN) {
@@ -236,18 +234,12 @@ export default function SourceArea(props) {
     }, [ttsServiceList]);
 
     useEffect(() => {
-        if (
-            deleteNewline !== null &&
-            incrementalTranslate !== null &&
-            recognizeLanguage !== null &&
-            recognizeServiceList !== null &&
-            hideWindow !== null
-        ) {
+        if (deleteNewline !== null && incrementalTranslate !== null && recognizeLanguage !== null && recognizeServiceList !== null) {
             invoke('get_text').then((v) => {
                 handleNewText(v);
             });
         }
-    }, [deleteNewline, incrementalTranslate, recognizeLanguage, recognizeServiceList, hideWindow]);
+    }, [deleteNewline, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
 
     useEffect(() => {
         textAreaRef.current.style.height = '50px';

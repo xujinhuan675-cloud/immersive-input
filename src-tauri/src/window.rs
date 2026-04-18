@@ -187,12 +187,7 @@ fn translate_window() -> Window {
             Position { x: 0, y: 0 }
         }
     };
-    let (window, exists) = build_window("translate", "Translate");
-    if exists {
-        window.show().unwrap_or_default();
-        window.set_focus().unwrap_or_default();
-        return window;
-    }
+    let (window, _) = build_window("translate", "Translate");
     window.set_skip_taskbar(true).unwrap();
     // Get Translate Window Size
     let width = match get("translate_window_width") {
@@ -220,62 +215,33 @@ fn translate_window() -> Window {
         ))
         .unwrap();
 
-    let position_type = match get("translate_window_position") {
-        Some(v) => v.as_str().unwrap().to_string(),
-        None => "mouse".to_string(),
-    };
+    // Adjust window position
+    let monitor_size = monitor.size();
+    let monitor_size_width = monitor_size.width as f64;
+    let monitor_size_height = monitor_size.height as f64;
+    let monitor_position = monitor.position();
+    let monitor_position_x = monitor_position.x as f64;
+    let monitor_position_y = monitor_position.y as f64;
 
-    match position_type.as_str() {
-        "mouse" => {
-            // Adjust window position
-            let monitor_size = monitor.size();
-            let monitor_size_width = monitor_size.width as f64;
-            let monitor_size_height = monitor_size.height as f64;
-            let monitor_position = monitor.position();
-            let monitor_position_x = monitor_position.x as f64;
-            let monitor_position_y = monitor_position.y as f64;
-
-            if mouse_position.x as f64 + width as f64 * dpi
-                > monitor_position_x + monitor_size_width
-            {
-                mouse_position.x -= (width as f64 * dpi) as i32;
-                if (mouse_position.x as f64) < monitor_position_x {
-                    mouse_position.x = monitor_position_x as i32;
-                }
-            }
-            if mouse_position.y as f64 + height as f64 * dpi
-                > monitor_position_y + monitor_size_height
-            {
-                mouse_position.y -= (height as f64 * dpi) as i32;
-                if (mouse_position.y as f64) < monitor_position_y {
-                    mouse_position.y = monitor_position_y as i32;
-                }
-            }
-
-            window
-                .set_position(tauri::PhysicalPosition::new(
-                    mouse_position.x,
-                    mouse_position.y,
-                ))
-                .unwrap();
-        }
-        _ => {
-            let position_x = match get("translate_window_position_x") {
-                Some(v) => v.as_i64().unwrap(),
-                None => 0,
-            };
-            let position_y = match get("translate_window_position_y") {
-                Some(v) => v.as_i64().unwrap(),
-                None => 0,
-            };
-            window
-                .set_position(tauri::PhysicalPosition::new(
-                    (position_x as f64) * dpi,
-                    (position_y as f64) * dpi,
-                ))
-                .unwrap();
+    if mouse_position.x as f64 + width as f64 * dpi > monitor_position_x + monitor_size_width {
+        mouse_position.x -= (width as f64 * dpi) as i32;
+        if (mouse_position.x as f64) < monitor_position_x {
+            mouse_position.x = monitor_position_x as i32;
         }
     }
+    if mouse_position.y as f64 + height as f64 * dpi > monitor_position_y + monitor_size_height {
+        mouse_position.y -= (height as f64 * dpi) as i32;
+        if (mouse_position.y as f64) < monitor_position_y {
+            mouse_position.y = monitor_position_y as i32;
+        }
+    }
+
+    window
+        .set_position(tauri::PhysicalPosition::new(
+            mouse_position.x,
+            mouse_position.y,
+        ))
+        .unwrap();
 
     window.show().unwrap_or_default();
     window.set_focus().unwrap_or_default();
@@ -343,14 +309,6 @@ pub fn input_translate() {
         .unwrap()
         .replace_range(.., "[INPUT_TRANSLATE]");
     let window = translate_window();
-    let position_type = match get("translate_window_position") {
-        Some(v) => v.as_str().unwrap().to_string(),
-        None => "mouse".to_string(),
-    };
-    if position_type == "mouse" {
-        window.center().unwrap();
-    }
-
     window.emit("new_text", "[INPUT_TRANSLATE]").unwrap();
 }
 

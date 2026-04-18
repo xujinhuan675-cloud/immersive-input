@@ -1,5 +1,5 @@
 import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../lib/http.js';
-import { applyPaymentGrantForOrder, setMembershipStatus } from '../../lib/billing/service.js';
+import { applyPaymentGrantForOrder, changeMembershipTier, setMembershipStatus } from '../../lib/billing/service.js';
 import { refundUnifiedOrder } from '../../lib/payment/gateway.js';
 import { findPaymentOrderById } from '../../lib/payment/store.js';
 import { requireAdminRequest } from '../../lib/requestAuth.js';
@@ -10,6 +10,7 @@ function getAction(req) {
         .trim()
         .toLowerCase();
     if (action === 'admin-membership') return 'membership';
+    if (action === 'membership-tier' || action === 'admin-membership-tier') return 'tier';
     return action;
 }
 
@@ -46,6 +47,35 @@ async function handleMembershipUpdate(context, body) {
     const result = await setMembershipStatus({
         userId,
         action: membershipAction,
+        reason: body.reason || '',
+        actor: buildActor(context),
+    });
+    return { status: 200, payload: { ok: true, ...result } };
+}
+
+async function handleMembershipTierChange(context, body) {
+    const userId = String(body.userId || '').trim();
+    const targetTier = String(body.targetTier || body.tier || '')
+        .trim()
+        .toLowerCase();
+    if (!userId || !targetTier) {
+        return { status: 400, payload: { message: 'Missing userId or targetTier' } };
+    }
+
+    const rawDurationDays = body.durationDays;
+    const hasDurationDays =
+        rawDurationDays !== undefined &&
+        rawDurationDays !== null &&
+        String(rawDurationDays).trim() !== '';
+    const durationDays = hasDurationDays ? Number(rawDurationDays) : null;
+    if (hasDurationDays && (!Number.isFinite(durationDays) || durationDays < 0)) {
+        return { status: 400, payload: { message: 'Invalid durationDays' } };
+    }
+
+    const result = await changeMembershipTier({
+        userId,
+        targetTier,
+        durationDays: hasDurationDays ? Math.trunc(durationDays) : undefined,
         reason: body.reason || '',
         actor: buildActor(context),
     });
@@ -98,7 +128,7 @@ export default async function handler(req, res) {
 
     try {
         const action = getAction(req);
-        if (action !== 'membership' && action !== 'grant' && action !== 'refund') {
+        if (action !== 'membership' && action !== 'tier' && action !== 'grant' && action !== 'refund') {
             return sendJson(res, 400, { message: 'Unsupported action' });
         }
 
@@ -107,6 +137,8 @@ export default async function handler(req, res) {
         const result =
             action === 'membership'
                 ? await handleMembershipUpdate(context, body)
+                : action === 'tier'
+                  ? await handleMembershipTierChange(context, body)
                 : action === 'grant'
                   ? await handleGrant(req, body)
                   : await handleRefund(context, body);
@@ -119,6 +151,10 @@ export default async function handler(req, res) {
             ? 400
             : lower.includes('not found')
               ? 404
+              : lower.includes('unsupported tier') ||
+                  lower.includes('targettier') ||
+                  lower.includes('durationdays')
+                ? 400
               : lower.includes('not refundable')
                 ? 400
                 : 500;

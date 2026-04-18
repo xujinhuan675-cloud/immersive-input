@@ -9,8 +9,8 @@ import WindowHeader, {
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { store } from '../../utils/store';
 import { saveHistory } from '../../utils/aiHistory';
+import { getActiveAiApiConfig } from '../../utils/aiConfig';
 
 const SYSTEM_PROMPT =
     '你是一位知识渊博的助手。请详细解释用户提供的内容，包括：核心含义、背景知识、关键概念、实际用法和延伸拓展。' +
@@ -19,15 +19,20 @@ const SYSTEM_PROMPT =
 function useApiConfig() {
     const [config, setConfig] = useState(null);
     useEffect(() => {
+        let mounted = true;
+
         async function load() {
-            await store.load();
-            const apiUrl = (await store.get('ai_api_url')) || '';
-            const apiKey = (await store.get('ai_api_key')) || '';
-            const model = (await store.get('ai_model')) || 'gpt-4o-mini';
-            const temperature = (await store.get('ai_temperature')) ?? 0.7;
-            setConfig({ apiUrl, apiKey, model, temperature });
+            const nextConfig = await getActiveAiApiConfig();
+            if (mounted) {
+                setConfig(nextConfig);
+            }
         }
+
         load();
+
+        return () => {
+            mounted = false;
+        };
     }, []);
     return config;
 }

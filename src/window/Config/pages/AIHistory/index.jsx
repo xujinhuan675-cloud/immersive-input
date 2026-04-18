@@ -6,7 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../../../utils/aiHistory';
 import { useToastStyle } from '../../../../hooks';
-import { store } from '../../../../utils/store';
+import { getActiveAiApiConfig } from '../../../../utils/aiConfig';
 
 const TYPE_LABELS = { lightai: '轻AI润色', explain: '解析', chat: '对话' };
 
@@ -102,13 +102,12 @@ export default function AIHistory() {
         setGenerating(true);
         setReport('');
 
-        await store.load();
-        const apiConfig = {
-            apiUrl: (await store.get('ai_api_url')) || '',
-            apiKey: (await store.get('ai_api_key')) || '',
-            model: (await store.get('ai_model')) || 'gpt-4o-mini',
-            temperature: (await store.get('ai_temperature')) ?? 0.7,
-        };
+        const apiConfig = await getActiveAiApiConfig();
+        if (!apiConfig?.apiKey) {
+            toast.error('璇峰厛閰嶇疆 AI API Key', { style: toastStyle });
+            setGenerating(false);
+            return;
+        }
 
         await streamAnalysis(records, apiConfig,
             (chunk) => setReport((p) => p + chunk),
