@@ -1,7 +1,9 @@
 use crate::config::{get, reload};
 use crate::phrases::open_phrases_window;
 use crate::vault::{vault_quick_add_window, vault_quick_fill_window};
-use crate::window::{input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate};
+use crate::window::{
+    input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate,
+};
 use log::info;
 use once_cell::sync::Lazy;
 use rdev::Key;
@@ -33,17 +35,54 @@ fn key_to_str(key: Key) -> String {
 fn key_produces_char(key: Key) -> bool {
     matches!(
         key,
-        Key::KeyA | Key::KeyB | Key::KeyC | Key::KeyD | Key::KeyE
-        | Key::KeyF | Key::KeyG | Key::KeyH | Key::KeyI | Key::KeyJ
-        | Key::KeyK | Key::KeyL | Key::KeyM | Key::KeyN | Key::KeyO
-        | Key::KeyP | Key::KeyQ | Key::KeyR | Key::KeyS | Key::KeyT
-        | Key::KeyU | Key::KeyV | Key::KeyW | Key::KeyX | Key::KeyY | Key::KeyZ
-        | Key::Num0 | Key::Num1 | Key::Num2 | Key::Num3 | Key::Num4
-        | Key::Num5 | Key::Num6 | Key::Num7 | Key::Num8 | Key::Num9
-        | Key::Space
-        | Key::BackQuote | Key::Minus | Key::Equal
-        | Key::LeftBracket | Key::RightBracket | Key::BackSlash
-        | Key::SemiColon | Key::Quote | Key::Comma | Key::Dot | Key::Slash
+        Key::KeyA
+            | Key::KeyB
+            | Key::KeyC
+            | Key::KeyD
+            | Key::KeyE
+            | Key::KeyF
+            | Key::KeyG
+            | Key::KeyH
+            | Key::KeyI
+            | Key::KeyJ
+            | Key::KeyK
+            | Key::KeyL
+            | Key::KeyM
+            | Key::KeyN
+            | Key::KeyO
+            | Key::KeyP
+            | Key::KeyQ
+            | Key::KeyR
+            | Key::KeyS
+            | Key::KeyT
+            | Key::KeyU
+            | Key::KeyV
+            | Key::KeyW
+            | Key::KeyX
+            | Key::KeyY
+            | Key::KeyZ
+            | Key::Num0
+            | Key::Num1
+            | Key::Num2
+            | Key::Num3
+            | Key::Num4
+            | Key::Num5
+            | Key::Num6
+            | Key::Num7
+            | Key::Num8
+            | Key::Num9
+            | Key::Space
+            | Key::BackQuote
+            | Key::Minus
+            | Key::Equal
+            | Key::LeftBracket
+            | Key::RightBracket
+            | Key::BackSlash
+            | Key::SemiColon
+            | Key::Quote
+            | Key::Comma
+            | Key::Dot
+            | Key::Slash
     )
 }
 
@@ -53,8 +92,8 @@ fn delete_doubletap_chars() {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, INPUT, INPUT_0, INPUT_KEYBOARD,
-            KEYBDINPUT, VK_BACK,
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_BACK,
         };
         let no_scan: u16 = 0;
         let no_flags = KEYBD_EVENT_FLAGS(0);
@@ -62,14 +101,32 @@ fn delete_doubletap_chars() {
             let bs = [
                 INPUT {
                     r#type: INPUT_KEYBOARD,
-                    Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_BACK, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VK_BACK,
+                            wScan: no_scan,
+                            dwFlags: no_flags,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
                 },
                 INPUT {
                     r#type: INPUT_KEYBOARD,
-                    Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_BACK, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wVk: VK_BACK,
+                            wScan: no_scan,
+                            dwFlags: KEYEVENTF_KEYUP,
+                            time: 0,
+                            dwExtraInfo: 0,
+                        },
+                    },
                 },
             ];
-            unsafe { SendInput(&bs, std::mem::size_of::<INPUT>() as i32); }
+            unsafe {
+                SendInput(&bs, std::mem::size_of::<INPUT>() as i32);
+            }
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
     }

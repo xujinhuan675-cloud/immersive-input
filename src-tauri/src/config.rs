@@ -187,4 +187,3 @@ pub fn reload() {
     let mut store = state.0.lock().unwrap_or_else(|e| e.into_inner());
     let _ = store.load();
 }
-

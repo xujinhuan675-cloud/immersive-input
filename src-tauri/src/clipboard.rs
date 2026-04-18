@@ -25,9 +25,11 @@ pub fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
                                     };
                                     if hash_trigger && v.trim_end().ends_with('#') {
                                         // Strip trailing #, store text, open LightAI window
-                                        let clean = v.trim_end().trim_end_matches('#').trim().to_string();
+                                        let clean =
+                                            v.trim_end().trim_end_matches('#').trim().to_string();
                                         if !clean.is_empty() {
-                                            let str_state: tauri::State<StringWrapper> = handle.state();
+                                            let str_state: tauri::State<StringWrapper> =
+                                                handle.state();
                                             str_state.0.lock().unwrap().replace_range(.., &clean);
                                             light_ai_window();
                                         }

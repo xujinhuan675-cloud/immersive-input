@@ -905,7 +905,7 @@
         "phrases": {
             "search_placeholder": "搜索常用语（支持拼音）…",
             "search_found": "找到 {{n}} 条 · Enter 填入「{{preview}}…」",
-            "add": "＋ 新增",
+            "add": "新增",
             "tags": "标签",
             "hint": "↑↓ 选择 · Enter 填入 · Esc 关闭",
             "empty_new": "暂无常用语\n点击下方「＋ 新增」开始添加",

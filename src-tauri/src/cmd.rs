@@ -185,7 +185,6 @@ pub fn font_list() -> Result<Vec<String>, Error> {
     Ok(source.all_families()?)
 }
 
-
 /// Write text to clipboard
 #[tauri::command]
 pub fn write_clipboard(text: String) -> Result<(), String> {
@@ -197,10 +196,7 @@ pub fn write_clipboard(text: String) -> Result<(), String> {
 
 /// Write text to clipboard, restore previous window focus, then simulate Ctrl+V
 #[tauri::command]
-pub fn paste_result(
-    text: String,
-    state: tauri::State<PrevForegroundWindow>,
-) -> Result<(), String> {
+pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
     // 1. Write result text to clipboard
     {
         use arboard::Clipboard;
@@ -214,16 +210,17 @@ pub fn paste_result(
     {
         use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-            KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-            VK_CONTROL, VK_V,
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
         };
         use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 
         let prev_hwnd = *state.0.lock().unwrap();
         if prev_hwnd != 0 {
             // Cast stored isize back to *mut c_void for HWND
-            unsafe { let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void)); }
+            unsafe {
+                let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
+            }
             std::thread::sleep(std::time::Duration::from_millis(80));
         }
 
@@ -233,19 +230,51 @@ pub fn paste_result(
         let inputs = [
             INPUT {
                 r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
             },
             INPUT {
                 r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } },
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
             },
             INPUT {
                 r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
             },
             INPUT {
                 r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } },
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
             },
         ];
         unsafe {
@@ -269,16 +298,17 @@ pub fn fill_autotab(
         use arboard::Clipboard;
         use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-            KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-            VK_CONTROL, VK_TAB, VK_V,
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_TAB, VK_V,
         };
         use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 
         // Restore the target window focus
         let prev_hwnd = *state.0.lock().unwrap();
         if prev_hwnd != 0 {
-            unsafe { let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void)); }
+            unsafe {
+                let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
+            }
             std::thread::sleep(std::time::Duration::from_millis(80));
         }
 
@@ -292,20 +322,90 @@ pub fn fill_autotab(
         }
         std::thread::sleep(std::time::Duration::from_millis(80));
         let paste_account = [
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags, time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
         ];
-        unsafe { SendInput(&paste_account, std::mem::size_of::<INPUT>() as i32); }
+        unsafe {
+            SendInput(&paste_account, std::mem::size_of::<INPUT>() as i32);
+        }
         std::thread::sleep(std::time::Duration::from_millis(120));
 
         // 2. Tab (jump to password field)
         let tab_press = [
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_TAB, wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_TAB, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_TAB,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_TAB,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
         ];
-        unsafe { SendInput(&tab_press, std::mem::size_of::<INPUT>() as i32); }
+        unsafe {
+            SendInput(&tab_press, std::mem::size_of::<INPUT>() as i32);
+        }
         std::thread::sleep(std::time::Duration::from_millis(120));
 
         // 3. Set password to clipboard and Ctrl+V
@@ -315,12 +415,58 @@ pub fn fill_autotab(
         }
         std::thread::sleep(std::time::Duration::from_millis(80));
         let paste_password = [
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: no_flags,      time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_V,       wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
-            INPUT { r#type: INPUT_KEYBOARD, Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_CONTROL, wScan: no_scan, dwFlags: KEYEVENTF_KEYUP, time: 0, dwExtraInfo: 0 } } },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: no_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        wScan: no_scan,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
         ];
-        unsafe { SendInput(&paste_password, std::mem::size_of::<INPUT>() as i32); }
+        unsafe {
+            SendInput(&paste_password, std::mem::size_of::<INPUT>() as i32);
+        }
     }
     Ok(())
 }

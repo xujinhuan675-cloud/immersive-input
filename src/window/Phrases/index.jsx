@@ -1,617 +1,1078 @@
 import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { HiOutlineCollection, HiOutlinePencilAlt, HiOutlineTag, HiOutlineTrash } from 'react-icons/hi';
+
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
+import {
+    TRAY_WINDOW_HEADER_STYLE,
+    TRAY_WINDOW_PRIMARY_BUTTON_STYLE,
+    TRAY_WINDOW_TITLE_STYLE,
+    TRAY_WINDOW_TITLE_TEXT_STYLE,
+    TrayWindow,
+    TrayWindowBody,
+    TrayWindowSurface,
+} from '../../components/TrayWindow';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import {
-    getTags, addTag, updateTag, deleteTag,
-    getAllPhrases, addPhrase, updatePhrase, deletePhrase,
-    incrementUseCount, getTagCounts, matchPhrase,
+    addPhrase,
+    addTag,
+    deletePhrase,
+    deleteTag,
+    getAllPhrases,
+    getTagCounts,
+    getTags,
+    incrementUseCount,
+    matchPhrase,
+    updatePhrase,
+    updateTag,
 } from './phrasesDb';
 
-// ─────────────────────────────────────────────
-// 常量 & 工具
-// ─────────────────────────────────────────────
-const PRESET_COLORS = [
-    '#4a7cfa','#f44336','#e91e63','#9c27b0','#673ab7',
-    '#2196f3','#00bcd4','#4caf50','#8bc34a','#ffc107',
-    '#ff9800','#607d8b',
-];
-const PRESET_ICONS = ['📝','💬','📞','📢','🎯','🔧','💡','📋','🌟','❤️','🏷️','📁','✅','⚡','🎁','🔑'];
-
-// ─────────────────────────────────────────────
-// 样式
-// ─────────────────────────────────────────────
-const S = {
-    root: {
-        height: '100vh', display: 'flex', flexDirection: 'column',
-        background: '#fff', fontFamily: APP_FONT_FAMILY_VAR,
-        fontSize: '13px', color: '#222', overflow: 'hidden',
-        borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+const styles = {
+    view: {
+        display: 'flex',
+        minHeight: 0,
+        flex: 1,
+        flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: APP_FONT_FAMILY_VAR,
+        color: '#0f172a',
     },
-    // 搜索头部
-    header: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 14px', borderBottom: '1px solid #eee',
-        background: '#fafafa', flexShrink: 0, position: 'relative',
-    },
-    dragOverlay: { position: 'absolute', inset: 0, cursor: 'move', zIndex: 0 },
     searchInput: {
-        flex: 1, padding: '7px 12px', fontSize: '14px',
-        border: '1.5px solid #dde', borderRadius: '8px',
-        outline: 'none', background: '#fff', zIndex: 1, position: 'relative',
+        height: '34px',
+        width: '100%',
+        borderRadius: '10px',
+        border: '1px solid rgba(203, 213, 225, 0.9)',
+        background: 'rgba(255, 255, 255, 0.9)',
+        padding: '0 12px',
+        outline: 'none',
+        fontSize: '13px',
+        color: '#0f172a',
     },
-    // 主体
-    body: { flex: 1, display: 'flex', overflow: 'hidden' },
-    // 标签侧栏
-    sidebar: {
-        width: '148px', flexShrink: 0, borderRight: '1px solid #eee',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        background: '#fafafa',
+    filterBar: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '46px',
+        padding: '8px 12px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.76)',
+        background: 'rgba(248, 250, 252, 0.76)',
     },
-    sidebarScroll: { flex: 1, overflowY: 'auto', padding: '4px 0' },
-    tagItem: (active) => ({
-        display: 'flex', alignItems: 'center', gap: '6px',
-        padding: '7px 12px', cursor: 'pointer', fontSize: '12px',
-        background: active ? '#eef2ff' : 'transparent',
-        borderLeft: `3px solid ${active ? '#4a7cfa' : 'transparent'}`,
-        transition: 'background 0.1s',
-        userSelect: 'none',
+    filterScroll: {
+        display: 'flex',
+        minWidth: 0,
+        flex: 1,
+        gap: '6px',
+        overflowX: 'auto',
+        paddingBottom: '2px',
+    },
+    filterActions: {
+        display: 'flex',
+        flexShrink: 0,
+        gap: '6px',
+    },
+    pill: (active) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '5px 10px',
+        borderRadius: '999px',
+        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.84)' : 'rgba(226, 232, 240, 0.9)'}`,
+        background: active ? '#0f172a' : 'rgba(255, 255, 255, 0.88)',
+        color: active ? '#ffffff' : '#475569',
+        fontSize: '12px',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
     }),
-    tagIcon: { fontSize: '14px', flexShrink: 0 },
-    tagName: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 },
-    tagCount: { fontSize: '10px', color: '#aaa', flexShrink: 0 },
-    sidebarFooter: { padding: '6px 8px', borderTop: '1px solid #eee', flexShrink: 0 },
-    // 结果区
-    results: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-    resultList: { flex: 1, overflowY: 'auto', padding: '4px 0' },
-    phraseItem: (active, sent) => ({
-        display: 'flex', alignItems: 'flex-start', gap: '10px',
-        padding: '8px 14px', cursor: 'pointer',
-        background: active ? '#f0f4ff' : (sent ? '#f8fff8' : '#fff'),
-        borderBottom: '1px solid #f5f5f5',
-        transition: 'background 0.1s',
-    }),
-    phraseLeft: { flex: 1, minWidth: 0 },
-    phraseTitle: { fontWeight: 600, fontSize: '12px', color: '#444', marginBottom: '2px' },
-    phraseContent: {
-        fontSize: '13px', color: '#222', lineHeight: 1.5,
-        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        overflow: 'hidden', display: '-webkit-box',
-        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+    secondaryButton: {
+        height: '30px',
+        padding: '0 11px',
+        borderRadius: '9px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.88)',
+        color: '#475569',
+        fontSize: '12px',
+        fontWeight: 500,
+        cursor: 'pointer',
     },
-    phraseMeta: { fontSize: '10px', color: '#bbb', marginTop: '3px' },
-    // 状态栏
+    listWrap: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '10px 12px 12px',
+    },
+    list: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+    },
+    item: (active, sent) => ({
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '10px',
+        padding: '10px 12px',
+        borderRadius: '13px',
+        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.18)' : sent ? 'rgba(187, 247, 208, 0.95)' : 'rgba(226, 232, 240, 0.9)'}`,
+        background: active
+            ? 'rgba(241, 245, 249, 0.94)'
+            : sent
+              ? 'rgba(240, 253, 244, 0.88)'
+              : 'rgba(255, 255, 255, 0.92)',
+        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.28)',
+        cursor: 'pointer',
+        transition: 'background 120ms ease, border-color 120ms ease',
+    }),
+    itemMain: {
+        minWidth: 0,
+        flex: 1,
+    },
+    itemTitle: {
+        marginBottom: '3px',
+        fontSize: '11px',
+        color: '#94a3b8',
+        lineHeight: 1.3,
+    },
+    itemContent: {
+        color: '#0f172a',
+        fontSize: '13px',
+        lineHeight: 1.5,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        display: '-webkit-box',
+        overflow: 'hidden',
+        WebkitBoxOrient: 'vertical',
+        WebkitLineClamp: 2,
+    },
+    itemMeta: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginTop: '5px',
+        fontSize: '10px',
+        color: '#94a3b8',
+    },
+    itemActions: {
+        display: 'flex',
+        flexShrink: 0,
+        gap: '6px',
+        alignItems: 'center',
+    },
+    itemActionButton: (danger = false) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        height: '28px',
+        padding: '0 9px',
+        borderRadius: '8px',
+        border: `1px solid ${danger ? 'rgba(254, 205, 211, 0.95)' : 'rgba(226, 232, 240, 0.9)'}`,
+        background: danger ? 'rgba(255, 241, 242, 0.92)' : 'rgba(255, 255, 255, 0.9)',
+        color: danger ? '#dc2626' : '#475569',
+        fontSize: '11px',
+        cursor: 'pointer',
+    }),
+    empty: {
+        padding: '56px 16px',
+        textAlign: 'center',
+        color: '#94a3b8',
+        fontSize: '13px',
+        lineHeight: 1.8,
+    },
     statusBar: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '5px 14px', borderTop: '1px solid #eee',
-        background: '#fafafa', flexShrink: 0, fontSize: '11px', color: '#888',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '7px 12px',
+        borderTop: '1px solid rgba(226, 232, 240, 0.72)',
+        background: 'rgba(248, 250, 252, 0.78)',
+        color: '#64748b',
+        fontSize: '11px',
     },
-    // 通用按钮
-    btn: (variant = 'default', size = 'sm') => {
-        const pad = size === 'xs' ? '2px 7px' : size === 'sm' ? '4px 12px' : '6px 16px';
-        const fs = size === 'xs' ? '10px' : '12px';
-        const base = { padding: pad, borderRadius: '6px', cursor: 'pointer', fontSize: fs, border: '1px solid transparent', fontWeight: variant === 'primary' ? 600 : 400, lineHeight: 1.4 };
-        if (variant === 'primary') return { ...base, background: '#4a7cfa', color: '#fff', border: 'none' };
-        if (variant === 'danger')  return { ...base, background: '#fff', color: '#e53935', borderColor: '#fcc' };
-        if (variant === 'ghost')   return { ...base, background: 'transparent', color: '#4a7cfa', borderColor: '#4a7cfa' };
-        if (variant === 'sent')    return { ...base, background: '#e8f5e9', color: '#2e7d32', border: 'none' };
-        return { ...base, background: '#fff', color: '#555', borderColor: '#ddd' };
+    statusHint: {
+        flex: 1,
+        textAlign: 'right',
+        color: '#94a3b8',
     },
-    // 编辑面板
-    editPanel: {
-        flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fafafa',
+    formScroll: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        background: 'rgba(248, 250, 252, 0.58)',
     },
-    editHeader: {
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '8px 14px', borderBottom: '1px solid #eee', flexShrink: 0, background: '#fff',
+    section: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
     },
-    formRow: { display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' },
-    label: { fontSize: '11px', color: '#777', fontWeight: 500 },
-    input: { padding: '6px 10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', outline: 'none', background: '#fff' },
-    textarea: { padding: '6px 10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '13px', outline: 'none', background: '#fff', resize: 'vertical', minHeight: '80px', lineHeight: 1.6 },
-    // 颜色/图标选择器
-    colorPicker: { display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '6px 0' },
-    colorDot: (c, active) => ({
-        width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
-        border: active ? `3px solid #222` : '3px solid transparent',
-        boxSizing: 'border-box', transition: 'border 0.1s',
+    label: {
+        fontSize: '11px',
+        color: '#64748b',
+        fontWeight: 600,
+    },
+    field: {
+        width: '100%',
+        boxSizing: 'border-box',
+        border: '1px solid rgba(203, 213, 225, 0.9)',
+        borderRadius: '10px',
+        background: 'rgba(255, 255, 255, 0.92)',
+        padding: '9px 10px',
+        outline: 'none',
+        fontSize: '13px',
+        color: '#0f172a',
+    },
+    textarea: {
+        minHeight: '260px',
+        resize: 'vertical',
+        lineHeight: 1.6,
+    },
+    footer: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '8px',
+        padding: '10px 12px',
+        borderTop: '1px solid rgba(226, 232, 240, 0.72)',
+        background: 'rgba(248, 250, 252, 0.76)',
+    },
+    footerButton: (primary = false) => ({
+        height: '40px',
+        minWidth: primary ? '88px' : '80px',
+        padding: '0 16px',
+        borderRadius: '10px',
+        border: primary ? '1px solid rgba(15, 23, 42, 0.84)' : '1px solid rgba(226, 232, 240, 0.9)',
+        background: primary ? '#0f172a' : 'rgba(255, 255, 255, 0.92)',
+        color: primary ? '#ffffff' : '#475569',
+        fontSize: '13px',
+        fontWeight: 600,
+        cursor: 'pointer',
     }),
-    iconPicker: { display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '4px 0' },
-    iconBtn: (active) => ({
-        width: 30, height: 30, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        borderRadius: '6px', cursor: 'pointer', border: active ? '2px solid #4a7cfa' : '2px solid transparent',
-        background: active ? '#eef2ff' : '#fff', transition: 'border 0.1s',
+    managerList: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '10px 12px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        background: 'rgba(248, 250, 252, 0.58)',
+    },
+    tagRow: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 12px',
+        borderRadius: '12px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.92)',
+        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.28)',
+    },
+    tagDot: (color) => ({
+        width: '10px',
+        height: '10px',
+        borderRadius: '999px',
+        background: color,
+        flexShrink: 0,
     }),
-    // 模态覆盖
-    overlay: {
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,
+    tagName: {
+        flex: 1,
+        minWidth: 0,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize: '13px',
+        color: '#0f172a',
+        fontWeight: 500,
     },
-    modal: {
-        background: '#fff', borderRadius: '10px', padding: '20px 24px',
-        width: '360px', display: 'flex', flexDirection: 'column', gap: '12px',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.22)', maxHeight: '80vh', overflowY: 'auto',
+    tagEditInput: {
+        flex: 1,
+        minWidth: 0,
+        border: '1px solid rgba(203, 213, 225, 0.9)',
+        borderRadius: '9px',
+        background: 'rgba(255, 255, 255, 0.92)',
+        padding: '6px 9px',
+        fontSize: '13px',
+        outline: 'none',
     },
-    emptyTip: { textAlign: 'center', color: '#ccc', marginTop: '48px', fontSize: '13px', lineHeight: 2 },
+    subHeaderButton: {
+        height: '30px',
+        padding: '0 11px',
+        borderRadius: '9px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.88)',
+        color: '#475569',
+        fontSize: '12px',
+        fontWeight: 500,
+        cursor: 'pointer',
+    },
 };
 
-// ─────────────────────────────────────────────
-// 高亮匹配文字（简单版）
-// ─────────────────────────────────────────────
-function Highlight({ text, query }) {
-    if (!query || !text) return <>{text}</>;
-    const idx = text.toLowerCase().indexOf(query.toLowerCase());
-    if (idx < 0) return <>{text}</>;
+function HighlightText({ text, query }) {
+    if (!query || !text) {
+        return <>{text}</>;
+    }
+
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const index = lowerText.indexOf(lowerQuery);
+
+    if (index < 0) {
+        return <>{text}</>;
+    }
+
     return (
         <>
-            {text.slice(0, idx)}
-            <mark style={{ background: '#fff3cd', borderRadius: '2px', padding: '0 1px' }}>
-                {text.slice(idx, idx + query.length)}
+            {text.slice(0, index)}
+            <mark style={{ background: 'rgba(254, 240, 138, 0.65)', borderRadius: '3px', padding: '0 1px' }}>
+                {text.slice(index, index + query.length)}
             </mark>
-            {text.slice(idx + query.length)}
+            {text.slice(index + query.length)}
         </>
     );
 }
 
-// ─────────────────────────────────────────────
-// 标签编辑 Modal
-// ─────────────────────────────────────────────
-function TagModal({ tag, onSave, onCancel }) {
-    const isNew = !tag;
-    const [name, setName] = useState(tag?.name ?? '');
-    const [color, setColor] = useState(tag?.color ?? '#4a7cfa');
-    const [icon, setIcon] = useState(tag?.icon ?? '📝');
+function PhraseRow(props) {
+    const { phrase, tag, query, active, hovered, sent, batchMode, onHover, onSend, onEdit, onDelete } = props;
 
-    const handleSave = async () => {
-        if (!name.trim()) return;
-        await onSave({ name: name.trim(), color, icon });
+    return (
+        <div
+            style={styles.item(active, sent)}
+            onMouseEnter={onHover}
+            onClick={() => onSend(phrase)}
+        >
+            <div style={styles.itemMain}>
+                {phrase.title ? (
+                    <div style={styles.itemTitle}>
+                        <HighlightText
+                            text={phrase.title}
+                            query={query}
+                        />
+                    </div>
+                ) : null}
+                <div style={styles.itemContent}>
+                    <HighlightText
+                        text={phrase.content}
+                        query={query}
+                    />
+                </div>
+                <div style={styles.itemMeta}>
+                    <span>{tag ? tag.name : '未分类'}</span>
+                    <span>已用 {phrase.use_count || 0} 次</span>
+                </div>
+            </div>
+
+            {batchMode ? (
+                <div
+                    style={styles.itemActions}
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <button
+                        type='button'
+                        style={styles.itemActionButton(sent)}
+                        onClick={() => onSend(phrase)}
+                    >
+                        {sent ? '已发' : '发送'}
+                    </button>
+                </div>
+            ) : hovered || active ? (
+                <div
+                    style={styles.itemActions}
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    <button
+                        type='button'
+                        style={styles.itemActionButton(false)}
+                        onClick={() => onEdit(phrase)}
+                    >
+                        <HiOutlinePencilAlt />
+                        编辑
+                    </button>
+                    <button
+                        type='button'
+                        style={styles.itemActionButton(true)}
+                        onClick={() => onDelete(phrase)}
+                    >
+                        <HiOutlineTrash />
+                        删除
+                    </button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function TagsView({ onBack, onChanged }) {
+    const { t } = useTranslation();
+    const [tags, setTags] = useState([]);
+    const [editingId, setEditingId] = useState(null);
+    const [editingName, setEditingName] = useState('');
+    const [creating, setCreating] = useState(false);
+    const [newTagName, setNewTagName] = useState('');
+
+    const loadTags = useCallback(async () => {
+        setTags(await getTags());
+    }, []);
+
+    useEffect(() => {
+        void loadTags();
+    }, [loadTags]);
+
+    const startEdit = (tag) => {
+        setEditingId(tag.id);
+        setEditingName(tag.name);
+    };
+
+    const saveEdit = async (tag) => {
+        if (!editingName.trim()) return;
+        await updateTag(tag.id, {
+            name: editingName.trim(),
+            color: tag.color,
+            icon: tag.icon,
+            sort_order: tag.sort_order,
+        });
+        setEditingId(null);
+        setEditingName('');
+        await loadTags();
+        await onChanged();
+    };
+
+    const createTag = async () => {
+        if (!newTagName.trim()) return;
+        await addTag({ name: newTagName.trim() });
+        setCreating(false);
+        setNewTagName('');
+        await loadTags();
+        await onChanged();
+    };
+
+    const removeTag = async (tag) => {
+        if (!window.confirm(t('phrases.confirm_delete_tag', { name: tag.name }))) return;
+        await deleteTag(tag.id);
+        await loadTags();
+        await onChanged();
     };
 
     return (
-        <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onCancel()}>
-            <div style={S.modal}>
-                <div style={{ fontWeight: 700, fontSize: '14px' }}>{isNew ? '新建标签' : '编辑标签'}</div>
-                <div style={S.formRow}>
-                    <label style={S.label}>标签名</label>
-                    <input style={S.input} value={name} onChange={(e) => setName(e.target.value)}
-                        placeholder="标签名称" autoFocus />
-                </div>
-                <div style={S.formRow}>
-                    <label style={S.label}>颜色</label>
-                    <div style={S.colorPicker}>
-                        {PRESET_COLORS.map((c) => (
-                            <div key={c} style={S.colorDot(c, color === c)} onClick={() => setColor(c)} />
-                        ))}
+        <div style={styles.view}>
+            <WindowHeader
+                style={TRAY_WINDOW_HEADER_STYLE}
+                left={<WindowHeaderButton onClick={onBack}>{t('phrases.back')}</WindowHeaderButton>}
+                center={
+                    <WindowHeaderTitle
+                        style={TRAY_WINDOW_TITLE_STYLE}
+                        textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
+                    >
+                        {t('phrases.manage_tags')}
+                    </WindowHeaderTitle>
+                }
+                right={
+                    creating ? null : (
+                        <WindowHeaderButton onClick={() => setCreating(true)}>{t('phrases.add')}</WindowHeaderButton>
+                    )
+                }
+            />
+
+            <div style={styles.managerList}>
+                {creating ? (
+                    <div style={styles.tagRow}>
+                        <span style={styles.tagDot('#4a7cfa')} />
+                        <input
+                            style={styles.tagEditInput}
+                            value={newTagName}
+                            autoFocus
+                            onChange={(event) => setNewTagName(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    void createTag();
+                                }
+                                if (event.key === 'Escape') {
+                                    setCreating(false);
+                                    setNewTagName('');
+                                }
+                            }}
+                        />
+                        <button
+                            type='button'
+                            style={styles.subHeaderButton}
+                            onClick={() => {
+                                void createTag();
+                            }}
+                        >
+                            保存
+                        </button>
+                        <button
+                            type='button'
+                            style={styles.subHeaderButton}
+                            onClick={() => {
+                                setCreating(false);
+                                setNewTagName('');
+                            }}
+                        >
+                            {t('common.cancel')}
+                        </button>
                     </div>
-                </div>
-                <div style={S.formRow}>
-                    <label style={S.label}>图标</label>
-                    <div style={S.iconPicker}>
-                        {PRESET_ICONS.map((ic) => (
-                            <div key={ic} style={S.iconBtn(icon === ic)} onClick={() => setIcon(ic)}>{ic}</div>
-                        ))}
-                    </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button style={S.btn()} onClick={onCancel}>取消</button>
-                    <button style={S.btn('primary')} onClick={handleSave} disabled={!name.trim()}>保存</button>
-                </div>
+                ) : null}
+
+                {tags.length === 0 && !creating ? <div style={styles.empty}>{t('phrases.no_tags')}</div> : null}
+
+                {tags.map((tag) =>
+                    editingId === tag.id ? (
+                        <div
+                            key={tag.id}
+                            style={styles.tagRow}
+                        >
+                            <span style={styles.tagDot(tag.color)} />
+                            <input
+                                style={styles.tagEditInput}
+                                value={editingName}
+                                autoFocus
+                                onChange={(event) => setEditingName(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void saveEdit(tag);
+                                    }
+                                    if (event.key === 'Escape') {
+                                        setEditingId(null);
+                                        setEditingName('');
+                                    }
+                                }}
+                            />
+                            <button
+                                type='button'
+                                style={styles.subHeaderButton}
+                                onClick={() => {
+                                    void saveEdit(tag);
+                                }}
+                            >
+                                {t('phrases.tags_save')}
+                            </button>
+                            <button
+                                type='button'
+                                style={styles.subHeaderButton}
+                                onClick={() => {
+                                    setEditingId(null);
+                                    setEditingName('');
+                                }}
+                            >
+                                {t('common.cancel')}
+                            </button>
+                        </div>
+                    ) : (
+                        <div
+                            key={tag.id}
+                            style={styles.tagRow}
+                        >
+                            <span style={styles.tagDot(tag.color)} />
+                            <span style={styles.tagName}>{tag.name}</span>
+                            <div style={styles.itemActions}>
+                                <button
+                                    type='button'
+                                    style={styles.itemActionButton(false)}
+                                    onClick={() => startEdit(tag)}
+                                >
+                                    编辑
+                                </button>
+                                <button
+                                    type='button'
+                                    style={styles.itemActionButton(true)}
+                                    onClick={() => {
+                                        void removeTag(tag);
+                                    }}
+                                >
+                                    删除
+                                </button>
+                            </div>
+                        </div>
+                    )
+                )}
             </div>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────
-// 短语编辑 Modal
-// ─────────────────────────────────────────────
-function PhraseModal({ phrase, tags, defaultTagId, onSave, onCancel }) {
+function EditView({ phrase, allTags, onSaved, onCancel }) {
+    const { t } = useTranslation();
     const isNew = !phrase;
     const [title, setTitle] = useState(phrase?.title ?? '');
     const [content, setContent] = useState(phrase?.content ?? '');
-    const [tagId, setTagId] = useState(phrase?.tag_id ?? defaultTagId ?? null);
+    const [tagId, setTagId] = useState(phrase?.tag_id ?? null);
+    const [newTagMode, setNewTagMode] = useState(false);
+    const [newTagName, setNewTagName] = useState('');
+    const [saving, setSaving] = useState(false);
     const contentRef = useRef(null);
 
-    useEffect(() => { if (!isNew) contentRef.current?.focus(); }, [isNew]);
+    useEffect(() => {
+        const timer = setTimeout(() => contentRef.current?.focus(), 60);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleTagChange = (event) => {
+        if (event.target.value === '__new__') {
+            setNewTagMode(true);
+            setTagId(null);
+            return;
+        }
+
+        setNewTagMode(false);
+        setTagId(event.target.value ? Number(event.target.value) : null);
+    };
 
     const handleSave = async () => {
         if (!content.trim()) return;
-        await onSave({ title: title.trim(), content: content.trim(), tag_id: tagId });
+
+        setSaving(true);
+        try {
+            let nextTagId = tagId;
+            if (newTagMode && newTagName.trim()) {
+                nextTagId = await addTag({ name: newTagName.trim() });
+            }
+
+            const payload = {
+                title: title.trim(),
+                content: content.trim(),
+                tag_id: nextTagId,
+            };
+
+            if (isNew) {
+                await addPhrase(payload);
+            } else {
+                await updatePhrase(phrase.id, payload);
+            }
+
+            await onSaved();
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div style={S.overlay} onClick={(e) => e.target === e.currentTarget && onCancel()}>
-            <div style={S.modal}>
-                <div style={{ fontWeight: 700, fontSize: '14px' }}>{isNew ? '新增常用语' : '编辑常用语'}</div>
-                <div style={S.formRow}>
-                    <label style={S.label}>标签</label>
-                    <select style={{ ...S.input, background: '#fff' }} value={tagId ?? ''} onChange={(e) => setTagId(e.target.value ? Number(e.target.value) : null)}>
-                        <option value="">未分类</option>
-                        {tags.map((t) => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
-                    </select>
-                </div>
-                <div style={S.formRow}>
-                    <label style={S.label}>标题（可选）</label>
-                    <input style={S.input} value={title} onChange={(e) => setTitle(e.target.value)}
-                        placeholder="方便搜索的简短标题" autoFocus={isNew} />
-                </div>
-                <div style={S.formRow}>
-                    <label style={S.label}>内容 *</label>
-                    <textarea ref={contentRef} style={S.textarea} value={content}
-                        onChange={(e) => setContent(e.target.value)} placeholder="常用语内容" />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button style={S.btn()} onClick={onCancel}>取消</button>
-                    <button style={S.btn('primary')} onClick={handleSave} disabled={!content.trim()}>保存</button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────
-// 单条短语行
-// ─────────────────────────────────────────────
-function PhraseRow({ phrase, query, active, sentIds, isBatch, onSend, onEdit, onDelete, onSelect }) {
-    const sent = sentIds?.has(phrase.id);
-    return (
-        <div
-            style={S.phraseItem(active, sent)}
-            onClick={() => !isBatch && onSend(phrase)}
-            onMouseEnter={onSelect}
-        >
-            <div style={S.phraseLeft}>
-                {phrase.title && (
-                    <div style={S.phraseTitle}>
-                        <Highlight text={phrase.title} query={query} />
-                    </div>
-                )}
-                <div style={S.phraseContent}>
-                    <Highlight text={phrase.content} query={query} />
-                </div>
-                <div style={S.phraseMeta}>
-                    {phrase.use_count > 0 ? `已用 ${phrase.use_count} 次` : '未使用'}
-                </div>
-            </div>
-            <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}
-                onClick={(e) => e.stopPropagation()}>
-                {isBatch ? (
-                    <button
-                        style={sent ? S.btn('sent', 'sm') : S.btn('primary', 'sm')}
-                        onClick={() => onSend(phrase)}
+        <div style={styles.view}>
+            <WindowHeader
+                style={TRAY_WINDOW_HEADER_STYLE}
+                center={
+                    <WindowHeaderTitle
+                        icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
+                        style={TRAY_WINDOW_TITLE_STYLE}
+                        textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        {sent ? '✓ 已发' : '发送'}
-                    </button>
-                ) : (
-                    <>
-                        <button style={S.btn('ghost', 'xs')} onClick={() => onEdit(phrase)}>编辑</button>
-                        <button style={S.btn('danger', 'xs')} onClick={() => onDelete(phrase)}>删除</button>
-                    </>
-                )}
+                        {isNew ? t('phrases.add_phrase') : t('phrases.edit_phrase')}
+                    </WindowHeaderTitle>
+                }
+                right={<WindowHeaderCloseButton />}
+            />
+
+            <div style={styles.formScroll}>
+                <div style={styles.section}>
+                    <label style={styles.label}>{t('phrases.category')}</label>
+                    {newTagMode ? (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                                style={{ ...styles.field, flex: 1 }}
+                                value={newTagName}
+                                autoFocus
+                                onChange={(event) => setNewTagName(event.target.value)}
+                                placeholder={t('phrases.new_tag_placeholder')}
+                            />
+                            <button
+                                type='button'
+                                style={styles.secondaryButton}
+                                onClick={() => {
+                                    setNewTagMode(false);
+                                    setNewTagName('');
+                                }}
+                            >
+                                {t('phrases.cancel_tag')}
+                            </button>
+                        </div>
+                    ) : (
+                        <select
+                            style={styles.field}
+                            value={tagId ?? ''}
+                            onChange={handleTagChange}
+                        >
+                            <option value=''>{t('phrases.uncategorized')}</option>
+                            {allTags.map((tag) => (
+                                <option
+                                    key={tag.id}
+                                    value={tag.id}
+                                >
+                                    {tag.name}
+                                </option>
+                            ))}
+                            <option value='__new__'>{t('phrases.new_tag_option')}</option>
+                        </select>
+                    )}
+                </div>
+
+                <div style={styles.section}>
+                    <label style={styles.label}>{t('phrases.title_field')}</label>
+                    <input
+                        style={styles.field}
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        placeholder={t('phrases.title_placeholder')}
+                    />
+                </div>
+
+                <div style={{ ...styles.section, flex: 1 }}>
+                    <label style={styles.label}>{t('phrases.content_field')}</label>
+                    <textarea
+                        ref={contentRef}
+                        style={{ ...styles.field, ...styles.textarea }}
+                        value={content}
+                        onChange={(event) => setContent(event.target.value)}
+                        placeholder={t('phrases.content_placeholder')}
+                    />
+                </div>
+            </div>
+
+            <div style={styles.footer}>
+                <button
+                    type='button'
+                    style={styles.footerButton(false)}
+                    onClick={onCancel}
+                >
+                    {t('common.cancel')}
+                </button>
+                <button
+                    type='button'
+                    style={{ ...styles.footerButton(true), ...TRAY_WINDOW_PRIMARY_BUTTON_STYLE }}
+                    onClick={() => {
+                        void handleSave();
+                    }}
+                    disabled={!content.trim() || saving}
+                >
+                    {saving ? t('phrases.saving') : t('phrases.save')}
+                </button>
             </div>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────
-// 主组件
-// ─────────────────────────────────────────────
 export default function Phrases() {
     const { t } = useTranslation();
+    const [view, setView] = useState('list');
+    const [editPhrase, setEditPhrase] = useState(null);
     const [tags, setTags] = useState([]);
     const [allPhrases, setAllPhrases] = useState([]);
     const [tagCounts, setTagCounts] = useState({});
-    const [selectedTagId, setSelectedTagId] = useState(null); // null=全部
+    const [selectedTagId, setSelectedTagId] = useState(null);
     const [search, setSearch] = useState('');
     const [activeIdx, setActiveIdx] = useState(0);
-    // 'search' | 'batch'
-    const [mode, setMode] = useState('search');
-    // 批量发送时已发送的 id 集合
+    const [hoverId, setHoverId] = useState(null);
+    const [batchMode, setBatchMode] = useState(false);
     const [sentIds, setSentIds] = useState(new Set());
-    // Modal 状态
-    const [tagModal, setTagModal] = useState(null); // null | 'new' | tag对象
-    const [phraseModal, setPhraseModal] = useState(null); // null | 'new' | phrase对象
-    // 编辑某标签下短语时展开的 tagId
-    const [editingTagId, setEditingTagId] = useState(null);
-
     const searchRef = useRef(null);
 
-    // ─── 数据加载 ───
     const reload = useCallback(async () => {
-        const [t, p, c] = await Promise.all([getTags(), getAllPhrases(), getTagCounts()]);
-        setTags(t);
-        setAllPhrases(p);
-        setTagCounts(c);
-    }, []);
+        const [nextTags, nextPhrases, nextTagCounts] = await Promise.all([getTags(), getAllPhrases(), getTagCounts()]);
 
-    useEffect(() => { reload(); }, [reload]);
+        setTags(nextTags);
+        setAllPhrases(nextPhrases);
+        setTagCounts(nextTagCounts);
 
-    // 窗口打开时聚焦搜索框
-    useEffect(() => { setTimeout(() => searchRef.current?.focus(), 80); }, []);
+        if (
+            selectedTagId !== null &&
+            selectedTagId !== '__uncat__' &&
+            !nextTags.some((tag) => tag.id === selectedTagId)
+        ) {
+            setSelectedTagId(null);
+        }
+    }, [selectedTagId]);
 
-    // ─── 过滤逻辑 ───
+    useEffect(() => {
+        void reload();
+    }, [reload]);
+
+    useEffect(() => {
+        if (view !== 'list') return undefined;
+
+        const timer = setTimeout(() => searchRef.current?.focus(), 80);
+        return () => clearTimeout(timer);
+    }, [view]);
+
+    const tagMap = useMemo(() => {
+        const map = {};
+        tags.forEach((tag) => {
+            map[tag.id] = tag;
+        });
+        return map;
+    }, [tags]);
+
     const filtered = useMemo(() => {
         let list = allPhrases;
-        // 标签过滤
+
         if (selectedTagId === '__uncat__') {
-            list = list.filter((p) => p.tag_id === null || p.tag_id === undefined);
+            list = list.filter((phrase) => phrase.tag_id === null || phrase.tag_id === undefined);
         } else if (selectedTagId !== null) {
-            list = list.filter((p) => p.tag_id === selectedTagId);
+            list = list.filter((phrase) => phrase.tag_id === selectedTagId);
         }
-        // 搜索过滤
+
         if (search.trim()) {
-            list = list.filter((p) => matchPhrase(p, search.trim()));
+            list = list.filter((phrase) => matchPhrase(phrase, search.trim()));
         }
+
         return list;
-    }, [allPhrases, selectedTagId, search]);
+    }, [allPhrases, search, selectedTagId]);
 
-    useEffect(() => { setActiveIdx(0); }, [filtered]);
+    useEffect(() => {
+        setActiveIdx(0);
+    }, [filtered]);
 
-    // ─── 发送逻辑 ───
-    const sendPhrase = useCallback(async (phrase) => {
-        await incrementUseCount(phrase.id);
-        if (mode === 'batch') {
-            setSentIds((prev) => new Set([...prev, phrase.id]));
-            // 批量模式不关闭窗口
-            reload();
+    const activeTag = tags.find((tag) => tag.id === selectedTagId) ?? null;
+
+    const tagPills = useMemo(
+        () => [
+            { id: null, name: '全部', count: allPhrases.length },
+            ...tags.map((tag) => ({
+                id: tag.id,
+                name: tag.name,
+                count: tagCounts[tag.id] ?? 0,
+            })),
+            { id: '__uncat__', name: '未分类', count: tagCounts.__uncat__ ?? 0 },
+        ],
+        [allPhrases.length, tagCounts, tags]
+    );
+
+    const sendPhrase = useCallback(
+        async (phrase) => {
+            if (!phrase) return;
+
+            await incrementUseCount(phrase.id);
+
+            if (batchMode) {
+                setSentIds((prev) => new Set([...prev, phrase.id]));
+                await reload();
+                return;
+            }
+
+            try {
+                await appWindow.hide();
+                await new Promise((resolve) => setTimeout(resolve, 150));
+                await invoke('paste_result', { text: phrase.content });
+            } catch (error) {
+                console.error('send error:', error);
+            }
+
+            await reload();
+        },
+        [batchMode, reload]
+    );
+
+    const deleteCurrentPhrase = useCallback(
+        async (phrase) => {
+            const label = phrase.title || phrase.content.slice(0, 20);
+            if (!window.confirm(t('phrases.confirm_delete', { name: label }))) return;
+            await deletePhrase(phrase.id);
+            await reload();
+        },
+        [reload, t]
+    );
+
+    const handleListKeyDown = (event) => {
+        if (view !== 'list') return;
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            void appWindow.close();
             return;
         }
-        // 普通模式：发送后关闭
-        try {
-            await appWindow.hide();
-            await new Promise((r) => setTimeout(r, 150));
-            await invoke('paste_result', { text: phrase.content });
-        } catch (e) {
-            console.error('send error:', e);
-        }
-        reload();
-    }, [mode, reload]);
 
-    // ─── 键盘导航 ───
-    const handleKeyDown = (e) => {
-        if (e.key === 'Escape') { appWindow.close(); return; }
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setActiveIdx((i) => Math.max(i - 1, 0));
-        } else if (e.key === 'Enter' && filtered[activeIdx]) {
-            e.preventDefault();
-            sendPhrase(filtered[activeIdx]);
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActiveIdx((index) => Math.min(index + 1, filtered.length - 1));
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActiveIdx((index) => Math.max(index - 1, 0));
+            return;
+        }
+
+        if (event.key === 'Enter' && filtered[activeIdx]) {
+            event.preventDefault();
+            void sendPhrase(filtered[activeIdx]);
         }
     };
 
-    // ─── 标签 CRUD ───
-    const handleTagSave = async (data) => {
-        if (tagModal === 'new') {
-            await addTag(data);
-        } else {
-            await updateTag(tagModal.id, { ...data, sort_order: tagModal.sort_order });
-        }
-        setTagModal(null);
-        reload();
-    };
+    let content = null;
 
-    const handleTagDelete = async (tag) => {
-        if (!window.confirm(`删除标签「${tag.name}」？该标签下的常用语将变为未分类。`)) return;
-        await deleteTag(tag.id);
-        if (selectedTagId === tag.id) setSelectedTagId(null);
-        reload();
-    };
-
-    // ─── 短语 CRUD ───
-    const handlePhraseSave = async (data) => {
-        if (phraseModal === 'new') {
-            await addPhrase(data);
-        } else {
-            await updatePhrase(phraseModal.id, data);
-        }
-        setPhraseModal(null);
-        reload();
-    };
-
-    const handlePhraseDelete = async (phrase) => {
-        if (!window.confirm('确认删除这条常用语？')) return;
-        await deletePhrase(phrase.id);
-        reload();
-    };
-
-    // ─── 活动标签对象 ───
-    const activeTag = tags.find((t) => t.id === selectedTagId) ?? null;
-    const totalCount = selectedTagId === null ? allPhrases.length
-        : selectedTagId === '__uncat__' ? (tagCounts['__uncat__'] ?? 0)
-        : (tagCounts[selectedTagId] ?? 0);
-
-    // ─── 侧栏标签列表 ───
-    const sidebarTags = [
-        { id: null, name: '全部', icon: '🗂️', color: '#888' },
-        ...tags,
-        { id: '__uncat__', name: '未分类', icon: '📌', color: '#bbb' },
-    ];
-
-    return (
-        <div style={S.root} onKeyDown={handleKeyDown} tabIndex={-1}>
-            {/* ─── 搜索头部 ─── */}
-            <WindowHeader
-                left={<WindowHeaderTitle icon='📝'>{'\u5e38\u7528\u8bed'}</WindowHeaderTitle>}
-                center={
-                    <input
-                        ref={searchRef}
-                        style={S.searchInput}
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setMode('search');
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && mode !== 'batch' && filtered.length > 0) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                void sendPhrase(filtered[0]);
-                            }
-                        }}
-                        placeholder={
-                            filtered.length > 0 && search
-                                ? t('phrases.search_found', {
-                                      n: filtered.length,
-                                      preview: filtered[0].title || filtered[0].content.slice(0, 10),
-                                  })
-                                : t('phrases.search_placeholder')
-                        }
-                    />
-                }
-                right={
-                    <>
-                        <WindowHeaderButton variant='primary' onClick={() => setPhraseModal('new')}>
-                            {t('phrases.add')}
-                        </WindowHeaderButton>
-                        <WindowHeaderCloseButton />
-                    </>
-                }
+    if (view === 'edit') {
+        content = (
+            <EditView
+                phrase={editPhrase}
+                allTags={tags}
+                onSaved={async () => {
+                    await reload();
+                    setView('list');
+                    setEditPhrase(null);
+                }}
+                onCancel={() => {
+                    setView('list');
+                    setEditPhrase(null);
+                }}
             />
-            {false && <div style={S.header}>
-                <div style={S.dragOverlay} data-tauri-drag-region="true" />
-                <input
-                    ref={searchRef}
-                    style={S.searchInput}
-                    value={search}
-                    onChange={(e) => { setSearch(e.target.value); setMode('search'); }}
-                    onKeyDown={(e) => {
-                        // Enter 直接发送第一条匹配结果，无需先用方向键选中
-                        if (e.key === 'Enter' && mode !== 'batch' && filtered.length > 0) {
-                            e.preventDefault();
-                            e.stopPropagation(); // 防止触发根层 handleKeyDown 重复发送
-                            sendPhrase(filtered[0]);
-                        }
-                    }}
-                    placeholder={
-                        filtered.length > 0 && search
-                            ? `🔍 找到 ${filtered.length} 条 · 按 Enter 发送「${filtered[0].title || filtered[0].content.slice(0, 10)}」…`
-                            : '🔍 搜索常用语（拼音），Enter 发送第一条…'
+        );
+    } else if (view === 'tags') {
+        content = (
+            <TagsView
+                onBack={() => setView('list')}
+                onChanged={reload}
+            />
+        );
+    } else {
+        content = (
+            <div
+                style={styles.view}
+                onKeyDown={handleListKeyDown}
+                tabIndex={-1}
+            >
+                <WindowHeader
+                    style={TRAY_WINDOW_HEADER_STYLE}
+                    left={
+                        <WindowHeaderTitle
+                            icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
+                            style={TRAY_WINDOW_TITLE_STYLE}
+                            textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
+                        >
+                            常用语
+                        </WindowHeaderTitle>
+                    }
+                    center={
+                        <input
+                            ref={searchRef}
+                            style={styles.searchInput}
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            onKeyDown={handleListKeyDown}
+                            placeholder={
+                                filtered.length > 0 && search
+                                    ? t('phrases.search_found', {
+                                          n: filtered.length,
+                                          preview: (filtered[0].title || filtered[0].content).slice(0, 10),
+                                      })
+                                    : t('phrases.search_placeholder')
+                            }
+                        />
+                    }
+                    right={
+                        <>
+                            <WindowHeaderButton
+                                variant='primary'
+                                style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
+                                onClick={() => {
+                                    setEditPhrase(null);
+                                    setView('edit');
+                                }}
+                            >
+                                {t('phrases.add')}
+                            </WindowHeaderButton>
+                            <WindowHeaderCloseButton />
+                        </>
                     }
                 />
-                <button style={{ ...S.btn('ghost', 'sm'), position: 'relative', zIndex: 1 }}
-                    onClick={() => setPhraseModal('new')}>+ 新增</button>
-                <button style={{ ...S.btn('', 'sm'), position: 'relative', zIndex: 1 }}
-                    onClick={() => appWindow.close()}>✕</button>
-            </div>}
 
-            {/* ─── 主体 ─── */}
-            <div style={S.body}>
-                {/* 标签侧栏 */}
-                <div style={S.sidebar}>
-                    <div style={S.sidebarScroll}>
-                        {sidebarTags.map((t) => {
-                            const cnt = t.id === null ? allPhrases.length
-                                : t.id === '__uncat__' ? (tagCounts['__uncat__'] ?? 0)
-                                : (tagCounts[t.id] ?? 0);
-                            return (
-                                <div
-                                    key={String(t.id)}
-                                    style={S.tagItem(selectedTagId === t.id)}
-                                    onClick={() => { setSelectedTagId(t.id); setSentIds(new Set()); setMode('search'); }}
-                                >
-                                    <span style={{ ...S.tagIcon, color: t.color }}>{t.icon}</span>
-                                    <span style={S.tagName}>{t.name}</span>
-                                    <span style={S.tagCount}>{cnt}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div style={S.sidebarFooter}>
-                        <button style={{ ...S.btn('ghost', 'xs'), width: '100%' }}
-                            onClick={() => setTagModal('new')}>＋ 新建标签</button>
-                        {activeTag && (
-                            <button style={{ ...S.btn('', 'xs'), width: '100%', marginTop: 4 }}
-                                onClick={() => setTagModal(activeTag)}>✏️ 编辑标签</button>
-                        )}
-                        {activeTag && (
-                            <button style={{ ...S.btn('danger', 'xs'), width: '100%', marginTop: 4 }}
-                                onClick={() => handleTagDelete(activeTag)}>🗑 删除标签</button>
-                        )}
-                    </div>
-                </div>
-
-                {/* 结果列表 */}
-                <div style={S.results}>
-                    <div style={S.resultList}>
-                        {filtered.length === 0 ? (
-                            <div style={S.emptyTip}>
-                                {allPhrases.length === 0
-                                    ? '还没有常用语\n点击右上角「+ 新增」开始添加'
-                                    : '没有匹配的常用语\n试试拼音搜索'}
-                            </div>
-                        ) : (
-                            filtered.map((p, i) => (
-                                <PhraseRow
-                                    key={p.id}
-                                    phrase={p}
-                                    query={search}
-                                    active={i === activeIdx}
-                                    sentIds={sentIds}
-                                    isBatch={mode === 'batch'}
-                                    onSend={sendPhrase}
-                                    onEdit={(ph) => setPhraseModal(ph)}
-                                    onDelete={handlePhraseDelete}
-                                    onSelect={() => setActiveIdx(i)}
-                                />
-                            ))
-                        )}
+                <div style={styles.filterBar}>
+                    <div style={styles.filterScroll}>
+                        {tagPills.map((tag) => (
+                            <button
+                                key={String(tag.id)}
+                                type='button'
+                                style={styles.pill(selectedTagId === tag.id)}
+                                onClick={() => {
+                                    setSelectedTagId(tag.id);
+                                    setBatchMode(false);
+                                    setSentIds(new Set());
+                                }}
+                            >
+                                <span>{tag.name}</span>
+                                <span style={{ opacity: 0.7 }}>{tag.count}</span>
+                            </button>
+                        ))}
                     </div>
 
-                    {/* 状态栏 */}
-                    <div style={S.statusBar}>
-                        <span>{search ? `找到 ${filtered.length} 条` : `共 ${totalCount} 条`}</span>
-                        <span style={{ flex: 1 }} />
-                        {mode === 'batch' ? (
-                            <>
-                                <span style={{ color: '#4caf50', fontWeight: 600 }}>
-                                    批量模式 · 已发 {sentIds.size}
-                                </span>
-                                <button style={S.btn('primary', 'xs')}
-                                    onClick={() => { setMode('search'); setSentIds(new Set()); }}>
-                                    结束批量
-                                </button>
-                            </>
-                        ) : (
-                            selectedTagId !== null && selectedTagId !== '__uncat__' && activeTag && (
-                                <button style={S.btn('ghost', 'xs')}
-                                    onClick={() => { setMode('batch'); setSentIds(new Set()); }}>
-                                    连续发送
-                                </button>
-                            )
-                        )}
-                        <button style={S.btn('', 'xs')}
-                            onClick={() => setPhraseModal({ ...(filtered[activeIdx] ?? {}), _isEditFromSearch: true })}>
-                            编辑选中
+                    <div style={styles.filterActions}>
+                        <button
+                            type='button'
+                            style={styles.secondaryButton}
+                            onClick={() => setView('tags')}
+                        >
+                            <HiOutlineTag style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
+                            {t('phrases.tags')}
+                        </button>
+                        <button
+                            type='button'
+                            style={styles.secondaryButton}
+                            onClick={() => {
+                                setBatchMode((value) => !value);
+                                setSentIds(new Set());
+                            }}
+                        >
+                            {batchMode ? '结束连续发送' : '连续发送'}
                         </button>
                     </div>
                 </div>
-            </div>
 
-            {/* ─── Modals ─── */}
-            {tagModal && (
-                <TagModal
-                    tag={tagModal === 'new' ? null : tagModal}
-                    onSave={handleTagSave}
-                    onCancel={() => setTagModal(null)}
-                />
-            )}
-            {phraseModal && (
-                <PhraseModal
-                    phrase={phraseModal === 'new' ? null : (phraseModal._isEditFromSearch ? phraseModal : phraseModal)}
-                    tags={tags}
-                    defaultTagId={selectedTagId !== '__uncat__' ? selectedTagId : null}
-                    onSave={handlePhraseSave}
-                    onCancel={() => setPhraseModal(null)}
-                />
-            )}
-        </div>
+                <div style={styles.listWrap}>
+                    {filtered.length === 0 ? (
+                        <div style={styles.empty}>
+                            {allPhrases.length === 0 ? t('phrases.empty_new') : t('phrases.empty_search')}
+                        </div>
+                    ) : (
+                        <div style={styles.list}>
+                            {filtered.map((phrase, index) => (
+                                <PhraseRow
+                                    key={phrase.id}
+                                    phrase={phrase}
+                                    tag={tagMap[phrase.tag_id]}
+                                    query={search.trim()}
+                                    active={index === activeIdx}
+                                    hovered={hoverId === phrase.id}
+                                    sent={sentIds.has(phrase.id)}
+                                    batchMode={batchMode}
+                                    onHover={() => {
+                                        setHoverId(phrase.id);
+                                        setActiveIdx(index);
+                                    }}
+                                    onSend={(item) => {
+                                        void sendPhrase(item);
+                                    }}
+                                    onEdit={(item) => {
+                                        setEditPhrase(item);
+                                        setView('edit');
+                                    }}
+                                    onDelete={(item) => {
+                                        void deleteCurrentPhrase(item);
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div style={styles.statusBar}>
+                    <span>
+                        {activeTag ? `${activeTag.name} · ` : ''}
+                        {search ? `找到 ${filtered.length} 条` : `共 ${filtered.length} 条`}
+                    </span>
+                    {batchMode ? <span>连续发送中 · 已发 {sentIds.size} 条</span> : null}
+                    <span style={styles.statusHint}>↑↓ 选择 · Enter {batchMode ? '发送' : '填入'} · Esc 关闭</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <TrayWindow>
+            <TrayWindowBody>
+                <TrayWindowSurface>{content}</TrayWindowSurface>
+            </TrayWindowBody>
+        </TrayWindow>
     );
 }

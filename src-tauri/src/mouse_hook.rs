@@ -1,12 +1,11 @@
 use crate::config::{get, reload};
-use crate::window::{float_toolbar_window, direct_translate_selection, save_foreground_window};
+use crate::window::{direct_translate_selection, float_toolbar_window, save_foreground_window};
 use crate::StringWrapper;
 use crate::APP;
 use log::{info, warn};
-use tauri::Manager;
 use rdev::{listen, Button, Event, EventType};
-use selection::get_text;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use tauri::Manager;
 
 // Atomic state shared between the rdev callback and spawned threads
 static MOUSE_DOWN: AtomicBool = AtomicBool::new(false);
@@ -95,6 +94,7 @@ fn handle_event(event: Event) {
                 None => 2,
             };
 
+            let selection_marker = crate::selection_capture::current_marker();
             // Save foreground window BEFORE showing toolbar so paste_result can restore it
             save_foreground_window();
 
@@ -102,7 +102,7 @@ fn handle_event(event: Event) {
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(delay_ms));
 
-                let text = get_text();
+                let text = crate::selection_capture::get_text(Some(selection_marker));
                 let trimmed = text.trim().to_string();
 
                 // Vault quick add capture: consume this selection and skip normal toolbar flow.
@@ -127,15 +127,17 @@ fn handle_event(event: Event) {
                 } else {
                     float_toolbar_window();
                 }
-                info!(
-                    "Auto-select toolbar triggered ({}chars)",
-                    text_len
-                );
+                info!("Auto-select toolbar triggered ({}chars)", text_len);
             });
         }
 
         EventType::KeyPress(key) => {
+            crate::selection_capture::handle_key_press(key);
             crate::doubletap_hook::handle_key_press(key);
+        }
+
+        EventType::KeyRelease(key) => {
+            crate::selection_capture::handle_key_release(key);
         }
 
         _ => {}

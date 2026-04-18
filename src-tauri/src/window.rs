@@ -42,7 +42,8 @@ fn get_daemon_window() -> Window {
 /// If current_monitor() returns None (e.g. window is invisible / not yet shown),
 /// falls back to primary monitor so we never panic.
 fn get_window_monitor(window: &Window) -> Monitor {
-    window.current_monitor()
+    window
+        .current_monitor()
         .ok()
         .flatten()
         .or_else(|| window.primary_monitor().ok().flatten())
@@ -174,7 +175,10 @@ pub fn config_window() {
     window.set_size(tauri::LogicalSize::new(800, 600)).unwrap();
     window.center().unwrap();
     window.show().unwrap();
-    info!("[startup] config window shown at {}ms (no transparent flash)", t0.elapsed().as_millis());
+    info!(
+        "[startup] config window shown at {}ms (no transparent flash)",
+        t0.elapsed().as_millis()
+    );
 }
 
 fn translate_window() -> Window {
@@ -264,11 +268,10 @@ pub fn save_foreground_window() {
 }
 
 pub fn selection_translate() {
-    use selection::get_text;
     // Save foreground window before we open any popup
     save_foreground_window();
     // Get Selected Text
-    let text = get_text();
+    let text = crate::selection_capture::get_text(None);
     if !text.trim().is_empty() {
         let app_handle = APP.get().unwrap();
         // Write into State
@@ -474,14 +477,21 @@ pub fn float_toolbar_window() {
         let dpi = monitor.scale_factor();
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
-    let w_width = (400.0 * dpi) as i32;
+        let w_width = (400.0 * dpi) as i32;
         let w_height = (80.0 * dpi) as i32;
         let mut x = mouse_pos.x - w_width / 2;
         let mut y = mouse_pos.y - w_height - 12;
-        if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
-        if x < monitor_pos.x { x = monitor_pos.x; }
-        if y < monitor_pos.y { y = mouse_pos.y + 20; }
-        w.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+        if x + w_width > monitor_pos.x + monitor_size.width as i32 {
+            x = monitor_pos.x + monitor_size.width as i32 - w_width;
+        }
+        if x < monitor_pos.x {
+            x = monitor_pos.x;
+        }
+        if y < monitor_pos.y {
+            y = mouse_pos.y + 20;
+        }
+        w.set_position(tauri::PhysicalPosition::new(x, y))
+            .unwrap_or_default();
         w.show().unwrap_or_default();
         return;
     }
@@ -499,9 +509,13 @@ pub fn float_toolbar_window() {
     .visible(false)
     .inner_size(600.0, 100.0) // frontend will resize dynamically
     .additional_browser_args("--disable-web-security")
-    .build() {
+    .build()
+    {
         Ok(w) => w,
-        Err(e) => { warn!("Failed to create float_toolbar window: {:?}", e); return; }
+        Err(e) => {
+            warn!("Failed to create float_toolbar window: {:?}", e);
+            return;
+        }
     };
     let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
@@ -511,10 +525,18 @@ pub fn float_toolbar_window() {
     let w_height = (80.0 * dpi) as i32;
     let mut x = mouse_pos.x - w_width / 2;
     let mut y = mouse_pos.y - w_height - 12;
-    if x + w_width > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_width; }
-    if x < monitor_pos.x { x = monitor_pos.x; }
-    if y < monitor_pos.y { y = mouse_pos.y + 20; }
-    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    if x + w_width > monitor_pos.x + monitor_size.width as i32 {
+        x = monitor_pos.x + monitor_size.width as i32 - w_width;
+    }
+    if x < monitor_pos.x {
+        x = monitor_pos.x;
+    }
+    if y < monitor_pos.y {
+        y = mouse_pos.y + 20;
+    }
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
     window.show().unwrap_or_default();
 }
 
@@ -522,12 +544,11 @@ pub fn float_toolbar_window() {
 // LightAI Window
 // ─────────────────────────────────────────────
 pub fn selection_light_ai() {
-    use selection::get_text;
     info!("selection_light_ai called");
     // Save foreground window before we open any popup
     save_foreground_window();
     // Get Selected Text
-    let text = get_text();
+    let text = crate::selection_capture::get_text(None);
     info!("Got text from selection: {:?}", text);
     if !text.trim().is_empty() {
         let app_handle = APP.get().unwrap();
@@ -568,14 +589,29 @@ pub fn light_ai_window() {
     let monitor_pos = monitor.position();
     let w_width = 460.0_f64;
     let w_height = 540.0_f64;
-    window.set_size(tauri::PhysicalSize::new((w_width * dpi) as u32, (w_height * dpi) as u32)).unwrap_or_default();
+    window
+        .set_size(tauri::PhysicalSize::new(
+            (w_width * dpi) as u32,
+            (w_height * dpi) as u32,
+        ))
+        .unwrap_or_default();
     let mut x = mouse_pos.x;
     let mut y = mouse_pos.y;
-    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x -= (w_width * dpi) as i32; }
-    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 { y -= (w_height * dpi) as i32; }
-    if x < monitor_pos.x { x = monitor_pos.x; }
-    if y < monitor_pos.y { y = monitor_pos.y; }
-    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
+        x -= (w_width * dpi) as i32;
+    }
+    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 {
+        y -= (w_height * dpi) as i32;
+    }
+    if x < monitor_pos.x {
+        x = monitor_pos.x;
+    }
+    if y < monitor_pos.y {
+        y = monitor_pos.y;
+    }
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
     window.show().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
 }
@@ -609,14 +645,29 @@ pub fn explain_window() {
     let monitor_pos = monitor.position();
     let w_width = 400.0_f64;
     let w_height = 500.0_f64;
-    window.set_size(tauri::PhysicalSize::new((w_width * dpi) as u32, (w_height * dpi) as u32)).unwrap_or_default();
+    window
+        .set_size(tauri::PhysicalSize::new(
+            (w_width * dpi) as u32,
+            (w_height * dpi) as u32,
+        ))
+        .unwrap_or_default();
     let mut x = mouse_pos.x;
     let mut y = mouse_pos.y;
-    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x -= (w_width * dpi) as i32; }
-    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 { y -= (w_height * dpi) as i32; }
-    if x < monitor_pos.x { x = monitor_pos.x; }
-    if y < monitor_pos.y { y = monitor_pos.y; }
-    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
+        x -= (w_width * dpi) as i32;
+    }
+    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 {
+        y -= (w_height * dpi) as i32;
+    }
+    if x < monitor_pos.x {
+        x = monitor_pos.x;
+    }
+    if y < monitor_pos.y {
+        y = monitor_pos.y;
+    }
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
     window.show().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
 }
@@ -629,11 +680,15 @@ pub fn explain_window() {
 pub fn open_light_ai_window() {
     // Window creation via build() deadlocks on the WebView2 IPC thread.
     // Spawning a separate thread mirrors float_toolbar_window() which works.
-    std::thread::spawn(|| { light_ai_window(); });
+    std::thread::spawn(|| {
+        light_ai_window();
+    });
 }
 #[tauri::command]
 pub fn open_explain_window() {
-    std::thread::spawn(|| { explain_window(); });
+    std::thread::spawn(|| {
+        explain_window();
+    });
 }
 // ─────────────────────────────────────────────
 // Chat Window
@@ -646,15 +701,21 @@ pub fn chat_window() {
         return;
     }
     let (window, _) = build_window("chat", "AI 对话");
-    window.set_min_size(Some(tauri::LogicalSize::new(400, 300))).unwrap_or_default();
-    window.set_size(tauri::LogicalSize::new(600, 800)).unwrap_or_default();
+    window
+        .set_min_size(Some(tauri::LogicalSize::new(400, 300)))
+        .unwrap_or_default();
+    window
+        .set_size(tauri::LogicalSize::new(600, 800))
+        .unwrap_or_default();
     window.center().unwrap_or_default();
     window.show().unwrap_or_default();
 }
 
 #[tauri::command]
 pub fn open_chat_window() {
-    std::thread::spawn(|| { chat_window(); });
+    std::thread::spawn(|| {
+        chat_window();
+    });
 }
 
 #[tauri::command]
@@ -681,6 +742,8 @@ pub fn open_translate_from_toolbar() {
 // ─────────────────────────────────────────────
 pub fn phrases_inline_window() {
     use mouse_position::mouse_position::{Mouse, Position};
+    const QUICK_W: f64 = 372.0;
+    const QUICK_H: f64 = 96.0;
     let mouse_pos = match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => Position { x, y },
         Mouse::Error => Position { x: 0, y: 0 },
@@ -690,16 +753,25 @@ pub fn phrases_inline_window() {
     if let Some(w) = app_handle.get_window("phrases_inline") {
         let monitor = get_window_monitor(&w);
         let dpi = monitor.scale_factor();
-        let w_w = (400.0 * dpi) as i32;
-        let w_h = (480.0 * dpi) as i32;
+        let w_w = (QUICK_W * dpi) as i32;
+        let w_h = (QUICK_H * dpi) as i32;
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
+        w.set_size(tauri::PhysicalSize::new(w_w as u32, w_h as u32))
+            .unwrap_or_default();
         let mut x = mouse_pos.x - w_w / 2;
         let mut y = mouse_pos.y - w_h - 12;
-        if x + w_w > monitor_pos.x + monitor_size.width as i32 { x = monitor_pos.x + monitor_size.width as i32 - w_w; }
-        if x < monitor_pos.x { x = monitor_pos.x; }
-        if y < monitor_pos.y { y = mouse_pos.y + 20; }
-        w.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+        if x + w_w > monitor_pos.x + monitor_size.width as i32 {
+            x = monitor_pos.x + monitor_size.width as i32 - w_w;
+        }
+        if x < monitor_pos.x {
+            x = monitor_pos.x;
+        }
+        if y < monitor_pos.y {
+            y = mouse_pos.y + 20;
+        }
+        w.set_position(tauri::PhysicalPosition::new(x, y))
+            .unwrap_or_default();
         w.show().unwrap_or_default();
         w.set_focus().unwrap_or_default();
         return;
@@ -713,17 +785,28 @@ pub fn phrases_inline_window() {
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_w = 400.0_f64;
-    let w_h = 480.0_f64;
-    window.set_size(tauri::PhysicalSize::new(
-        (w_w * dpi) as u32, (w_h * dpi) as u32,
-    )).unwrap_or_default();
+    let w_w = QUICK_W;
+    let w_h = QUICK_H;
+    window
+        .set_size(tauri::PhysicalSize::new(
+            (w_w * dpi) as u32,
+            (w_h * dpi) as u32,
+        ))
+        .unwrap_or_default();
     let mut x = mouse_pos.x - (w_w * dpi / 2.0) as i32;
     let mut y = mouse_pos.y - (w_h * dpi + 12.0) as i32;
-    if x as f64 + w_w * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 { x = (monitor_pos.x + monitor_size.width as i32) as i32 - (w_w * dpi) as i32; }
-    if x < monitor_pos.x { x = monitor_pos.x; }
-    if y < monitor_pos.y { y = mouse_pos.y + 20; }
-    window.set_position(tauri::PhysicalPosition::new(x, y)).unwrap_or_default();
+    if x as f64 + w_w * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
+        x = (monitor_pos.x + monitor_size.width as i32) as i32 - (w_w * dpi) as i32;
+    }
+    if x < monitor_pos.x {
+        x = monitor_pos.x;
+    }
+    if y < monitor_pos.y {
+        y = mouse_pos.y + 20;
+    }
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
     window.show().unwrap_or_default();
 }
 

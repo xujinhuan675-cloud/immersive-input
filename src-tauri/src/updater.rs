@@ -15,10 +15,7 @@ pub fn check_update(app_handle: tauri::AppHandle) {
                 Ok(update) => {
                     if update.is_update_available() {
                         info!("New version available, start background download & install");
-                        if let Err(e) = update
-                            .download_and_install()
-                            .await
-                        {
+                        if let Err(e) = update.download_and_install().await {
                             warn!("Failed to download/install update: {}", e);
                             return;
                         }

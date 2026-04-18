@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-    --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
-        "Microsoft YaHei", sans-serif;
+    --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei',
+        sans-serif;
 }
 
 * {
@@ -46,4 +46,38 @@ option {
 
 *::-webkit-scrollbar-thumb:hover {
     background: #c0c1c550;
+}
+
+.phrases-inline-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
+}
+
+.phrases-inline-scroll::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.phrases-inline-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.phrases-inline-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.32);
+    border-radius: 999px;
+}
+
+.phrases-inline-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.42);
+}
+
+.phrases-inline-scroll-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.phrases-inline-scroll-hidden::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }

@@ -1,14 +1,14 @@
 use crate::clipboard::*;
 use crate::config::{get, set};
+use crate::phrases::open_phrases_window;
 use crate::window::chat_window;
 use crate::window::config_window;
 use crate::window::input_translate;
-use crate::window::selection_light_ai;
 use crate::window::ocr_recognize;
 use crate::window::ocr_translate;
+use crate::window::selection_light_ai;
 use crate::window::updater_window;
 use crate::window::vault_window;
-use crate::phrases::open_phrases_window;
 use log::info;
 use tauri::CustomMenuItem;
 use tauri::GlobalShortcutManager;
@@ -63,7 +63,10 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
         .unwrap();
     #[cfg(not(target_os = "linux"))]
     tray_handle
-        .set_tooltip(&format!("Immersive Input {}", app_handle.package_info().version))
+        .set_tooltip(&format!(
+            "Immersive Input {}",
+            app_handle.package_info().version
+        ))
         .unwrap();
 
     let enable_clipboard_monitor = match get("clipboard_monitor") {

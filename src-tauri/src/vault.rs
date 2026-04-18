@@ -3,16 +3,15 @@ use crate::APP;
 use log::info;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
-use tauri::Manager;
 use tauri::api::notification::Notification;
+use tauri::Manager;
 
 /// 用于在 Rust 与 React 之间传递待触发模式（quick_fill）
 pub struct VaultModeWrapper(pub Mutex<String>);
 
 /// 两步划词捕获状态：(step, captured_account)
 /// step 0 = 空闲, 1 = 等待账号, 2 = 等待密码
-static QUICK_ADD_CAPTURE: Lazy<Mutex<(u8, String)>> =
-    Lazy::new(|| Mutex::new((0, String::new())));
+static QUICK_ADD_CAPTURE: Lazy<Mutex<(u8, String)>> = Lazy::new(|| Mutex::new((0, String::new())));
 
 /// 快速录入：进入两步划词捕获模式，不立即打开密码本窗口。
 /// 第一次划词 → 账号；第二次划词 → 密码 → 自动弹出预填窗口。

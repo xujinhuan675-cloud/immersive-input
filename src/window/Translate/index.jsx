@@ -13,10 +13,16 @@ import WindowHeader, {
     WindowHeaderPinButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
+import {
+    TRAY_WINDOW_HEADER_STYLE,
+    TRAY_WINDOW_TITLE_STYLE,
+    TRAY_WINDOW_TITLE_TEXT_STYLE,
+    TrayWindow,
+    TrayWindowBody,
+} from '../../components/TrayWindow';
 import LanguageArea from './components/LanguageArea';
 import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
-import { osType } from '../../utils/env';
 import { useConfig } from '../../hooks';
 import { store } from '../../utils/store';
 import { info } from 'tauri-plugin-log-api';
@@ -208,25 +214,15 @@ export default function Translate() {
 
     return (
         pluginList && (
-            <div
-                className={`flex h-screen w-screen flex-col bg-[#f3f5f7] ${
-                    osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
-                }`}
-            >
+            <TrayWindow>
                 <WindowHeader
-                    style={{
-                        minHeight: '46px',
-                        padding: '6px 10px',
-                        background: 'rgba(249,250,251,0.96)',
-                        borderBottom: '1px solid rgba(226,232,240,0.88)',
-                        backdropFilter: 'blur(18px)',
-                    }}
+                    style={TRAY_WINDOW_HEADER_STYLE}
                     centerStyle={{ justifyContent: 'flex-start' }}
                     center={
                         <WindowHeaderTitle
                             icon={<HiTranslate className='text-[15px] text-default-500' />}
-                            style={{ gap: '6px' }}
-                            textStyle={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}
+                            style={TRAY_WINDOW_TITLE_STYLE}
+                            textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                         >
                             {t('translate.translate')}
                         </WindowHeaderTitle>
@@ -252,7 +248,7 @@ export default function Translate() {
                         </div>
                     }
                 />
-                <div className='flex-1 min-h-0 overflow-y-auto px-3 py-2.5'>
+                <TrayWindowBody className='overflow-y-auto'>
                     <div className='mx-auto flex min-h-full max-w-[980px] flex-col gap-1.5'>
                         <div>
                             {serviceInstanceConfigMap !== null && (
@@ -315,8 +311,8 @@ export default function Translate() {
                             </Droppable>
                         </DragDropContext>
                     </div>
-                </div>
-            </div>
+                </TrayWindowBody>
+            </TrayWindow>
         )
     );
 }

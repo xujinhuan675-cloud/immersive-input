@@ -42,8 +42,8 @@ pub fn phrase_inline_fill(
         use arboard::Clipboard;
         use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, INPUT, INPUT_0, INPUT_KEYBOARD,
-            KEYBDINPUT, VK_CONTROL, VK_V,
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
         };
         use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 

@@ -1,47 +1,177 @@
 import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { lightAiStream, STYLE_KEYS, STYLE_NAMES } from '../../services/light_ai/openai';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { HiSparkles } from 'react-icons/hi';
+
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
+import {
+    TRAY_WINDOW_HEADER_STYLE,
+    TRAY_WINDOW_PRIMARY_BUTTON_STYLE,
+    TRAY_WINDOW_TITLE_STYLE,
+    TRAY_WINDOW_TITLE_TEXT_STYLE,
+    TrayWindow,
+    TrayWindowBody,
+    TrayWindowSurface,
+} from '../../components/TrayWindow';
+import { lightAiStream, STYLE_KEYS, STYLE_NAMES } from '../../services/light_ai/openai';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getActiveAiApiConfig } from '../../utils/aiConfig';
 
 const VERSION_COUNT = 3;
 
-// 快捷指令模板
 const QUICK_TEMPLATES = [
-    { label: '缩写', prompt: '请在保留核心信息的前提下尽量精简压缩，字数缩减到原来的60%左右。' },
-    { label: '扩写', prompt: '请适当扩充内容，补充细节、背景或逻辑，字数扩展到原来的150%左右。' },
-    { label: '纠错', prompt: '请纠正语法、用词、标点错误，并改善不流畅的表达，保持原意。' },
-    { label: '改正式', prompt: '请改写为正式、专业的书面语风格，适合商务或学术场景。' },
-    { label: '改口语', prompt: '请改写为轻松、口语化的表达，适合日常沟通。' },
-    { label: '翻译英文', prompt: '请将以上内容翻译为地道的英文，保持原意。' },
+    { label: '缩写', prompt: '请在保留核心信息的前提下尽量精简压缩。' },
+    { label: '扩写', prompt: '请适度扩写原文，补充细节和语气，让表达更完整。' },
+    { label: '纠错', prompt: '请纠正语法、措辞和标点问题，保持原意。' },
+    { label: '正式', prompt: '请改写成更正式、专业的表达。' },
+    { label: '口语', prompt: '请改写成更轻松自然的口语表达。' },
+    { label: '英文', prompt: '请将以上内容翻译成自然的英文表达。' },
 ];
+
+const styles = {
+    sectionLabel: {
+        fontSize: '11px',
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        color: '#94a3b8',
+        textTransform: 'uppercase',
+    },
+    sourceBox: {
+        padding: '10px 12px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
+        background: 'rgba(248, 250, 252, 0.82)',
+        lineHeight: 1.6,
+        fontSize: '13px',
+        color: '#334155',
+    },
+    templateBar: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '6px',
+        padding: '10px 12px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
+        background: 'rgba(255, 255, 255, 0.74)',
+    },
+    chip: {
+        padding: '4px 10px',
+        borderRadius: '999px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(248, 250, 252, 0.9)',
+        color: '#475569',
+        fontSize: '12px',
+        cursor: 'pointer',
+    },
+    versionsArea: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+    },
+    versionCard: {
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        borderRadius: '14px',
+        background: 'rgba(255, 255, 255, 0.9)',
+        overflow: 'hidden',
+        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.35)',
+    },
+    versionHeader: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '10px',
+        padding: '9px 12px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
+        background: 'rgba(248, 250, 252, 0.84)',
+    },
+    versionTitle: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        minWidth: 0,
+        fontSize: '12px',
+        fontWeight: 600,
+        color: '#334155',
+    },
+    versionBody: {
+        padding: '12px',
+        minHeight: '88px',
+        fontSize: '13px',
+        lineHeight: 1.7,
+        color: '#0f172a',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        fontFamily: APP_FONT_FAMILY_VAR,
+    },
+    versionError: {
+        padding: '12px',
+        fontSize: '13px',
+        color: '#dc2626',
+    },
+    actionRow: {
+        display: 'flex',
+        gap: '6px',
+        flexShrink: 0,
+    },
+    cardButton: (primary = false) => ({
+        height: '28px',
+        padding: '0 10px',
+        borderRadius: '8px',
+        border: primary ? '1px solid rgba(15, 23, 42, 0.84)' : '1px solid rgba(226, 232, 240, 0.9)',
+        background: primary ? '#0f172a' : 'rgba(255, 255, 255, 0.88)',
+        color: primary ? '#ffffff' : '#475569',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: 'pointer',
+    }),
+    footer: {
+        display: 'flex',
+        gap: '8px',
+        padding: '10px 12px',
+        borderTop: '1px solid rgba(226, 232, 240, 0.78)',
+        background: 'rgba(248, 250, 252, 0.76)',
+    },
+    promptInput: {
+        flex: 1,
+        height: '40px',
+        borderRadius: '10px',
+        border: '1px solid rgba(203, 213, 225, 0.9)',
+        background: 'rgba(255, 255, 255, 0.88)',
+        padding: '0 12px',
+        outline: 'none',
+        fontSize: '13px',
+        color: '#0f172a',
+        fontFamily: APP_FONT_FAMILY_VAR,
+    },
+};
 
 function useApiConfig() {
     const [config, setConfig] = useState(null);
+
     useEffect(() => {
         let mounted = true;
 
-        async function load() {
+        async function loadConfig() {
             const nextConfig = await getActiveAiApiConfig();
             if (mounted) {
                 setConfig(nextConfig);
             }
         }
 
-        load();
+        void loadConfig();
 
         return () => {
             mounted = false;
         };
     }, []);
+
     return config;
 }
 
@@ -50,49 +180,71 @@ export default function LightAI() {
     const [sourceText, setSourceText] = useState('');
     const [extraPrompt, setExtraPrompt] = useState('');
     const [versions, setVersions] = useState(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
-    const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
+    const [loading, setLoading] = useState(false);
     const [refining, setRefining] = useState(Array(VERSION_COUNT).fill(false));
     const abortRefs = useRef(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => null));
     const inputRef = useRef(null);
 
-    // Load source text on mount and on new_text event
     const loadText = useCallback(async () => {
         try {
             const text = await invoke('get_text');
-            if (text) setSourceText(text);
-        } catch (e) {
-            console.error('get_text error:', e);
+            if (text) {
+                setSourceText(text);
+            }
+        } catch (error) {
+            console.error('get_text error:', error);
         }
     }, []);
 
     useEffect(() => {
-        loadText();
+        void loadText();
         const unlisten = listen('new_text', (event) => {
-            if (event.payload) setSourceText(event.payload);
+            if (event.payload) {
+                setSourceText(event.payload);
+            }
         });
-        return () => { unlisten.then((f) => f()); };
+
+        return () => {
+            void unlisten.then((fn) => fn());
+        };
     }, [loadText]);
 
-    // Start generation
+    const stopAll = useCallback(() => {
+        abortRefs.current.forEach((controller) => {
+            try {
+                controller?.abort();
+            } catch {}
+        });
+        setLoading(false);
+        setRefining(Array(VERSION_COUNT).fill(false));
+    }, []);
+
     const generate = useCallback(async () => {
         if (!sourceText.trim() || !apiConfig) return;
-        // Cancel any ongoing requests
-        abortRefs.current.forEach((c) => { try { c?.abort(); } catch {} });
+
+        abortRefs.current.forEach((controller) => {
+            try {
+                controller?.abort();
+            } catch {}
+        });
 
         const controllers = STYLE_KEYS.slice(0, VERSION_COUNT).map(() => new AbortController());
         abortRefs.current = controllers;
         setLoading(true);
         setVersions(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
         setErrors(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
+        setRefining(Array(VERSION_COUNT).fill(false));
 
         let finishedCount = 0;
         const onFinish = () => {
-            finishedCount++;
-            if (finishedCount >= VERSION_COUNT) setLoading(false);
+            finishedCount += 1;
+            if (finishedCount >= VERSION_COUNT) {
+                setLoading(false);
+            }
         };
 
-        STYLE_KEYS.slice(0, VERSION_COUNT).forEach((styleKey, idx) => {
+        STYLE_KEYS.slice(0, VERSION_COUNT).forEach((styleKey, index) => {
             lightAiStream(
                 sourceText,
                 styleKey,
@@ -101,281 +253,272 @@ export default function LightAI() {
                 (chunk) => {
                     setVersions((prev) => {
                         const next = [...prev];
-                        next[idx] = (next[idx] || '') + chunk;
+                        next[index] = `${next[index] || ''}${chunk}`;
                         return next;
                     });
                 },
-                (_full) => onFinish(),
-                (err) => {
-                    setErrors((prev) => { const e = [...prev]; e[idx] = err; return e; });
+                () => onFinish(),
+                (error) => {
+                    setErrors((prev) => {
+                        const next = [...prev];
+                        next[index] = error;
+                        return next;
+                    });
                     onFinish();
                 },
-                controllers[idx].signal
+                controllers[index].signal
             );
         });
-    }, [sourceText, extraPrompt, apiConfig]);
+    }, [apiConfig, extraPrompt, sourceText]);
 
-    // Auto-start generation when source text + config are ready
     useEffect(() => {
         if (sourceText && apiConfig) {
-            generate();
+            void generate();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sourceText, apiConfig]);
+    }, [apiConfig, generate, sourceText]);
 
-    const stopAll = () => {
-        abortRefs.current.forEach((c) => { try { c?.abort(); } catch {} });
-        setLoading(false);
-    };
+    const refineVersion = useCallback(
+        async (index) => {
+            const base = versions[index];
+            if (!base || !extraPrompt.trim() || !apiConfig) return;
 
-    // Refine a single version with the extra prompt instruction
-    const refineVersion = useCallback(async (idx) => {
-        const base = versions[idx];
-        if (!base || !extraPrompt.trim() || !apiConfig) return;
-        try { abortRefs.current[idx]?.abort(); } catch {}
-        const ctrl = new AbortController();
-        abortRefs.current[idx] = ctrl;
-        setRefining((p) => { const r = [...p]; r[idx] = true; return r; });
-        setVersions((p) => { const n = [...p]; n[idx] = ''; return n; });
-        const styleKey = STYLE_KEYS[idx];
-        const refineMsg = `请根据以下要求对文本进行调整：\n要求：${extraPrompt}\n\n原文：\n${base}`;
-        await lightAiStream(refineMsg, styleKey, '', apiConfig,
-            (chunk) => setVersions((p) => { const n = [...p]; n[idx] = (n[idx] || '') + chunk; return n; }),
-            () => setRefining((p) => { const r = [...p]; r[idx] = false; return r; }),
-            (err) => { setErrors((p) => { const e = [...p]; e[idx] = err; return e; }); setRefining((p) => { const r = [...p]; r[idx] = false; return r; }); },
-            ctrl.signal
-        );
-    }, [versions, extraPrompt, apiConfig]);
+            try {
+                abortRefs.current[index]?.abort();
+            } catch {}
 
-    const applyVersion = async (idx) => {
-        const text = versions[idx];
+            const controller = new AbortController();
+            abortRefs.current[index] = controller;
+            setRefining((prev) => {
+                const next = [...prev];
+                next[index] = true;
+                return next;
+            });
+            setVersions((prev) => {
+                const next = [...prev];
+                next[index] = '';
+                return next;
+            });
+
+            const styleKey = STYLE_KEYS[index];
+            const prompt = `请根据以下要求调整文本：\n${extraPrompt}\n\n原文：\n${base}`;
+
+            await lightAiStream(
+                prompt,
+                styleKey,
+                '',
+                apiConfig,
+                (chunk) => {
+                    setVersions((prev) => {
+                        const next = [...prev];
+                        next[index] = `${next[index] || ''}${chunk}`;
+                        return next;
+                    });
+                },
+                () => {
+                    setRefining((prev) => {
+                        const next = [...prev];
+                        next[index] = false;
+                        return next;
+                    });
+                },
+                (error) => {
+                    setErrors((prev) => {
+                        const next = [...prev];
+                        next[index] = error;
+                        return next;
+                    });
+                    setRefining((prev) => {
+                        const next = [...prev];
+                        next[index] = false;
+                        return next;
+                    });
+                },
+                controller.signal
+            );
+        },
+        [apiConfig, extraPrompt, versions]
+    );
+
+    const applyVersion = async (index) => {
+        const text = versions[index];
         if (!text) return;
-        // Save to history
-        try { await saveHistory('lightai', sourceText, text, { style: STYLE_KEYS[idx], extra: extraPrompt }); } catch {}
+
+        try {
+            await saveHistory('lightai', sourceText, text, {
+                style: STYLE_KEYS[index],
+                extra: extraPrompt,
+            });
+        } catch {}
+
         try {
             await invoke('paste_result', { text });
-            appWindow.close();
-        } catch (e) {
-            console.error('paste_result error:', e);
+            await appWindow.close();
+        } catch (error) {
+            console.error('paste_result error:', error);
         }
     };
 
-    const copyVersion = async (idx) => {
-        const text = versions[idx];
+    const copyVersion = async (index) => {
+        const text = versions[index];
         if (!text) return;
+
         try {
             await invoke('write_clipboard', { text });
-        } catch (e) {
-            console.error('write_clipboard error:', e);
+        } catch (error) {
+            console.error('write_clipboard error:', error);
         }
-    };
-
-    const styles = {
-        root: {
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100vh',
-            fontFamily: APP_FONT_FAMILY_VAR,
-            fontSize: '13px',
-            background: '#fafafa',
-            color: '#333',
-            overflow: 'hidden',
-        },
-        header: {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '8px 12px',
-            background: '#fff',
-            borderBottom: '1px solid #e5e5e5',
-            flexShrink: 0,
-            position: 'relative',  // needed for drag overlay
-        },
-        dragOverlay: {
-            position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
-            cursor: 'move',
-        },
-        sourceBox: {
-            padding: '8px 12px',
-            background: '#f0f4ff',
-            borderBottom: '1px solid #dde3f0',
-            fontSize: '12px',
-            color: '#555',
-            maxHeight: '72px',
-            overflow: 'auto',
-            flexShrink: 0,
-            lineHeight: 1.5,
-        },
-        versionsArea: {
-            flex: 1,
-            overflow: 'auto',
-            padding: '8px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-        },
-        versionCard: {
-            background: '#fff',
-            border: '1px solid #e5e5e5',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            flexShrink: 0,
-        },
-        versionHeader: {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '5px 10px',
-            background: '#f5f5f5',
-            borderBottom: '1px solid #e5e5e5',
-        },
-        versionLabel: { fontWeight: 600, fontSize: '12px', color: '#444' },
-        versionBody: {
-            padding: '8px 10px',
-            minHeight: '60px',
-            fontSize: '13px',
-            lineHeight: 1.6,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            color: '#222',
-        },
-        versionError: { color: '#cc3333', fontSize: '12px', padding: '8px 10px' },
-        btn: (primary) => ({
-            padding: '3px 10px',
-            borderRadius: '5px',
-            border: primary ? 'none' : '1px solid #ccc',
-            background: primary ? '#4a7cfa' : '#fff',
-            color: primary ? '#fff' : '#444',
-            cursor: 'pointer',
-            fontSize: '11px',
-            fontWeight: primary ? 600 : 400,
-        }),
-        footer: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 10px',
-            background: '#fff',
-            borderTop: '1px solid #e5e5e5',
-            flexShrink: 0,
-        },
-        extraInput: {
-            flex: 1,
-            padding: '4px 8px',
-            border: '1px solid #ddd',
-            borderRadius: '5px',
-            fontSize: '12px',
-            outline: 'none',
-        },
     };
 
     return (
-        <div style={styles.root}>
+        <TrayWindow>
             <WindowHeader
-                center={<WindowHeaderTitle>AI {'\u6da6\u8272'}</WindowHeaderTitle>}
+                style={TRAY_WINDOW_HEADER_STYLE}
+                center={
+                    <WindowHeaderTitle
+                        icon={<HiSparkles className='text-[15px] text-default-500' />}
+                        style={TRAY_WINDOW_TITLE_STYLE}
+                        textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
+                    >
+                        轻 AI
+                    </WindowHeaderTitle>
+                }
                 right={
                     <>
-                    {loading ? (
-                            <WindowHeaderButton onClick={stopAll}>{'\u505c\u6b62'}</WindowHeaderButton>
-                    ) : (
-                            <WindowHeaderButton variant='primary' onClick={generate}>
-                                {'\u91cd\u65b0\u751f\u6210'}
+                        {loading ? (
+                            <WindowHeaderButton onClick={stopAll}>停止</WindowHeaderButton>
+                        ) : (
+                            <WindowHeaderButton
+                                variant='primary'
+                                style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
+                                onClick={() => {
+                                    void generate();
+                                }}
+                            >
+                                重新生成
                             </WindowHeaderButton>
-                    )}
+                        )}
                         <WindowHeaderCloseButton />
                     </>
                 }
             />
 
-            {/* Source text */}
-            <div style={styles.sourceBox}>
-                <span style={{ fontWeight: 600, color: '#888', marginRight: 6 }}>原文：</span>
-                {sourceText || <span style={{ color: '#aaa' }}>（等待选中文本…）</span>}
-            </div>
-
-            {/* Quick templates */}
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', padding: '5px 10px', background: '#fff', borderBottom: '1px solid #e5e5e5', flexShrink: 0 }}>
-                <span style={{ fontSize: '11px', color: '#aaa', lineHeight: '22px', marginRight: 2 }}>快捷：</span>
-                {QUICK_TEMPLATES.map((t) => (
-                    <button key={t.label}
-                        style={{ padding: '2px 9px', borderRadius: '12px', border: '1px solid #dde', background: '#f5f5f5', fontSize: '11px', color: '#555', cursor: 'pointer' }}
-                        onClick={() => { setExtraPrompt(t.prompt); if (inputRef.current) inputRef.current.focus(); }}>
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Version results */}
-            <div style={styles.versionsArea}>
-                {STYLE_KEYS.slice(0, VERSION_COUNT).map((styleKey, idx) => (
-                    <div key={styleKey} style={styles.versionCard}>
-                        <div style={styles.versionHeader}>
-                            <span style={styles.versionLabel}>
-                                {idx + 1}. {STYLE_NAMES[styleKey]}
-                                {loading && !versions[idx] && (
-                                    <span style={{ color: '#aaa', fontWeight: 400, marginLeft: 6 }}>生成中…</span>
-                                )}
-                            </span>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                                {extraPrompt.trim() && (
-                                    <button style={styles.btn(false)} onClick={() => refineVersion(idx)}
-                                        disabled={!versions[idx] || refining[idx]} title="根据附加要求精炼此版本">
-                                        {refining[idx] ? '…' : '✉ 精炼'}
-                                    </button>
-                                )}
-                                <button
-                                    style={styles.btn(false)}
-                                    onClick={() => copyVersion(idx)}
-                                    disabled={!versions[idx]}
-                                    title="复制到剪贴板"
-                                >
-                                    复制
-                                </button>
-                                <button
-                                    style={styles.btn(true)}
-                                    onClick={() => applyVersion(idx)}
-                                    disabled={!versions[idx]}
-                                    title="粘贴到原输入框"
-                                >
-                                    应用
-                                </button>
-                            </div>
+            <TrayWindowBody>
+                <TrayWindowSurface>
+                    <div style={styles.sourceBox}>
+                        <div style={styles.sectionLabel}>源文本</div>
+                        <div style={{ marginTop: '4px' }}>
+                            {sourceText || <span style={{ color: '#94a3b8' }}>等待选中文本…</span>}
                         </div>
-                        {errors[idx] ? (
-                            <div style={styles.versionError}>{errors[idx]}</div>
-                        ) : (
-                            <div style={styles.versionBody}>
-                                {versions[idx] || ((loading || refining[idx]) ? <span style={{ color: '#bbb' }}>▷</span> : '')}
-                            </div>
-                        )}
                     </div>
-                ))}
-            </div>
 
-            {/* Footer: extra prompt + re-generate */}
-            <div style={styles.footer}>
-                <input
-                    ref={inputRef}
-                    style={styles.extraInput}
-                    placeholder="附加要求——点快捷模板或手动输入，回车重新生成，可对单个版本点「精炼」"
-                    value={extraPrompt}
-                    onChange={(e) => setExtraPrompt(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (!loading) generate();
-                        }
-                    }}
-                />
-                <button
-                    style={styles.btn(true)}
-                    onClick={generate}
-                    disabled={loading || !sourceText.trim()}
-                >
-                    {loading ? '…' : '发送'}
-                </button>
-            </div>
-        </div>
+                    <div style={styles.templateBar}>
+                        {QUICK_TEMPLATES.map((template) => (
+                            <button
+                                key={template.label}
+                                type='button'
+                                style={styles.chip}
+                                onClick={() => {
+                                    setExtraPrompt(template.prompt);
+                                    inputRef.current?.focus();
+                                }}
+                            >
+                                {template.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div style={styles.versionsArea}>
+                        {STYLE_KEYS.slice(0, VERSION_COUNT).map((styleKey, index) => (
+                            <div
+                                key={styleKey}
+                                style={styles.versionCard}
+                            >
+                                <div style={styles.versionHeader}>
+                                    <div style={styles.versionTitle}>
+                                        <span>{index + 1}.</span>
+                                        <span>{STYLE_NAMES[styleKey]}</span>
+                                        {loading && !versions[index] ? (
+                                            <span style={{ color: '#94a3b8', fontWeight: 400 }}>生成中...</span>
+                                        ) : null}
+                                    </div>
+
+                                    <div style={styles.actionRow}>
+                                        {extraPrompt.trim() ? (
+                                            <button
+                                                type='button'
+                                                style={styles.cardButton(false)}
+                                                onClick={() => {
+                                                    void refineVersion(index);
+                                                }}
+                                                disabled={!versions[index] || refining[index]}
+                                            >
+                                                {refining[index] ? '精修中' : '精修'}
+                                            </button>
+                                        ) : null}
+                                        <button
+                                            type='button'
+                                            style={styles.cardButton(false)}
+                                            onClick={() => {
+                                                void copyVersion(index);
+                                            }}
+                                            disabled={!versions[index]}
+                                        >
+                                            复制
+                                        </button>
+                                        <button
+                                            type='button'
+                                            style={styles.cardButton(true)}
+                                            onClick={() => {
+                                                void applyVersion(index);
+                                            }}
+                                            disabled={!versions[index]}
+                                        >
+                                            应用
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {errors[index] ? (
+                                    <div style={styles.versionError}>{errors[index]}</div>
+                                ) : (
+                                    <div style={styles.versionBody}>
+                                        {versions[index] || (loading || refining[index] ? '正在生成...' : '')}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={styles.footer}>
+                        <input
+                            ref={inputRef}
+                            style={styles.promptInput}
+                            placeholder='补充要求，回车重新生成'
+                            value={extraPrompt}
+                            onChange={(event) => setExtraPrompt(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    if (!loading) {
+                                        void generate();
+                                    }
+                                }
+                            }}
+                        />
+                        <button
+                            type='button'
+                            style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
+                            className='h-10 rounded-[10px] px-4 text-[13px] font-semibold'
+                            onClick={() => {
+                                void generate();
+                            }}
+                            disabled={loading || !sourceText.trim()}
+                        >
+                            {loading ? '生成中' : '生成'}
+                        </button>
+                    </div>
+                </TrayWindowSurface>
+            </TrayWindowBody>
+        </TrayWindow>
     );
 }
