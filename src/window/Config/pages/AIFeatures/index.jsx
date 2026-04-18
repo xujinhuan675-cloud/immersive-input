@@ -42,7 +42,7 @@ export default function AIFeatures() {
             <Toaster />
             <Tabs className='flex justify-center max-h-[calc(100%-40px)] overflow-y-auto'>
                 <Tab key='ai_features' title={t('config.ai.label')}>
-                    <div className='p-[10px] max-w-[800px]'>
+                    <div className='w-full p-[10px]'>
                         <Card className='mb-[10px]'>
                             <CardBody>
                                 <h3 className='text-[16px] font-bold mb-[6px]'>{globalPreferenceTitle}</h3>

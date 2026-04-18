@@ -116,14 +116,6 @@ fn main() {
                     .show()
                     .unwrap(),
             }
-            match get("proxy_enable") {
-                Some(v) => {
-                    if v.as_bool().unwrap() && get("proxy_host").map_or(false, |host| !host.as_str().unwrap().is_empty()) {
-                        let _ = set_proxy();
-                    }
-                }
-                None => {}
-            }
             // Check Update
             check_update(app.handle());
             if let Some(engine) = get("translate_detect_engine") {
@@ -153,8 +145,6 @@ fn main() {
             get_base64,
             copy_img,
             system_ocr,
-            set_proxy,
-            unset_proxy,
             run_binary,
             register_shortcut_by_frontend,
             update_tray,

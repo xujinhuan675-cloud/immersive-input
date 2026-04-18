@@ -20,6 +20,7 @@ import { useConfig } from '../../../hooks/useConfig';
 import { applyAppFont, buildAppFontStack, getCuratedFontList, isChineseCapableFont } from '../../../utils/appFont';
 import { appVersion } from '../../../utils/env';
 import { osType } from '../../../utils/env';
+import Backup from './Backup';
 
 const LANGUAGE_OPTIONS = [
     'zh_cn',
@@ -285,6 +286,7 @@ export default function GeneralSettings() {
                     </div>
                 </CardBody>
             </Card>
+            <Backup />
             <Card>
                 <CardBody>
                     <div className='config-item'>

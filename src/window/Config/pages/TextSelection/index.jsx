@@ -73,7 +73,7 @@ export default function TextSelection() {
     };
 
     return (
-        <div className='p-[10px] max-w-[800px]'>
+        <div className='w-full p-[10px]'>
             <Card className='mb-[10px]'>
                 <CardBody>
                     <div className='flex items-center justify-between'>
