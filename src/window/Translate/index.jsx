@@ -3,10 +3,10 @@ import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { appWindow, currentMonitor } from '@tauri-apps/api/window';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
-import { Spacer, Button } from '@nextui-org/react';
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
+import { HiTranslate } from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -209,33 +209,51 @@ export default function Translate() {
     return (
         pluginList && (
             <div
-                className={`bg-background h-screen w-screen flex flex-col ${
+                className={`flex h-screen w-screen flex-col bg-[#f3f5f7] ${
                     osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
                 }`}
             >
                 <WindowHeader
-                    left={
-                        <WindowHeaderPinButton
-                            active={pined}
-                            onClick={() => {
-                                if (pined) {
-                                    if (closeOnBlur) {
-                                        unlisten = listenBlur();
-                                    }
-                                    appWindow.setAlwaysOnTop(false);
-                                } else {
-                                    unlistenBlur();
-                                    appWindow.setAlwaysOnTop(true);
-                                }
-                                setPined(!pined);
-                            }}
-                        />
+                    style={{
+                        minHeight: '46px',
+                        padding: '6px 10px',
+                        background: 'rgba(249,250,251,0.96)',
+                        borderBottom: '1px solid rgba(226,232,240,0.88)',
+                        backdropFilter: 'blur(18px)',
+                    }}
+                    centerStyle={{ justifyContent: 'flex-start' }}
+                    center={
+                        <WindowHeaderTitle
+                            icon={<HiTranslate className='text-[15px] text-default-500' />}
+                            style={{ gap: '6px' }}
+                            textStyle={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}
+                        >
+                            {t('translate.translate')}
+                        </WindowHeaderTitle>
                     }
-                    center={<WindowHeaderTitle>{t('translate.translate')}</WindowHeaderTitle>}
-                    right={<WindowHeaderCloseButton hideOnDarwin />}
+                    right={
+                        <div className='flex items-center gap-1.5'>
+                            <WindowHeaderPinButton
+                                active={pined}
+                                onClick={() => {
+                                    if (pined) {
+                                        if (closeOnBlur) {
+                                            unlisten = listenBlur();
+                                        }
+                                        appWindow.setAlwaysOnTop(false);
+                                    } else {
+                                        unlistenBlur();
+                                        appWindow.setAlwaysOnTop(true);
+                                    }
+                                    setPined(!pined);
+                                }}
+                            />
+                            <WindowHeaderCloseButton hideOnDarwin />
+                        </div>
+                    }
                 />
-                <div className='flex-1 min-h-0 px-[8px] pb-[8px]'>
-                    <div className='h-full overflow-y-auto'>
+                <div className='flex-1 min-h-0 overflow-y-auto px-3 py-2.5'>
+                    <div className='mx-auto flex min-h-full max-w-[980px] flex-col gap-1.5'>
                         <div>
                             {serviceInstanceConfigMap !== null && (
                                 <SourceArea
@@ -246,7 +264,6 @@ export default function Translate() {
                         </div>
                         <div className={`${hideLanguage && 'hidden'}`}>
                             <LanguageArea />
-                            <Spacer y={2} />
                         </div>
                         <DragDropContext onDragEnd={onDragEnd}>
                             <Droppable
@@ -257,6 +274,7 @@ export default function Translate() {
                                     <div
                                         ref={provided.innerRef}
                                         {...provided.droppableProps}
+                                        className='space-y-1.5'
                                     >
                                         {translateServiceInstanceList !== null &&
                                             serviceInstanceConfigMap !== null &&
@@ -285,7 +303,6 @@ export default function Translate() {
                                                                     pluginList={pluginList}
                                                                     serviceInstanceConfigMap={serviceInstanceConfigMap}
                                                                 />
-                                                                <Spacer y={2} />
                                                             </div>
                                                         )}
                                                     </Draggable>

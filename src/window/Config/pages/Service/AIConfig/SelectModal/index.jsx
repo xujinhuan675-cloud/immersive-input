@@ -1,7 +1,7 @@
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from '@nextui-org/react';
-import { MdOutlineAutoAwesome } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { LuBrainCircuit } from 'react-icons/lu';
 
 import { AI_API_PROVIDER_TITLE, createAiApiInstanceKey } from '../../../../../../utils/aiConfig';
 
@@ -29,7 +29,7 @@ export default function SelectModal(props) {
                                 }}
                                 startContent={
                                     <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[8px] bg-primary-100 text-primary'>
-                                        <MdOutlineAutoAwesome className='text-[16px]' />
+                                        <LuBrainCircuit className='text-[15px]' />
                                     </div>
                                 }
                             >

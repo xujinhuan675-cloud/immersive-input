@@ -1,53 +1,74 @@
-import { appWindow, LogicalSize } from '@tauri-apps/api/window';
-import { invoke } from '@tauri-apps/api/tauri';
-import { open } from '@tauri-apps/api/shell';
 import { listen } from '@tauri-apps/api/event';
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { open } from '@tauri-apps/api/shell';
+import { invoke } from '@tauri-apps/api/tauri';
+import { appWindow, LogicalSize } from '@tauri-apps/api/window';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { LuClipboardCopy } from 'react-icons/lu';
+
 import { formatText } from '../../utils/formatter';
-import { detectType, calculateExpr } from '../../utils/textAnalyzer';
 import { store } from '../../utils/store';
+import {
+    BASE_TOOLBAR_BUTTONS,
+    getToolbarButtonLabel,
+    SMART_TOOLBAR_BUTTON_MAP,
+} from '../../utils/textSelectionToolbar';
+import { calculateExpr, detectType } from '../../utils/textAnalyzer';
 
 const DEFAULT_HIDE_MS = 5000;
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const BUTTON_SIZE = 34;
+const BUTTON_GAP = 4;
+const CARD_PADDING_X = 8;
+const CARD_PADDING_Y = 8;
+const ROW_HEIGHT = BUTTON_SIZE + CARD_PADDING_Y * 2;
+const EXTRA_PANEL_HEIGHT = 44;
+const MIN_WIDTH = 92;
+const RESULT_MIN_WIDTH = 180;
 
-// ─── 按鈕显示配置 ─────────────────────────────────────────────────────────
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** 基础按鈕：用户可通过「划词设置」配置开关和排序 */
-const BASE_BUTTONS = [
-    { id: 'translate', cfgKey: 'toolbar_btn_translate', label: '翻译',  emoji: '🌐' },
-    { id: 'explain',   cfgKey: 'toolbar_btn_explain',   label: '解析',  emoji: '❓' },
-    { id: 'format',    cfgKey: 'toolbar_btn_format',    label: '格式化', emoji: '✨' },
-    { id: 'lightai',   cfgKey: 'toolbar_btn_lightai',   label: '轻AI',  emoji: '⚡' },
-];
-
-/** 智能按鈕：根据选中文字类型自动插入 */
-const SMART_BUTTON_MAP = {
-    url:      { id: 'open_url',   label: '打开链接', emoji: '🔗' },
-    email:    { id: 'send_email', label: '发邮件',   emoji: '📧' },
-    filepath: { id: 'open_path',  label: '打开路径', emoji: '📂' },
-    number:   { id: 'calculate',  label: '计算',     emoji: '🔢' },
-    color:    { id: 'show_color', label: '颜色',     emoji: '🎨' },
+const RESULT_PANEL_STYLE = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    borderTop: '1px solid rgba(148, 163, 184, 0.18)',
+    background: 'rgba(248, 250, 252, 0.72)',
 };
 
-// ─── 按鈕行为配置（与显示配置完全解耦）──────────────────────────────────
-//
-// 每个 action 签名： async (text: string, ctx: ActionContext) => void
-// ActionContext = { hide, setCalcResult, setColorVal, calcResult, colorVal }
-//
-// 分类说明：
-//   「先 invoke 后 hide」 —— 翻译：必须在工具栏持有前台权限时先发 Rust 命令，
-//                        再 hide，否则 WebView2 IPC 与 build() 会死锁。
-//   「先 hide 后 invoke」 —— 解析/轾AI/格式化：常规流程。
-//   「inline」        —— 计算/颜色：保持工具栏打开，在面板内展示结果。
-//   「smart-open」   —— 链接/邮件/路径：调用系统 Shell 后立即 hide。
-// ───────────────────────────────────────────────────────────────────
+function getButtonPalette(isAccent = false) {
+    if (isAccent) {
+        return {
+            restBg: 'rgba(37, 99, 235, 0.10)',
+            hoverBg: 'rgba(37, 99, 235, 0.16)',
+            activeBg: 'rgba(37, 99, 235, 0.22)',
+            color: '#2563eb',
+        };
+    }
+
+    return {
+        restBg: 'transparent',
+        hoverBg: 'rgba(15, 23, 42, 0.06)',
+        activeBg: 'rgba(15, 23, 42, 0.10)',
+        color: '#475569',
+    };
+}
+
+function applyButtonVisualState(element, palette, state) {
+    if (!element) return;
+
+    const background =
+        state === 'active'
+            ? palette.activeBg
+            : state === 'hover'
+              ? palette.hoverBg
+              : palette.restBg;
+
+    element.style.background = background;
+    element.style.color = palette.color;
+}
 
 const BUTTON_ACTIONS = {
-
-    // ── 窗口类：先 invoke（非 await），再 delay(80)，再 hide ───────────────
-    // 必须先 invoke 后 hide：工具栏仍持有前台权限时触发 Rust 命令，
-    // Rust 的 set_focus() 才能成功将焦点转移给新窗口；
-    // 同时 invoke 不能 await，否则 WebView2 IPC 与 build() 会产生循环等待。
     translate: async (_text, { hide }) => {
         invoke('open_translate_from_toolbar').catch(() => {});
         await delay(80);
@@ -69,43 +90,48 @@ const BUTTON_ACTIONS = {
     format: async (text, { hide }) => {
         hide();
         await delay(80);
+
         try {
             const formatted = formatText(text);
-            if (formatted) await invoke('paste_result', { text: formatted });
-        } catch (e) { console.error('Format error:', e); }
+            if (formatted) {
+                await invoke('paste_result', { text: formatted });
+            }
+        } catch (error) {
+            console.error('Format error:', error);
+        }
     },
 
-    // ── 智能动作：处理后 hide ──────────────────────────────────────
     open_url: (text, { hide }) => {
-        const url = text.startsWith('http') ? text : 'https://' + text;
+        const url = text.startsWith('http') ? text : `https://${text}`;
         open(url).catch(() => {});
         hide();
     },
 
     send_email: (text, { hide }) => {
-        open('mailto:' + text.trim()).catch(() => {});
+        open(`mailto:${text.trim()}`).catch(() => {});
         hide();
     },
 
     open_path: (text, { hide }) => {
         open(text.trim()).catch(() =>
-            open('explorer /select,"' + text.trim() + '"').catch(() => {})
+            open(`explorer /select,"${text.trim()}"`).catch(() => {})
         );
         hide();
     },
 
-    // ── 内联结果：保持工具栏打开 ──────────────────────────────────────
     calculate: (text, { setCalcResult }) => {
         const result = calculateExpr(text);
-        setCalcResult(result ?? '无法计算');
-        if (result != null) invoke('write_clipboard', { text: result }).catch(() => {});
+        setCalcResult(result ?? 'Unable to calculate');
+
+        if (result != null) {
+            invoke('write_clipboard', { text: result }).catch(() => {});
+        }
     },
 
     show_color: (text, { setColorVal }) => {
         setColorVal(text.trim());
     },
 
-    // ── 面板内辅助动作 ────────────────────────────────────────────
     copy_calc: (_text, { calcResult, hide }) => {
         invoke('write_clipboard', { text: calcResult }).catch(() => {});
         hide();
@@ -117,84 +143,92 @@ const BUTTON_ACTIONS = {
     },
 };
 
-// ─── 组件 ─────────────────────────────────────────────────────────────────────
-
 export default function FloatToolbar() {
-    const timerRef    = useRef(null);
+    const { t } = useTranslation();
+    const timerRef = useRef(null);
     const selectedText = useRef('');
 
-    const [autoHideMs,  setAutoHideMs]  = useState(DEFAULT_HIDE_MS);
-    const [baseVisible, setBaseVisible] = useState(BASE_BUTTONS);
-    const [smartBtns,   setSmartBtns]   = useState([]);
-    const [calcResult,  setCalcResult]  = useState(null);
-    const [colorVal,    setColorVal]    = useState(null);
+    const [autoHideMs, setAutoHideMs] = useState(DEFAULT_HIDE_MS);
+    const [baseVisible, setBaseVisible] = useState(BASE_TOOLBAR_BUTTONS);
+    const [smartBtns, setSmartBtns] = useState([]);
+    const [calcResult, setCalcResult] = useState(null);
+    const [colorVal, setColorVal] = useState(null);
 
-    // ── 自适应窗口尺寸 ────────────────────────────────────────────
-    const BTN_W   = 56;   // 按鈕宽度
-    const PAD     = 12;   // 左右内边距合计
-    const ROW_H   = 56;   // 按鈕行高度
-    const EXTRA_H = 36;   // 内联面板高度
-    const SHADOW  = 0;    // 窗口大小与卡片相同，不预留阴影空间
+    const resizeWindow = useCallback((buttons, hasExtra) => {
+        const buttonCount = Math.max(buttons.length, 2);
+        const toolbarWidth =
+            CARD_PADDING_X * 2 +
+            buttonCount * BUTTON_SIZE +
+            Math.max(0, buttonCount - 1) * BUTTON_GAP;
+        const width = Math.max(hasExtra ? RESULT_MIN_WIDTH : MIN_WIDTH, toolbarWidth);
+        const height = ROW_HEIGHT + (hasExtra ? EXTRA_PANEL_HEIGHT : 0);
 
-    const resizeWindow = useCallback((btns, hasExtra) => {
-        const w = Math.max(120 + SHADOW * 2, PAD + btns.length * BTN_W + SHADOW * 2);
-        const h = ROW_H + SHADOW * 2 + (hasExtra ? EXTRA_H : 0);
-        appWindow.setSize(new LogicalSize(w, h)).catch(() => {});
+        appWindow.setSize(new LogicalSize(width, height)).catch(() => {});
     }, []);
 
-    // ── 加载配置 + 分析选中文字 ────────────────────────────────────────
     const loadConfig = useCallback(async () => {
         try {
             await store.load();
-            const ms = await store.get('text_select_auto_hide_ms');
-            if (ms != null) setAutoHideMs(Number(ms));
+            const storedAutoHide = await store.get('text_select_auto_hide_ms');
+            if (storedAutoHide != null) {
+                setAutoHideMs(Number(storedAutoHide));
+            }
 
-            const orderRaw = await store.get('toolbar_btn_order');
-            const order = Array.isArray(orderRaw)
-                ? orderRaw
-                : BASE_BUTTONS.map((b) => b.id);
-            const ordered = order
-                .map((id) => BASE_BUTTONS.find((b) => b.id === id))
+            const storedOrder = await store.get('toolbar_btn_order');
+            const order = Array.isArray(storedOrder)
+                ? storedOrder
+                : BASE_TOOLBAR_BUTTONS.map((button) => button.id);
+
+            const orderedButtons = order
+                .map((id) => BASE_TOOLBAR_BUTTONS.find((button) => button.id === id))
                 .filter(Boolean);
 
-            const visible = [];
-            for (const btn of ordered) {
-                const v = await store.get(btn.cfgKey);
-                if (v !== false) visible.push(btn);
+            const visibleButtons = [];
+            for (const button of orderedButtons) {
+                const enabled = await store.get(button.cfgKey);
+                if (enabled !== false) {
+                    visibleButtons.push(button);
+                }
             }
-            setBaseVisible(visible.length > 0 ? visible : BASE_BUTTONS);
+
+            setBaseVisible(
+                visibleButtons.length > 0 ? visibleButtons : BASE_TOOLBAR_BUTTONS
+            );
         } catch {}
 
         try {
             const text = await invoke('get_text');
             selectedText.current = text || '';
-            const type  = detectType(text);
-            const smart = SMART_BUTTON_MAP[type];
-            setSmartBtns(smart ? [smart] : []);
+
+            const detectedType = detectType(text);
+            const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
+            setSmartBtns(smartButton ? [smartButton] : []);
         } catch {}
     }, []);
 
     useEffect(() => {
-        resizeWindow([...smartBtns, ...baseVisible], calcResult != null || colorVal != null);
+        resizeWindow(
+            [...smartBtns, ...baseVisible],
+            calcResult != null || colorVal != null
+        );
     }, [smartBtns, baseVisible, calcResult, colorVal, resizeWindow]);
 
-    useEffect(() => { loadConfig(); }, [loadConfig]);
-
-    // ── 强制透明背景 ─────────────────────────────────────────
-    // JS inline style setProperty('!important') 优先级最高，覆盖 NextUI 主题注入的白色背景
-    // 确保圆角外区域对应 WebView2 的 alpha=0，最终由 DWM 透明显示后方内容
     useEffect(() => {
-        const force = (el) => {
-            if (!el) return;
-            el.style.setProperty('background',       'transparent', 'important');
-            el.style.setProperty('background-color', 'transparent', 'important');
+        loadConfig();
+    }, [loadConfig]);
+
+    useEffect(() => {
+        const forceTransparentBackground = (element) => {
+            if (!element) return;
+            element.style.setProperty('background', 'transparent', 'important');
+            element.style.setProperty('background-color', 'transparent', 'important');
         };
-        force(document.documentElement);
-        force(document.body);
-        force(document.getElementById('root'));
+
+        forceTransparentBackground(document.documentElement);
+        forceTransparentBackground(document.body);
+        forceTransparentBackground(document.getElementById('root'));
     }, []);
 
-    // ── 隐藏 & 计时器 ────────────────────────────────────────────
     const hide = useCallback(() => {
         setCalcResult(null);
         setColorVal(null);
@@ -202,143 +236,272 @@ export default function FloatToolbar() {
     }, []);
 
     const resetTimer = useCallback(() => {
-        if (timerRef.current) clearTimeout(timerRef.current);
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+        }
+
         timerRef.current = setTimeout(hide, autoHideMs);
     }, [hide, autoHideMs]);
 
     useEffect(() => {
         resetTimer();
-        const onKey = (e) => { if (e.key === 'Escape') hide(); };
-        window.addEventListener('keydown', onKey);
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                hide();
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+
         let blurTimer = null;
-        const unlistenBlur  = listen('tauri://blur',  () => { blurTimer = setTimeout(hide, 150); });
-        const unlistenFocus = listen('tauri://focus', () => { if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; } });
+        const unlistenBlur = listen('tauri://blur', () => {
+            blurTimer = setTimeout(hide, 150);
+        });
+        const unlistenFocus = listen('tauri://focus', () => {
+            if (blurTimer) {
+                clearTimeout(blurTimer);
+                blurTimer = null;
+            }
+        });
+
         return () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            if (blurTimer) clearTimeout(blurTimer);
-            window.removeEventListener('keydown', onKey);
-            unlistenBlur.then((f) => f());
-            unlistenFocus.then((f) => f());
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+
+            if (blurTimer) {
+                clearTimeout(blurTimer);
+            }
+
+            window.removeEventListener('keydown', onKeyDown);
+            unlistenBlur.then((fn) => fn());
+            unlistenFocus.then((fn) => fn());
         };
     }, [hide, resetTimer]);
 
-    // ── 通用点击分发（工具栏本身不关心按鈕具体行为）─────────────
-    const handleClick = useCallback(async (id) => {
-        resetTimer();
-        const action = BUTTON_ACTIONS[id];
-        if (!action) return;
-        const text = selectedText.current || '';
-        const ctx  = { hide, setCalcResult, setColorVal, calcResult, colorVal };
-        await action(text, ctx);
-    }, [hide, resetTimer, calcResult, colorVal]);
+    const handleClick = useCallback(
+        async (id) => {
+            resetTimer();
+            const action = BUTTON_ACTIONS[id];
+            if (!action) return;
 
-    // ── 渲染 ─────────────────────────────────────────────────────────
-    const allButtons = [...smartBtns, ...baseVisible];
+            const ctx = {
+                hide,
+                setCalcResult,
+                setColorVal,
+                calcResult,
+                colorVal,
+            };
 
-    // 内联面板平享的复制按鈕样式
-    const copyBtnStyle = {
-        flexShrink: 0, height: '22px', padding: '0 10px',
-        background: '#3b82f6', color: '#fff', border: 'none',
-        borderRadius: '5px', fontSize: '11px', fontWeight: 500,
-        cursor: 'pointer', transition: 'background 0.1s',
-    };
+            await action(selectedText.current || '', ctx);
+        },
+        [hide, resetTimer, calcResult, colorVal]
+    );
+
+    const renderToolbarButton = useCallback(
+        (button) => {
+            const Icon = button.Icon;
+            const label = getToolbarButtonLabel(button, t);
+            const palette = getButtonPalette(button.tone === 'accent');
+
+            return (
+                <button
+                    key={button.id}
+                    type='button'
+                    title={label}
+                    aria-label={label}
+                    style={{
+                        width: `${BUTTON_SIZE}px`,
+                        height: `${BUTTON_SIZE}px`,
+                        border: 'none',
+                        borderRadius: '10px',
+                        background: palette.restBg,
+                        color: palette.color,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'background 120ms ease, color 120ms ease',
+                        outline: 'none',
+                        flexShrink: 0,
+                    }}
+                    onClick={() => handleClick(button.id)}
+                    onMouseEnter={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'hover')
+                    }
+                    onMouseLeave={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'rest')
+                    }
+                    onMouseDown={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'active')
+                    }
+                    onMouseUp={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'hover')
+                    }
+                    onFocus={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'hover')
+                    }
+                    onBlur={(event) =>
+                        applyButtonVisualState(event.currentTarget, palette, 'rest')
+                    }
+                >
+                    <Icon size={18} />
+                </button>
+            );
+        },
+        [handleClick, t]
+    );
+
+    const smartButtons = smartBtns.map(renderToolbarButton);
+    const baseButtons = baseVisible.map(renderToolbarButton);
 
     return (
-        // 窗口大小 = 卡片大小，卡片直接充满窗口，圆角外区域透明显示后方内容
         <div
             style={{
                 display: 'flex',
                 flexDirection: 'column',
-                background: 'rgba(255,255,255,0.97)',
-                borderRadius: '10px',
-                border: '1px solid rgba(0, 0, 0, 0.08)',
-                userSelect: 'none',
-                overflow: 'hidden',
                 width: '100%',
                 height: '100%',
+                borderRadius: '14px',
+                border: '1px solid rgba(148, 163, 184, 0.22)',
+                background: 'rgba(255, 255, 255, 0.82)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                overflow: 'hidden',
+                userSelect: 'none',
             }}
             onMouseEnter={resetTimer}
             onMouseMove={resetTimer}
         >
-            {/* 按鈕行 */}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', gap: '2px' }}>
-                {allButtons.map((btn, idx) => (
-                    <React.Fragment key={btn.id}>
-                        {/* 按鈕间分隔线 */}
-                        {idx > 0 && (
-                            <div style={{
-                                width: '1px', height: '20px', flexShrink: 0,
-                                background: 'rgba(0,0,0,0.07)', margin: '0 1px',
-                            }} />
-                        )}
-                        <button
-                            title={btn.label}
-                            style={{
-                                display: 'flex', flexDirection: 'column',
-                                alignItems: 'center', justifyContent: 'center',
-                                minWidth: '50px', height: '46px',
-                                border: 'none', borderRadius: '9px',
-                                background: 'transparent',
-                                cursor: 'pointer', padding: '4px 6px',
-                                gap: '3px', transition: 'background 0.1s ease',
-                            }}
-                            onClick={() => handleClick(btn.id)}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                            onMouseDown={(e)  => (e.currentTarget.style.background = 'rgba(0,0,0,0.1)')}
-                            onMouseUp={(e)    => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
-                        >
-                            <span style={{ fontSize: '18px', lineHeight: 1 }}>{btn.emoji}</span>
-                            <span style={{ fontSize: '10px', lineHeight: 1, color: '#555', fontWeight: 500 }}>
-                                {btn.label}
-                            </span>
-                        </button>
-                    </React.Fragment>
-                ))}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: `${BUTTON_GAP}px`,
+                    padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
+                }}
+            >
+                {smartButtons}
+                {smartButtons.length > 0 && baseButtons.length > 0 && (
+                    <div
+                        style={{
+                            width: '1px',
+                            height: '14px',
+                            background: 'rgba(148, 163, 184, 0.28)',
+                            margin: '0 2px',
+                            flexShrink: 0,
+                        }}
+                    />
+                )}
+                {baseButtons}
             </div>
 
-            {/* 计算结果内联面板 */}
             {calcResult != null && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '5px 12px',
-                    borderTop: '1px solid rgba(0,0,0,0.06)',
-                    background: 'rgba(0,0,0,0.03)',
-                }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151', fontFamily: 'monospace', flex: 1 }}>
+                <div style={RESULT_PANEL_STYLE}>
+                    <span
+                        style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#334155',
+                            fontFamily: 'monospace',
+                            flex: 1,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }}
+                    >
                         = {calcResult}
                     </span>
-                    <button style={copyBtnStyle}
+                    <button
+                        type='button'
+                        title={t('common.copy', { defaultValue: 'Copy' })}
+                        aria-label={t('common.copy', { defaultValue: 'Copy' })}
+                        style={{
+                            width: '28px',
+                            height: '28px',
+                            border: 'none',
+                            borderRadius: '9px',
+                            background: 'rgba(15, 23, 42, 0.06)',
+                            color: '#475569',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 120ms ease, color 120ms ease',
+                            flexShrink: 0,
+                        }}
                         onClick={() => handleClick('copy_calc')}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#2563eb')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '#3b82f6')}
-                    >复制</button>
+                        onMouseEnter={(event) => {
+                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
+                            event.currentTarget.style.color = '#1f2937';
+                        }}
+                        onMouseLeave={(event) => {
+                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
+                            event.currentTarget.style.color = '#475569';
+                        }}
+                    >
+                        <LuClipboardCopy size={14} />
+                    </button>
                 </div>
             )}
 
-            {/* 颜色预览内联面板 */}
             {colorVal != null && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '5px 12px',
-                    borderTop: '1px solid rgba(0,0,0,0.06)',
-                    background: 'rgba(0,0,0,0.03)',
-                }}>
-                    <div style={{
-                        width: '18px', height: '18px', borderRadius: '4px',
-                        background: colorVal,
-                        border: '1px solid rgba(0,0,0,0.12)',
-                        flexShrink: 0,
-                        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.3)',
-                    }} />
-                    <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#374151', flex: 1 }}>
+                <div style={RESULT_PANEL_STYLE}>
+                    <div
+                        style={{
+                            width: '14px',
+                            height: '14px',
+                            borderRadius: '999px',
+                            background: colorVal,
+                            border: '1px solid rgba(15, 23, 42, 0.12)',
+                            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.28)',
+                            flexShrink: 0,
+                        }}
+                    />
+                    <span
+                        style={{
+                            fontSize: '12px',
+                            color: '#334155',
+                            fontFamily: 'monospace',
+                            flex: 1,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }}
+                    >
                         {colorVal}
                     </span>
-                    <button style={copyBtnStyle}
+                    <button
+                        type='button'
+                        title={t('common.copy', { defaultValue: 'Copy' })}
+                        aria-label={t('common.copy', { defaultValue: 'Copy' })}
+                        style={{
+                            width: '28px',
+                            height: '28px',
+                            border: 'none',
+                            borderRadius: '9px',
+                            background: 'rgba(15, 23, 42, 0.06)',
+                            color: '#475569',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 120ms ease, color 120ms ease',
+                            flexShrink: 0,
+                        }}
                         onClick={() => handleClick('copy_color')}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#2563eb')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = '#3b82f6')}
-                    >复制</button>
+                        onMouseEnter={(event) => {
+                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
+                            event.currentTarget.style.color = '#1f2937';
+                        }}
+                        onMouseLeave={(event) => {
+                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
+                            event.currentTarget.style.color = '#475569';
+                        }}
+                    >
+                        <LuClipboardCopy size={14} />
+                    </button>
                 </div>
             )}
         </div>

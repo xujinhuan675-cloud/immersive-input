@@ -1362,7 +1362,16 @@ export default function Account() {
 
     function syncCurrentUserBilling(targetUserId) {
         if (!userInfo?.id) return;
-        if (String(targetUserId || '').trim() !== String(userInfo.id).trim()) return;
+        const normalizedTarget = String(targetUserId || '')
+            .trim()
+            .toLowerCase();
+        const currentUserId = String(userInfo.id || '')
+            .trim()
+            .toLowerCase();
+        const currentUserEmail = String(userInfo.email || '')
+            .trim()
+            .toLowerCase();
+        if (normalizedTarget !== currentUserId && normalizedTarget !== currentUserEmail) return;
         loadBillingProfile(userInfo.id, { silent: true });
     }
 

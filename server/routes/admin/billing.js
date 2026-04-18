@@ -2,7 +2,7 @@ import { getErrorStatus, readJsonBody, sendJson, setCors } from '../../lib/http.
 import { applyPaymentGrantForOrder, changeMembershipTier, setMembershipStatus } from '../../lib/billing/service.js';
 import { refundUnifiedOrder } from '../../lib/payment/gateway.js';
 import { findPaymentOrderById } from '../../lib/payment/store.js';
-import { requireAdminRequest } from '../../lib/requestAuth.js';
+import { requireAdminRequest, resolveAdminTargetUserId } from '../../lib/requestAuth.js';
 
 function getAction(req) {
     const url = new URL(req.url, 'http://localhost');
@@ -32,13 +32,13 @@ function buildActor(context) {
     };
 }
 
-async function handleMembershipUpdate(context, body) {
-    const userId = String(body.userId || '').trim();
+async function handleMembershipUpdate(req, context, body) {
+    const userId = await resolveAdminTargetUserId(req, body);
     const membershipAction = String(body.action || '')
         .trim()
         .toLowerCase();
-    if (!userId || !membershipAction) {
-        return { status: 400, payload: { message: 'Missing userId or action' } };
+    if (!membershipAction) {
+        return { status: 400, payload: { message: 'Missing action' } };
     }
     if (membershipAction !== 'suspend' && membershipAction !== 'resume') {
         return { status: 400, payload: { message: 'Unsupported action' } };
@@ -53,13 +53,13 @@ async function handleMembershipUpdate(context, body) {
     return { status: 200, payload: { ok: true, ...result } };
 }
 
-async function handleMembershipTierChange(context, body) {
-    const userId = String(body.userId || '').trim();
+async function handleMembershipTierChange(req, context, body) {
+    const userId = await resolveAdminTargetUserId(req, body);
     const targetTier = String(body.targetTier || body.tier || '')
         .trim()
         .toLowerCase();
-    if (!userId || !targetTier) {
-        return { status: 400, payload: { message: 'Missing userId or targetTier' } };
+    if (!targetTier) {
+        return { status: 400, payload: { message: 'Missing targetTier' } };
     }
 
     const rawDurationDays = body.durationDays;
@@ -136,9 +136,9 @@ export default async function handler(req, res) {
         const body = await readJsonBody(req);
         const result =
             action === 'membership'
-                ? await handleMembershipUpdate(context, body)
+                ? await handleMembershipUpdate(req, context, body)
                 : action === 'tier'
-                  ? await handleMembershipTierChange(context, body)
+                  ? await handleMembershipTierChange(req, context, body)
                 : action === 'grant'
                   ? await handleGrant(req, body)
                   : await handleRefund(context, body);
@@ -151,6 +151,8 @@ export default async function handler(req, res) {
             ? 400
             : lower.includes('not found')
               ? 404
+              : lower.includes('missing userid or email')
+                ? 400
               : lower.includes('unsupported tier') ||
                   lower.includes('targettier') ||
                   lower.includes('durationdays')

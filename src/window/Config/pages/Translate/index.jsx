@@ -1,14 +1,11 @@
-import { DropdownTrigger } from '@nextui-org/react';
-import { DropdownMenu } from '@nextui-org/react';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { CardBody } from '@nextui-org/react';
-import { Dropdown } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
-import { Button } from '@nextui-org/react';
 import { Card } from '@nextui-org/react';
 import React from 'react';
 
+import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { languageList } from '../../../../utils/language';
 import { useConfig } from '../../../../hooks/useConfig';
 import { invoke } from '@tauri-apps/api';
@@ -32,90 +29,78 @@ export default function Translate() {
                     <div className='config-item'>
                         <h3 className='my-auto mx-0'>{t('config.translate.source_language')}</h3>
                         {sourceLanguage !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`languages.${sourceLanguage}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='source language'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setSourceLanguage(key);
-                                    }}
-                                >
-                                    <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
-                                    {languageList.map((item) => {
-                                        return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                                    })}
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`languages.${sourceLanguage}`)}
+                                ariaLabel='source language'
+                                selectedKey={sourceLanguage}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setSourceLanguage(key);
+                                }}
+                            >
+                                <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
+                                {languageList.map((item) => {
+                                    return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                                })}
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>
                         <h3 className='my-auto mx-0'>{t('config.translate.target_language')}</h3>
                         {targetLanguage !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`languages.${targetLanguage}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='target language'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setTargetLanguage(key);
-                                    }}
-                                >
-                                    {languageList.map((item) => {
-                                        return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                                    })}
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`languages.${targetLanguage}`)}
+                                ariaLabel='target language'
+                                selectedKey={targetLanguage}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setTargetLanguage(key);
+                                }}
+                            >
+                                {languageList.map((item) => {
+                                    return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                                })}
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>
                         <h3 className='my-auto mx-0'>{t('config.translate.second_language')}</h3>
                         {secondLanguage !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`languages.${secondLanguage}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='second language'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setSecondLanguage(key);
-                                    }}
-                                >
-                                    {languageList.map((item) => {
-                                        return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                                    })}
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`languages.${secondLanguage}`)}
+                                ariaLabel='second language'
+                                selectedKey={secondLanguage}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setSecondLanguage(key);
+                                }}
+                            >
+                                {languageList.map((item) => {
+                                    return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                                })}
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>
                         <h3 className='my-auto mx-0'>{t('config.translate.detect_engine')}</h3>
                         {detectEngine !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`config.translate.${detectEngine}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='detect engine'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setDetectEngine(key);
-                                    }}
-                                >
-                                    <DropdownItem key='baidu'>{t(`config.translate.baidu`)}</DropdownItem>
-                                    <DropdownItem key='tencent'>{t(`config.translate.tencent`)}</DropdownItem>
-                                    <DropdownItem key='niutrans'>{t(`config.translate.niutrans`)}</DropdownItem>
-                                    <DropdownItem key='google'>{t(`config.translate.google`)}</DropdownItem>
-                                    <DropdownItem key='bing'>{t(`config.translate.bing`)}</DropdownItem>
-                                    <DropdownItem key='yandex'>{t(`config.translate.yandex`)}</DropdownItem>
-                                    <DropdownItem key='local'>{t(`config.translate.local`)}</DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`config.translate.${detectEngine}`)}
+                                ariaLabel='detect engine'
+                                selectedKey={detectEngine}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setDetectEngine(key);
+                                }}
+                            >
+                                <DropdownItem key='baidu'>{t(`config.translate.baidu`)}</DropdownItem>
+                                <DropdownItem key='tencent'>{t(`config.translate.tencent`)}</DropdownItem>
+                                <DropdownItem key='niutrans'>{t(`config.translate.niutrans`)}</DropdownItem>
+                                <DropdownItem key='google'>{t(`config.translate.google`)}</DropdownItem>
+                                <DropdownItem key='bing'>{t(`config.translate.bing`)}</DropdownItem>
+                                <DropdownItem key='yandex'>{t(`config.translate.yandex`)}</DropdownItem>
+                                <DropdownItem key='local'>{t(`config.translate.local`)}</DropdownItem>
+                            </SettingsDropdown>
                         )}
                     </div>
                 </CardBody>
@@ -125,26 +110,23 @@ export default function Translate() {
                     <div className='config-item'>
                         <h3 className='my-auto mx-0'>{t('config.translate.auto_copy')}</h3>
                         {autoCopy !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`config.translate.${autoCopy}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='auto copy'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setAutoCopy(key);
-                                        invoke('update_tray', { language: '', copyMode: key });
-                                    }}
-                                >
-                                    <DropdownItem key='source'>{t('config.translate.source')}</DropdownItem>
-                                    <DropdownItem key='target'>{t('config.translate.target')}</DropdownItem>
-                                    <DropdownItem key='source_target'>
-                                        {t('config.translate.source_target')}
-                                    </DropdownItem>
-                                    <DropdownItem key='disable'>{t('config.translate.disable')}</DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`config.translate.${autoCopy}`)}
+                                ariaLabel='auto copy'
+                                selectedKey={autoCopy}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setAutoCopy(key);
+                                    invoke('update_tray', { language: '', copyMode: key });
+                                }}
+                            >
+                                <DropdownItem key='source'>{t('config.translate.source')}</DropdownItem>
+                                <DropdownItem key='target'>{t('config.translate.target')}</DropdownItem>
+                                <DropdownItem key='source_target'>
+                                    {t('config.translate.source_target')}
+                                </DropdownItem>
+                                <DropdownItem key='disable'>{t('config.translate.disable')}</DropdownItem>
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>

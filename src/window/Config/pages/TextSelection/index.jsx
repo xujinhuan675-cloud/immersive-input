@@ -1,36 +1,52 @@
-import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Card, CardBody, Spacer, Switch, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Button } from '@nextui-org/react';
-import { RxDragHandleHorizontal } from 'react-icons/rx';
-import { useTranslation } from 'react-i18next';
+import {
+    Card,
+    CardBody,
+    DropdownItem,
+    Switch,
+    Tooltip,
+} from '@nextui-org/react';
 import React from 'react';
+import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
+import { useTranslation } from 'react-i18next';
 
+import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { useConfig } from '../../../../hooks/useConfig';
+import {
+    BASE_TOOLBAR_BUTTONS,
+    getToolbarButtonMatchLabel,
+    getToolbarButtonLabel,
+    SMART_TOOLBAR_BUTTONS,
+    TOOLBAR_DRAG_ICON,
+} from '../../../../utils/textSelectionToolbar';
 
 const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai'];
 
-function ToolbarButtonItem({ label, emoji, cfgKey, dragHandleProps }) {
-    const [enabled, setEnabled] = useConfig(cfgKey, true);
+function ToolbarButtonItem({ button, label, dragHandleProps }) {
+    const DragIcon = TOOLBAR_DRAG_ICON;
+    const Icon = button.Icon;
+    const [enabled, setEnabled] = useConfig(button.cfgKey, true);
+
     return (
-        <div className='bg-content2 rounded-md px-[10px] py-[20px] flex justify-between'>
-            <div className='flex'>
+        <div className='flex items-center justify-between rounded-xl border border-divider/70 bg-content1 px-4 py-3 transition-colors hover:bg-content2/60'>
+            <div className='flex min-w-0 flex-1 items-center gap-3'>
                 <div
                     {...dragHandleProps}
-                    className='text-2xl my-auto'
+                    className='flex h-8 w-8 cursor-grab items-center justify-center rounded-lg text-default-400 transition-colors hover:bg-default-100 hover:text-default-600 active:cursor-grabbing'
                 >
-                    <RxDragHandleHorizontal />
+                    <DragIcon size={16} />
                 </div>
-                <Spacer x={2} />
-                <span className='text-[20px] my-auto leading-none'>{emoji}</span>
-                <Spacer x={2} />
-                <h2 className='my-auto'>{label}</h2>
+                <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-default-100 text-default-600'>
+                    <Icon size={18} />
+                </div>
+                <h2 className='truncate text-sm font-medium text-foreground'>
+                    {label}
+                </h2>
             </div>
-            <div className='flex items-center'>
-                <Switch
-                    size='sm'
-                    isSelected={enabled ?? true}
-                    onValueChange={setEnabled}
-                />
-            </div>
+            <Switch
+                size='sm'
+                isSelected={enabled ?? true}
+                onValueChange={setEnabled}
+            />
         </div>
     );
 }
@@ -47,15 +63,18 @@ export default function TextSelection() {
               ? 'behavior_disabled'
               : 'behavior_toolbar';
 
-    const ALL_BUTTONS = [
-        { id: 'translate', emoji: '🌐', label: t('config.text_selection.btn_translate'), cfgKey: 'toolbar_btn_translate' },
-        { id: 'explain',   emoji: '❓',     label: t('config.text_selection.btn_explain'),   cfgKey: 'toolbar_btn_explain'   },
-        { id: 'format',    emoji: '✨',     label: t('config.text_selection.btn_format'),    cfgKey: 'toolbar_btn_format'    },
-        { id: 'lightai',   emoji: '⚡',     label: t('config.text_selection.btn_lightai'),   cfgKey: 'toolbar_btn_lightai'   },
-    ];
+    const allButtons = BASE_TOOLBAR_BUTTONS.map((button) => ({
+        ...button,
+        label: getToolbarButtonLabel(button, t),
+    }));
+    const smartButtons = SMART_TOOLBAR_BUTTONS.map((button) => ({
+        ...button,
+        label: getToolbarButtonLabel(button, t),
+        matchLabel: getToolbarButtonMatchLabel(button, t),
+    }));
 
     const orderedButtons = (Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER)
-        .map((id) => ALL_BUTTONS.find((b) => b.id === id))
+        .map((id) => allButtons.find((button) => button.id === id))
         .filter(Boolean);
 
     const reorder = (list, startIndex, endIndex) => {
@@ -67,8 +86,14 @@ export default function TextSelection() {
 
     const onDragEnd = (result) => {
         if (!result.destination) return;
+
         const currentOrder = Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER;
-        const newOrder = reorder(currentOrder, result.source.index, result.destination.index);
+        const newOrder = reorder(
+            currentOrder,
+            result.source.index,
+            result.destination.index
+        );
+
         setBtnOrder(newOrder);
     };
 
@@ -76,38 +101,35 @@ export default function TextSelection() {
         <div className='w-full p-[10px]'>
             <Card className='mb-[10px]'>
                 <CardBody>
-                    <div className='flex items-center justify-between'>
-                        <h3 className='my-auto'>{t('config.text_selection.behavior_label')}</h3>
+                    <div className='flex items-center justify-between gap-4'>
+                        <h3 className='text-sm font-medium text-foreground'>
+                            {t('config.text_selection.behavior_label')}
+                        </h3>
                         {behavior !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>
-                                        {t(`config.text_selection.${behaviorLabelKey}`)}
-                                    </Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='text selection behavior'
-                                    onAction={(key) => setBehavior(key)}
-                                >
-                                    <DropdownItem key='toolbar'>
-                                        {t('config.text_selection.behavior_toolbar')}
-                                    </DropdownItem>
-                                    <DropdownItem key='direct_translate'>
-                                        {t('config.text_selection.behavior_direct')}
-                                    </DropdownItem>
-                                    <DropdownItem key='disabled'>
-                                        {t('config.text_selection.behavior_disabled')}
-                                    </DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`config.text_selection.${behaviorLabelKey}`)}
+                                ariaLabel='text selection behavior'
+                                selectedKey={behavior}
+                                onAction={(key) => setBehavior(key)}
+                            >
+                                <DropdownItem key='toolbar'>
+                                    {t('config.text_selection.behavior_toolbar')}
+                                </DropdownItem>
+                                <DropdownItem key='direct_translate'>
+                                    {t('config.text_selection.behavior_direct')}
+                                </DropdownItem>
+                                <DropdownItem key='disabled'>
+                                    {t('config.text_selection.behavior_disabled')}
+                                </DropdownItem>
+                            </SettingsDropdown>
                         )}
                     </div>
                 </CardBody>
             </Card>
 
             <Card className='mb-[10px]'>
-                <CardBody>
-                    <h3 className='text-[16px] font-bold mb-[12px]'>
+                <CardBody className='gap-3'>
+                    <h3 className='text-[16px] font-bold'>
                         {t('config.text_selection.buttons_title')}
                     </h3>
                     <DragDropContext onDragEnd={onDragEnd}>
@@ -116,21 +138,24 @@ export default function TextSelection() {
                                 <div
                                     ref={provided.innerRef}
                                     {...provided.droppableProps}
+                                    className='space-y-3'
                                 >
-                                    {orderedButtons.map((btn, i) => (
-                                        <Draggable key={btn.id} draggableId={btn.id} index={i}>
+                                    {orderedButtons.map((button, index) => (
+                                        <Draggable
+                                            key={button.id}
+                                            draggableId={button.id}
+                                            index={index}
+                                        >
                                             {(provided) => (
                                                 <div
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
                                                 >
                                                     <ToolbarButtonItem
+                                                        button={button}
+                                                        label={button.label}
                                                         dragHandleProps={provided.dragHandleProps}
-                                                        emoji={btn.emoji}
-                                                        label={btn.label}
-                                                        cfgKey={btn.cfgKey}
                                                     />
-                                                    <Spacer y={2} />
                                                 </div>
                                             )}
                                         </Draggable>
@@ -140,6 +165,59 @@ export default function TextSelection() {
                             )}
                         </Droppable>
                     </DragDropContext>
+                </CardBody>
+            </Card>
+
+            <Card>
+                <CardBody className='gap-3'>
+                    <div className='flex items-center justify-between gap-4'>
+                        <h3 className='text-[16px] font-bold'>
+                            {t('config.text_selection.smart_title', {
+                                defaultValue: '\u667a\u80fd\u8bc6\u522b\u80fd\u529b',
+                            })}
+                        </h3>
+                        <p className='text-xs text-default-400'>
+                            {t('config.text_selection.smart_description', {
+                                defaultValue:
+                                    '\u60ac\u6d6e\u53ef\u67e5\u770b\u89e6\u53d1\u6761\u4ef6',
+                            })}
+                        </p>
+                    </div>
+                    <div className='flex flex-wrap gap-2'>
+                        {smartButtons.map((button) => {
+                            const Icon = button.Icon;
+
+                            return (
+                                <Tooltip
+                                    key={button.id}
+                                    delay={200}
+                                    placement='top'
+                                    content={
+                                        <div className='max-w-[220px] px-1 py-0.5'>
+                                            <div className='text-sm font-semibold text-foreground'>
+                                                {button.label}
+                                            </div>
+                                            <div className='mt-1 text-xs leading-5 text-default-500'>
+                                                {button.matchLabel}
+                                            </div>
+                                            <div className='mt-2 rounded-md bg-default-100 px-2 py-1 font-mono text-[11px] text-default-600'>
+                                                {button.example}
+                                            </div>
+                                        </div>
+                                    }
+                                >
+                                    <div className='inline-flex items-center gap-2 rounded-full border border-divider/70 bg-content1 px-3 py-2 text-sm text-default-600 transition-colors hover:bg-content2/70 hover:text-foreground'>
+                                        <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-default-100 text-primary'>
+                                            <Icon size={14} />
+                                        </div>
+                                        <span className='whitespace-nowrap'>
+                                            {button.label}
+                                        </span>
+                                    </div>
+                                </Tooltip>
+                            );
+                        })}
+                    </div>
                 </CardBody>
             </Card>
         </div>

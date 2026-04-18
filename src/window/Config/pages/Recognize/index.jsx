@@ -1,14 +1,11 @@
-import { DropdownTrigger } from '@nextui-org/react';
-import { DropdownMenu } from '@nextui-org/react';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { CardBody } from '@nextui-org/react';
-import { Dropdown } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
-import { Button } from '@nextui-org/react';
 import { Card } from '@nextui-org/react';
 import React from 'react';
 
+import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { languageList } from '../../../../utils/language';
 import { useConfig } from '../../../../hooks';
 
@@ -25,23 +22,20 @@ export default function Recognize() {
                 <div className='config-item'>
                     <h3 className='my-auto mx-0'>{t('config.recognize.language')}</h3>
                     {recognizeLanguage !== null && (
-                        <Dropdown>
-                            <DropdownTrigger>
-                                <Button variant='bordered'>{t(`languages.${recognizeLanguage}`)}</Button>
-                            </DropdownTrigger>
-                            <DropdownMenu
-                                aria-label='recognize language'
-                                className='max-h-[50vh] overflow-y-auto'
-                                onAction={(key) => {
-                                    setRecognizeLanguage(key);
-                                }}
-                            >
-                                <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
-                                {languageList.map((item) => {
-                                    return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                                })}
-                            </DropdownMenu>
-                        </Dropdown>
+                        <SettingsDropdown
+                            label={t(`languages.${recognizeLanguage}`)}
+                            ariaLabel='recognize language'
+                            selectedKey={recognizeLanguage}
+                            menuClassName='max-h-[50vh] overflow-y-auto'
+                            onAction={(key) => {
+                                setRecognizeLanguage(key);
+                            }}
+                        >
+                            <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
+                            {languageList.map((item) => {
+                                return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                            })}
+                        </SettingsDropdown>
                     )}
                 </div>
                 <div className='config-item'>

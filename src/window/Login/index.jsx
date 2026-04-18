@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { appWindow } from '@tauri-apps/api/window';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { HiCheck, HiChevronDown, HiGlobeAlt } from 'react-icons/hi';
+import { LuCheck, LuLanguages } from 'react-icons/lu';
 
+import CompactDropdownButton from '../../components/CompactDropdownButton';
 import WindowControl from '../../components/WindowControl';
 import { osType } from '../../utils/env';
 import { getLanguagePreference, saveLanguagePreference } from '../../utils/auth';
@@ -140,25 +141,19 @@ export default function Login({ embedded = false, onSuccess }) {
                                 ref={languageMenuRef}
                                 className='relative'
                             >
-                                <button
-                                    type='button'
-                                    className='group inline-flex items-center gap-2 rounded-full border border-default-200 bg-white/90 px-4 py-2 text-sm font-medium text-default-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-default-900 hover:shadow-md'
+                                <CompactDropdownButton
+                                    label={currentLanguageOption.label}
+                                    open={languageMenuOpen}
+                                    startContent={<LuLanguages className='text-base' />}
                                     aria-haspopup='menu'
                                     aria-expanded={languageMenuOpen}
                                     title={t('login.language_label')}
+                                    className='rounded-full bg-white/90 px-4 shadow-sm hover:-translate-y-0.5 hover:shadow-md'
                                     onClick={() => setLanguageMenuOpen((open) => !open)}
-                                >
-                                    <HiGlobeAlt className='text-base text-default-500 transition-colors group-hover:text-primary' />
-                                    <span>{currentLanguageOption.label}</span>
-                                    <HiChevronDown
-                                        className={`text-base text-default-400 transition-transform duration-200 ${
-                                            languageMenuOpen ? 'rotate-180' : ''
-                                        }`}
-                                    />
-                                </button>
+                                />
 
                                 {languageMenuOpen ? (
-                                    <div className='absolute left-1/2 top-full z-20 mt-2 w-48 -translate-x-1/2 rounded-2xl border border-default-200 bg-white/95 p-1.5 shadow-xl backdrop-blur'>
+                                    <div className='absolute left-1/2 top-full z-20 mt-2 w-48 -translate-x-1/2 rounded-2xl border border-default-200/80 bg-content1/95 p-1.5 shadow-lg backdrop-blur'>
                                         {LOGIN_LANGUAGE_OPTIONS.map((option) => {
                                             const active = option.key === currentLanguageOption.key;
                                             return (
@@ -173,7 +168,7 @@ export default function Login({ embedded = false, onSuccess }) {
                                                     onClick={() => handleLanguageChange(option.key)}
                                                 >
                                                     <span>{option.label}</span>
-                                                    {active ? <HiCheck className='text-base' /> : null}
+                                                    {active ? <LuCheck className='text-base' /> : null}
                                                 </button>
                                             );
                                         })}

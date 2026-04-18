@@ -21,7 +21,7 @@ import PhrasesInline from './window/PhrasesInline';
 import Login from './window/Login';
 import AuthGuard from './components/AuthGuard';
 import { useConfig } from './hooks';
-import { applyAppFont } from './utils/appFont';
+import { applyAppFont, DEFAULT_APP_FONT_SIZE } from './utils/appFont';
 import './style.css';
 import './i18n';
 
@@ -48,7 +48,6 @@ export default function App() {
     const [appTheme] = useConfig('app_theme', 'system');
     const [appLanguage] = useConfig('app_language', 'en');
     const [appFont] = useConfig('app_font', 'default');
-    const [appFontSize] = useConfig('app_font_size', 16);
     const { setTheme } = useTheme();
     const { i18n } = useTranslation();
 
@@ -111,10 +110,8 @@ export default function App() {
         if (appFont !== null) {
             applyAppFont(appFont);
         }
-        if (appFontSize !== null) {
-            document.documentElement.style.fontSize = `${appFontSize}px`;
-        }
-    }, [appFont, appFontSize]);
+        document.documentElement.style.fontSize = `${DEFAULT_APP_FONT_SIZE}px`;
+    }, [appFont]);
 
     return (
         <BrowserRouter>

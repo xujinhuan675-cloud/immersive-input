@@ -1,13 +1,11 @@
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../utils/service_instance';
 import { Button, Input } from '@nextui-org/react';
-import { DropdownTrigger } from '@nextui-org/react';
-import { DropdownMenu } from '@nextui-org/react';
 import { DropdownItem } from '@nextui-org/react';
-import { Dropdown } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/api/shell';
 import React from 'react';
 
+import SettingsDropdown from '../../../../../components/SettingsDropdown';
 import { useConfig } from '../../../../../hooks';
 
 export function PluginConfig(props) {
@@ -75,36 +73,33 @@ export function PluginConfig(props) {
                                     />
                                 )}
                                 {x.type === 'select' && (
-                                    <Dropdown>
-                                        <DropdownTrigger>
-                                            <Button
-                                                variant='bordered'
-                                                className='max-w-[50%]'
-                                            >
-                                                {
-                                                    x.options[
-                                                        pluginConfig.hasOwnProperty(x.key)
-                                                            ? pluginConfig[x.key]
-                                                            : Object.keys(x.options)[0]
-                                                    ]
-                                                }
-                                            </Button>
-                                        </DropdownTrigger>
-                                        <DropdownMenu
-                                            aria-label={x.key}
-                                            className='max-h-[40vh] overflow-y-auto'
-                                            onAction={(key) => {
-                                                setPluginConfig({
-                                                    ...pluginConfig,
-                                                    [x.key]: key,
-                                                });
-                                            }}
-                                        >
-                                            {Object.keys(x.options).map((y) => {
-                                                return <DropdownItem key={y}>{x.options[y]}</DropdownItem>;
-                                            })}
-                                        </DropdownMenu>
-                                    </Dropdown>
+                                    <SettingsDropdown
+                                        label={
+                                            x.options[
+                                                pluginConfig.hasOwnProperty(x.key)
+                                                    ? pluginConfig[x.key]
+                                                    : Object.keys(x.options)[0]
+                                            ]
+                                        }
+                                        ariaLabel={x.key}
+                                        selectedKey={
+                                            pluginConfig.hasOwnProperty(x.key)
+                                                ? pluginConfig[x.key]
+                                                : Object.keys(x.options)[0]
+                                        }
+                                        className='max-w-[50%]'
+                                        menuClassName='max-h-[40vh] overflow-y-auto'
+                                        onAction={(key) => {
+                                            setPluginConfig({
+                                                ...pluginConfig,
+                                                [x.key]: key,
+                                            });
+                                        }}
+                                    >
+                                        {Object.keys(x.options).map((y) => {
+                                            return <DropdownItem key={y}>{x.options[y]}</DropdownItem>;
+                                        })}
+                                    </SettingsDropdown>
                                 )}
                             </div>
                         ) : (

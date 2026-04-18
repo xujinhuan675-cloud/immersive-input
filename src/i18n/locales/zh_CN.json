@@ -261,8 +261,8 @@
                 "payment_order_type": "订单类型",
                 "payment_order_product": "商品编码",
                 "order_type_topup": "充值",
-                "order_type_subscription": "会员套餐",
-                "billing_title": "会员与计费",
+                "order_type_subscription": "权益套餐",
+                "billing_title": "账户权益",
                 "billing_reload": "刷新",
                 "billing_not_ready": "暂无计费信息",
                 "billing_load_failed": "计费信息加载失败",
@@ -297,9 +297,9 @@
                 "billing_region_global": "海外",
                 "billing_region_cn": "中国区",
                 "quota_card_hint": "每日额度用完后，可继续通过积分使用 AI。",
-                "subscription_title": "会员套餐",
+                "subscription_title": "权益套餐",
                 "subscription_subtitle": "可直接在此购买或续费，续费会从当前到期时间继续累加",
-                "subscription_not_ready": "暂无可购买的会员套餐",
+                "subscription_not_ready": "暂无可购买的权益套餐",
                 "subscription_buy": "立即购买",
                 "subscription_cycle_label": "计费周期",
                 "subscription_cycle_month": "月套餐",
@@ -361,8 +361,8 @@
                 "admin_order_refund_missing_snapshot": "该会员订单缺少历史快照，需人工处理",
                 "admin_order_refund_later_subscription": "该会员订单之后已有新的续费，系统已阻止自动回滚",
                 "admin_membership_title": "会员管理",
-                "admin_membership_subtitle": "可查询任意用户的计费资料，并暂停或恢复会员状态",
-                "admin_user_id": "目标用户 ID",
+                "admin_membership_subtitle": "可通过用户 ID 或邮箱查询任意用户的计费资料，并暂停或恢复会员状态",
+                "admin_user_id": "目标用户 ID / 邮箱",
                 "admin_use_current_user": "使用当前账号",
                 "admin_membership_lookup": "查询会员",
                 "admin_membership_lookup_success": "会员信息已加载",
@@ -375,7 +375,7 @@
                 "admin_membership_action_failed": "会员状态更新失败",
                 "admin_membership_empty": "暂无目标用户的会员资料",
                 "admin_tier_title": "会员调档",
-                "admin_tier_subtitle": "可按用户 ID 直接调整会员套餐。追加天数留空时，会尽量保留当前到期时间。",
+                "admin_tier_subtitle": "可按用户 ID 或邮箱直接调整会员套餐。追加天数留空时，会尽量保留当前到期时间。",
                 "admin_tier_target": "目标套餐",
                 "admin_tier_duration_days": "追加天数（选填）",
                 "admin_tier_duration_hint": "如果目标是付费档，且当前没有有效会员时长，请填写天数。",
@@ -383,7 +383,7 @@
                 "admin_tier_apply_success": "会员套餐已更新",
                 "admin_tier_apply_failed": "会员调档失败",
                 "admin_requires_order_id": "请先输入订单号",
-                "admin_requires_user_id": "请先输入目标用户 ID"
+                "admin_requires_user_id": "请先输入目标用户 ID 或邮箱"
             },
             "ai": {
                 "label": "AI 功能",
@@ -820,7 +820,8 @@
             "copy": "复制",
             "retry": "重试",
             "delete_newline": "删除换行",
-            "translate_back": "翻译回原文"
+            "translate_back": "翻译回原文",
+            "source_placeholder": "输入、粘贴或划词后，内容会显示在这里"
         },
         "recognize": {
             "recognize": "重新识别",

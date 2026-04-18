@@ -1,8 +1,8 @@
 import { Modal, ModalContent, ModalHeader, ModalBody, Button, Input, Slider, Spacer } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
-import { MdOutlineAutoAwesome } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
+import { LuBrainCircuit } from 'react-icons/lu';
 
 import { useConfig } from '../../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../../hooks';
@@ -241,8 +241,8 @@ export default function ConfigModal(props) {
                     <>
                         <ModalHeader>
                             <div className='flex items-center'>
-                                <div className='flex h-[24px] w-[24px] items-center justify-center rounded-[8px] bg-primary-100 text-primary'>
-                                    <MdOutlineAutoAwesome className='text-[16px]' />
+                                <div className='flex h-[28px] w-[28px] items-center justify-center rounded-[10px] bg-primary-100 text-primary'>
+                                    <LuBrainCircuit className='text-[16px]' />
                                 </div>
                                 <Spacer x={2} />
                                 {t('ai_config.provider_title', { defaultValue: 'OpenAI' })}

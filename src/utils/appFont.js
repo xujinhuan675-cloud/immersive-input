@@ -1,6 +1,7 @@
 ﻿export const DEFAULT_APP_FONT_STACK =
     'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif';
 
+export const DEFAULT_APP_FONT_SIZE = 16;
 export const APP_FONT_CSS_VAR = '--app-font-family';
 export const APP_FONT_FAMILY_VAR = 'var(--app-font-family)';
 

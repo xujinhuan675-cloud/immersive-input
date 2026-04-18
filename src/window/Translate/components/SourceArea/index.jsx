@@ -1,37 +1,37 @@
-import { Button, Card, CardBody, CardFooter, ButtonGroup, Chip, Tooltip, Spacer } from '@nextui-org/react';
+import { Button, Card, CardBody, CardFooter, Tooltip } from '@nextui-org/react';
 import { BaseDirectory, readTextFile } from '@tauri-apps/api/fs';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { writeText } from '@tauri-apps/api/clipboard';
-import { HiOutlineVolumeUp } from 'react-icons/hi';
+import { HiOutlineVolumeUp, HiTranslate } from 'react-icons/hi';
 import { appWindow } from '@tauri-apps/api/window';
 import toast, { Toaster } from 'react-hot-toast';
 import { listen } from '@tauri-apps/api/event';
-import { MdContentCopy } from 'react-icons/md';
-import { MdSmartButton } from 'react-icons/md';
+import { MdContentCopy, MdSmartButton } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
-import { HiTranslate } from 'react-icons/hi';
 import { LuDelete } from 'react-icons/lu';
 import { invoke } from '@tauri-apps/api';
 import { atom, useAtom } from 'jotai';
+
 import { getServiceName, getServiceSouceType, ServiceSourceType } from '../../../../utils/service_instance';
-import { useConfig, useSyncAtom, useVoice, useToastStyle } from '../../../../hooks';
+import { useConfig, useSyncAtom, useToastStyle, useVoice } from '../../../../hooks';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
+import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import * as recognizeServices from '../../../../services/recognize';
 import * as builtinTtsServices from '../../../../services/tts';
 import detect from '../../../../utils/lang_detect';
-import { store } from '../../../../utils/store';
-import { info } from 'tauri-plugin-log-api';
-import { debug } from 'tauri-plugin-log-api';
 
 export const sourceTextAtom = atom('');
 export const detectLanguageAtom = atom('');
 
 let unlisten = null;
-let timer = null;
+
+const TOOL_ICON_BUTTON_CLASS =
+    'h-7 w-7 min-w-0 rounded-[8px] text-default-400 transition-colors hover:bg-default-100 hover:text-default-600 data-[hover=true]:bg-default-100';
+const PRIMARY_TRANSLATE_BUTTON_CLASS =
+    'h-8 rounded-[9px] bg-default-900 px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90';
 
 export default function SourceArea(props) {
     const { pluginList, serviceInstanceConfigMap } = props;
-    const [appFontSize] = useConfig('app_font_size', 16);
     const [sourceText, setSourceText, syncSourceText] = useSyncAtom(sourceTextAtom);
     const [detectLanguage, setDetectLanguage] = useAtom(detectLanguageAtom);
     const [incrementalTranslate] = useConfig('incremental_translate', false);
@@ -46,84 +46,64 @@ export default function SourceArea(props) {
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
-    const textAreaRef = useRef();
+    const textAreaRef = useRef(null);
+    const sourceTextChangeTimerRef = useRef(null);
     const speak = useVoice();
+    const hasSourceText = sourceText.trim() !== '';
 
-    const handleNewText = async (text) => {
-        text = text.trim();
-        if (hideWindow) {
-            appWindow.hide();
-        } else {
-            appWindow.show();
-            appWindow.setFocus();
-        }
-        // 清空检测语言
-        setDetectLanguage('');
-        if (text === '[INPUT_TRANSLATE]') {
-            setWindowType('[INPUT_TRANSLATE]');
-            appWindow.show();
-            appWindow.setFocus();
-            setSourceText('', true);
-        } else if (text === '[IMAGE_TRANSLATE]') {
-            setWindowType('[IMAGE_TRANSLATE]');
-            const base64 = await invoke('get_base64');
-            const serviceInstanceKey = recognizeServiceList[0];
-            if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
-                if (recognizeLanguage in pluginList['recognize'][getServiceName(serviceInstanceKey)].language) {
-                    const pluginConfig = serviceInstanceConfigMap[serviceInstanceKey];
+    const detect_language = useCallback(
+        async (text) => {
+            const nextText = text.trim();
+            if (!nextText) {
+                setDetectLanguage('');
+                return;
+            }
 
-                    let [func, utils] = await invoke_plugin('recognize', getServiceName(serviceInstanceKey));
-                    func(
-                        base64,
-                        pluginList['recognize'][getServiceName(serviceInstanceKey)].language[recognizeLanguage],
-                        {
-                            config: pluginConfig,
-                            utils,
-                        }
-                    ).then(
-                        (v) => {
-                            let newText = v.trim();
-                            if (deleteNewline) {
-                                newText = v.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
-                            } else {
-                                newText = v.trim();
-                            }
-                            if (incrementalTranslate) {
-                                setSourceText((old) => {
-                                    return old + ' ' + newText;
-                                });
-                            } else {
-                                setSourceText(newText);
-                            }
-                            detect_language(newText).then(() => {
-                                syncSourceText();
-                            });
-                        },
-                        (e) => {
-                            setSourceText(e.toString());
-                        }
-                    );
-                } else {
-                    setSourceText('Language not supported');
-                }
+            setDetectLanguage(await detect(nextText));
+        },
+        [setDetectLanguage]
+    );
+
+    const handleNewText = useCallback(
+        async (text) => {
+            text = text.trim();
+            if (hideWindow) {
+                appWindow.hide();
             } else {
-                if (recognizeLanguage in recognizeServices[getServiceName(serviceInstanceKey)].Language) {
-                    const instanceConfig = serviceInstanceConfigMap[serviceInstanceKey];
-                    recognizeServices[getServiceName(serviceInstanceKey)]
-                        .recognize(
+                appWindow.show();
+                appWindow.setFocus();
+            }
+
+            setDetectLanguage('');
+            if (text === '[INPUT_TRANSLATE]') {
+                setWindowType('[INPUT_TRANSLATE]');
+                appWindow.show();
+                appWindow.setFocus();
+                setSourceText('', true);
+                return;
+            }
+
+            if (text === '[IMAGE_TRANSLATE]') {
+                setWindowType('[IMAGE_TRANSLATE]');
+                const base64 = await invoke('get_base64');
+                const serviceInstanceKey = recognizeServiceList[0];
+                if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
+                    if (recognizeLanguage in pluginList['recognize'][getServiceName(serviceInstanceKey)].language) {
+                        const pluginConfig = serviceInstanceConfigMap[serviceInstanceKey];
+
+                        let [func, utils] = await invoke_plugin('recognize', getServiceName(serviceInstanceKey));
+                        func(
                             base64,
-                            recognizeServices[getServiceName(serviceInstanceKey)].Language[recognizeLanguage],
+                            pluginList['recognize'][getServiceName(serviceInstanceKey)].language[recognizeLanguage],
                             {
-                                config: instanceConfig,
+                                config: pluginConfig,
+                                utils,
                             }
-                        )
-                        .then(
+                        ).then(
                             (v) => {
                                 let newText = v.trim();
                                 if (deleteNewline) {
                                     newText = v.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
-                                } else {
-                                    newText = v.trim();
                                 }
                                 if (incrementalTranslate) {
                                     setSourceText((old) => {
@@ -140,18 +120,50 @@ export default function SourceArea(props) {
                                 setSourceText(e.toString());
                             }
                         );
+                    } else {
+                        setSourceText('Language not supported');
+                    }
                 } else {
-                    setSourceText('Language not supported');
+                    if (recognizeLanguage in recognizeServices[getServiceName(serviceInstanceKey)].Language) {
+                        const instanceConfig = serviceInstanceConfigMap[serviceInstanceKey];
+                        recognizeServices[getServiceName(serviceInstanceKey)]
+                            .recognize(
+                                base64,
+                                recognizeServices[getServiceName(serviceInstanceKey)].Language[recognizeLanguage],
+                                {
+                                    config: instanceConfig,
+                                }
+                            )
+                            .then(
+                                (v) => {
+                                    let newText = v.trim();
+                                    if (deleteNewline) {
+                                        newText = v.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
+                                    }
+                                    if (incrementalTranslate) {
+                                        setSourceText((old) => {
+                                            return old + ' ' + newText;
+                                        });
+                                    } else {
+                                        setSourceText(newText);
+                                    }
+                                    detect_language(newText).then(() => {
+                                        syncSourceText();
+                                    });
+                                },
+                                (e) => {
+                                    setSourceText(e.toString());
+                                }
+                            );
+                    } else {
+                        setSourceText('Language not supported');
+                    }
                 }
+                return;
             }
-        } else {
+
             setWindowType('[SELECTION_TRANSLATE]');
-            let newText = text.trim();
-            if (deleteNewline) {
-                newText = text.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
-            } else {
-                newText = text.trim();
-            }
+            let newText = deleteNewline ? text.replace(/\-\s+/g, '').replace(/\s+/g, ' ') : text.trim();
             if (incrementalTranslate) {
                 setSourceText((old) => {
                     return old + ' ' + newText;
@@ -162,8 +174,21 @@ export default function SourceArea(props) {
             detect_language(newText).then(() => {
                 syncSourceText();
             });
-        }
-    };
+        },
+        [
+            deleteNewline,
+            detect_language,
+            hideWindow,
+            incrementalTranslate,
+            pluginList,
+            recognizeLanguage,
+            recognizeServiceList,
+            serviceInstanceConfigMap,
+            setDetectLanguage,
+            setSourceText,
+            syncSourceText,
+        ]
+    );
 
     const keyDown = (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
@@ -176,6 +201,27 @@ export default function SourceArea(props) {
             appWindow.close();
         }
     };
+
+    const changeSourceText = useCallback(
+        async (text) => {
+            setDetectLanguage('');
+            await setSourceText(text);
+
+            if (sourceTextChangeTimerRef.current) {
+                clearTimeout(sourceTextChangeTimerRef.current);
+                sourceTextChangeTimerRef.current = null;
+            }
+
+            if (dynamicTranslate && text.trim() !== '') {
+                sourceTextChangeTimerRef.current = setTimeout(() => {
+                    detect_language(text).then(() => {
+                        syncSourceText();
+                    });
+                }, 650);
+            }
+        },
+        [detect_language, dynamicTranslate, setDetectLanguage, setSourceText, syncSourceText]
+    );
 
     const handleSpeak = async () => {
         const instanceKey = ttsServiceList[0];
@@ -213,15 +259,22 @@ export default function SourceArea(props) {
 
     useEffect(() => {
         if (unlisten) {
-            unlisten.then((f) => {
-                f();
+            unlisten.then((fn) => {
+                fn();
             });
         }
+
         unlisten = listen('new_text', (event) => {
             appWindow.setFocus();
             handleNewText(event.payload);
         });
-    }, []);
+
+        return () => {
+            unlisten?.then((fn) => {
+                fn();
+            });
+        };
+    }, [handleNewText]);
 
     useEffect(() => {
         if (ttsServiceList && getServiceSouceType(ttsServiceList[0]) === ServiceSourceType.PLUGIN) {
@@ -234,66 +287,65 @@ export default function SourceArea(props) {
     }, [ttsServiceList]);
 
     useEffect(() => {
-        if (deleteNewline !== null && incrementalTranslate !== null && recognizeLanguage !== null && recognizeServiceList !== null) {
+        if (
+            deleteNewline !== null &&
+            incrementalTranslate !== null &&
+            recognizeLanguage !== null &&
+            recognizeServiceList !== null
+        ) {
             invoke('get_text').then((v) => {
                 handleNewText(v);
             });
         }
-    }, [deleteNewline, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
+    }, [deleteNewline, handleNewText, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
 
     useEffect(() => {
-        textAreaRef.current.style.height = '50px';
+        if (!textAreaRef.current) return;
+        textAreaRef.current.style.height = '44px';
         textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
     }, [sourceText]);
 
-    const detect_language = async (text) => {
-        setDetectLanguage(await detect(text));
-    };
-
-    let sourceTextChangeTimer = null;
-    const changeSourceText = async (text) => {
-        setDetectLanguage('');
-        await setSourceText(text);
-        if (dynamicTranslate) {
-            if (sourceTextChangeTimer) {
-                clearTimeout(sourceTextChangeTimer);
+    useEffect(() => {
+        return () => {
+            if (sourceTextChangeTimerRef.current) {
+                clearTimeout(sourceTextChangeTimerRef.current);
             }
-            sourceTextChangeTimer = setTimeout(() => {
-                detect_language(text).then(() => {
-                    syncSourceText();
-                });
-            }, 1000);
-        }
-    }
+        };
+    }, []);
 
     const transformVarName = function (str) {
         let str2 = str;
 
-        // snake_case to SNAKE_CASE
         if (/_[a-z]/.test(str2)) {
-            str2 = str2.split('_').map(it => it.toLocaleUpperCase()).join('_');
+            str2 = str2
+                .split('_')
+                .map((it) => it.toLocaleUpperCase())
+                .join('_');
         }
         if (str2 !== str) {
             return str2;
         }
 
-        // SNAKE_CASE to kebab-case
         if (/^[A-Z]+(_[A-Z]+)*$/.test(str2)) {
-            str2 = str2.split('_').map(it => it.toLocaleLowerCase()).join('-');
+            str2 = str2
+                .split('_')
+                .map((it) => it.toLocaleLowerCase())
+                .join('-');
         }
         if (str2 !== str) {
             return str2;
         }
 
-        // kebab-case to dot.notation
         if (/-/.test(str2)) {
-            str2 = str2.split('-').map(it => it.toLocaleLowerCase()).join('.');
+            str2 = str2
+                .split('-')
+                .map((it) => it.toLocaleLowerCase())
+                .join('.');
         }
         if (str2 !== str) {
             return str2;
         }
 
-        // dot.notation to space separated
         if (/\.[a-z]/.test(str2)) {
             str2 = str2.replaceAll(/(\.)([a-z])/g, (_, _2, it) => ' ' + it);
         }
@@ -301,7 +353,6 @@ export default function SourceArea(props) {
             return str2;
         }
 
-        // space separated to Title Case
         if (/\s[a-z]/.test(str2)) {
             str2 = str2.replaceAll(/\s([a-z])/g, (_, it) => ' ' + it.toLocaleUpperCase());
             str2 = str2.substring(0, 1).toLocaleUpperCase() + str2.substring(1);
@@ -310,7 +361,6 @@ export default function SourceArea(props) {
             return str2;
         }
 
-        // Title Case to CamelCase
         if (/\s[A-Z]/.test(str2)) {
             str2 = str2.replaceAll(/\s([A-Z])/g, (_, it) => it);
             str2 = str2.substring(0, 1).toLocaleLowerCase() + str2.substring(1);
@@ -319,7 +369,6 @@ export default function SourceArea(props) {
             return str2;
         }
 
-        // CamelCase to PascalCase
         if (/^[a-z]+[A-Z]+/.test(str2)) {
             str2 = str2.substring(0, 1).toLocaleUpperCase() + str2.substring(1);
         }
@@ -327,17 +376,21 @@ export default function SourceArea(props) {
             return str2;
         }
 
-        // PascalCase to snake_case
         if (/[^\s][A-Z]/.test(str2)) {
             str2 = str2.replaceAll(/[A-Z]/g, (it, offset) => {
-                return (offset == 0 ? '' : '_') + it.toLocaleLowerCase();
+                return (offset === 0 ? '' : '_') + it.toLocaleLowerCase();
             });
         }
 
         return str2;
-    }
+    };
+
     useEffect(() => {
-        textAreaRef.current.addEventListener("keydown", async (event) => {
+        if (!textAreaRef.current) {
+            return undefined;
+        }
+
+        const handleTransformShortcut = async (event) => {
             if (event.altKey && event.shiftKey && event.code === 'KeyU') {
                 const originText = textAreaRef.current.value;
                 const selectionStart = textAreaRef.current.selectionStart;
@@ -345,125 +398,127 @@ export default function SourceArea(props) {
                 const selectionText = originText.substring(selectionStart, selectionEnd);
 
                 const convertedText = transformVarName(selectionText);
-                const targetText = originText.substring(0, selectionStart) + convertedText + originText.substring(selectionEnd);
+                const targetText =
+                    originText.substring(0, selectionStart) + convertedText + originText.substring(selectionEnd);
 
                 await changeSourceText(targetText);
                 textAreaRef.current.selectionStart = selectionStart;
                 textAreaRef.current.selectionEnd = selectionStart + convertedText.length;
             }
-        });
-    }, [textAreaRef]);
+        };
 
+        textAreaRef.current.addEventListener('keydown', handleTransformShortcut);
+        return () => {
+            textAreaRef.current?.removeEventListener('keydown', handleTransformShortcut);
+        };
+    }, [changeSourceText]);
 
     return (
-        <div className={hideSource && windowType !== '[INPUT_TRANSLATE]' && 'hidden'}>
+        <div className={hideSource && windowType !== '[INPUT_TRANSLATE]' ? 'hidden' : ''}>
             <Card
                 shadow='none'
-                className='bg-content1 rounded-[10px] mt-[1px] pb-0'
+                className='mt-[1px] overflow-hidden rounded-[14px] border border-default-200/80 bg-content1/94 pb-0'
             >
                 <Toaster />
-                <CardBody className='bg-content1 p-[12px] pb-0 max-h-[40vh] overflow-y-auto'>
+                <CardBody className='max-h-[28vh] overflow-y-auto bg-content1 px-3 py-2.5 pb-1.5'>
                     <textarea
                         autoFocus
                         ref={textAreaRef}
-                        className={`text-[${appFontSize}px] bg-content1 h-full resize-none outline-none`}
+                        placeholder={t('translate.source_placeholder')}
+                        className='min-h-[76px] w-full resize-none bg-transparent text-foreground outline-none placeholder:text-default-300'
+                        style={{
+                            fontSize: DEFAULT_APP_FONT_SIZE,
+                            lineHeight: 1.6,
+                        }}
                         value={sourceText}
                         onKeyDown={keyDown}
-                        onChange={(e) => {
-                            const v = e.target.value;
-                            changeSourceText(v);
+                        onChange={(event) => {
+                            changeSourceText(event.target.value);
                         }}
                     />
                 </CardBody>
 
-                <CardFooter className='bg-content1 rounded-none rounded-b-[10px] flex justify-between px-[12px] p-[5px]'>
-                    <div className='flex justify-start'>
-                        <ButtonGroup className='mr-[5px]'>
-                            <Tooltip content={t('translate.speak')}>
-                                <Button
-                                    isIconOnly
-                                    variant='light'
-                                    size='sm'
-                                    onPress={() => {
-                                        handleSpeak().catch((e) => {
-                                            toast.error(e.toString(), { style: toastStyle });
-                                        });
-                                    }}
-                                >
-                                    <HiOutlineVolumeUp className='text-[16px]' />
-                                </Button>
-                            </Tooltip>
-                            <Tooltip content={t('translate.copy')}>
-                                <Button
-                                    isIconOnly
-                                    variant='light'
-                                    size='sm'
-                                    onPress={() => {
-                                        writeText(sourceText);
-                                    }}
-                                >
-                                    <MdContentCopy className='text-[16px]' />
-                                </Button>
-                            </Tooltip>
-                            <Tooltip content={t('translate.delete_newline')}>
-                                <Button
-                                    isIconOnly
-                                    variant='light'
-                                    size='sm'
-                                    onPress={() => {
-                                        const newText = sourceText.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
-                                        setSourceText(newText);
-                                        detect_language(newText).then(() => {
-                                            syncSourceText();
-                                        });
-                                    }}
-                                >
-                                    <MdSmartButton className='text-[16px]' />
-                                </Button>
-                            </Tooltip>
-                            <Tooltip content={t('common.clear')}>
-                                <Button
-                                    variant='light'
-                                    size='sm'
-                                    isIconOnly
-                                    isDisabled={sourceText === ''}
-                                    onPress={() => {
-                                        setSourceText('');
-                                    }}
-                                >
-                                    <LuDelete className='text-[16px]' />
-                                </Button>
-                            </Tooltip>
-                        </ButtonGroup>
-                        {detectLanguage !== '' && (
-                            <Chip
+                <CardFooter className='flex items-center justify-between gap-2 border-t border-default-200/70 bg-default-50/40 px-3 py-1.5'>
+                    <div className='flex items-center gap-1'>
+                        <Tooltip content={t('translate.speak')}>
+                            <Button
+                                isIconOnly
+                                variant='light'
                                 size='sm'
-                                color='secondary'
-                                variant='dot'
-                                className='my-auto'
+                                className={TOOL_ICON_BUTTON_CLASS}
+                                isDisabled={!hasSourceText}
+                                onPress={() => {
+                                    handleSpeak().catch((e) => {
+                                        toast.error(e.toString(), { style: toastStyle });
+                                    });
+                                }}
                             >
-                                {t(`languages.${detectLanguage}`)}
-                            </Chip>
-                        )}
+                                <HiOutlineVolumeUp className='text-[15px]' />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip content={t('translate.copy')}>
+                            <Button
+                                isIconOnly
+                                variant='light'
+                                size='sm'
+                                className={TOOL_ICON_BUTTON_CLASS}
+                                isDisabled={!hasSourceText}
+                                onPress={() => {
+                                    writeText(sourceText);
+                                }}
+                            >
+                                <MdContentCopy className='text-[15px]' />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip content={t('translate.delete_newline')}>
+                            <Button
+                                isIconOnly
+                                variant='light'
+                                size='sm'
+                                className={TOOL_ICON_BUTTON_CLASS}
+                                isDisabled={!hasSourceText}
+                                onPress={() => {
+                                    const newText = sourceText.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
+                                    setSourceText(newText);
+                                    detect_language(newText).then(() => {
+                                        syncSourceText();
+                                    });
+                                }}
+                            >
+                                <MdSmartButton className='text-[15px]' />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip content={t('common.clear')}>
+                            <Button
+                                variant='light'
+                                size='sm'
+                                isIconOnly
+                                className={TOOL_ICON_BUTTON_CLASS}
+                                isDisabled={!hasSourceText}
+                                onPress={() => {
+                                    setDetectLanguage('');
+                                    setSourceText('');
+                                }}
+                            >
+                                <LuDelete className='text-[15px]' />
+                            </Button>
+                        </Tooltip>
                     </div>
-                    <Tooltip content={t('translate.translate')}>
-                        <Button
-                            size='sm'
-                            color='primary'
-                            variant='light'
-                            isIconOnly
-                            className='text-[14px] font-bold'
-                            startContent={<HiTranslate className='text-[16px]' />}
-                            onPress={() => {
-                                detect_language(sourceText).then(() => {
-                                    syncSourceText();
-                                });
-                            }}
-                        />
-                    </Tooltip>
+                    <Button
+                        size='sm'
+                        className={PRIMARY_TRANSLATE_BUTTON_CLASS}
+                        isDisabled={!hasSourceText}
+                        startContent={<HiTranslate className='text-[14px]' />}
+                        onPress={() => {
+                            detect_language(sourceText).then(() => {
+                                syncSourceText();
+                            });
+                        }}
+                    >
+                        {t('translate.translate')}
+                    </Button>
                 </CardFooter>
             </Card>
-            <Spacer y={2} />
         </div>
     );
 }

@@ -261,8 +261,8 @@
                 "payment_order_type": "Order type",
                 "payment_order_product": "Product code",
                 "order_type_topup": "Top-up",
-                "order_type_subscription": "Subscription",
-                "billing_title": "Membership & Billing",
+                "order_type_subscription": "Benefit Plan",
+                "billing_title": "Account Benefits",
                 "billing_reload": "Reload",
                 "billing_not_ready": "Billing profile is not ready",
                 "billing_load_failed": "Failed to load billing profile",
@@ -297,9 +297,9 @@
                 "billing_region_global": "Global",
                 "billing_region_cn": "China",
                 "quota_card_hint": "After the daily quota is used up, credits can keep AI access going.",
-                "subscription_title": "Membership Packages",
+                "subscription_title": "Benefit Plans",
                 "subscription_subtitle": "Purchase or renew a plan here. Renewal stacks from the current expiry time",
-                "subscription_not_ready": "No membership plans are available yet",
+                "subscription_not_ready": "No benefit plans are available yet",
                 "subscription_buy": "Buy now",
                 "subscription_cycle_label": "Billing cycle",
                 "subscription_cycle_month": "Monthly",
@@ -361,8 +361,8 @@
                 "admin_order_refund_missing_snapshot": "This subscription order is missing a historical snapshot and needs manual handling",
                 "admin_order_refund_later_subscription": "A newer subscription exists after this order, so automatic rollback was blocked",
                 "admin_membership_title": "Membership Control",
-                "admin_membership_subtitle": "Inspect any user's billing profile and suspend or resume membership status",
-                "admin_user_id": "Target user ID",
+                "admin_membership_subtitle": "Inspect any user's billing profile by user ID or email, then suspend or resume membership status",
+                "admin_user_id": "Target user ID / email",
                 "admin_use_current_user": "Use current account",
                 "admin_membership_lookup": "Load membership",
                 "admin_membership_lookup_success": "Membership loaded",
@@ -375,7 +375,7 @@
                 "admin_membership_action_failed": "Failed to update membership status",
                 "admin_membership_empty": "No membership profile loaded yet",
                 "admin_tier_title": "Membership Tier Change",
-                "admin_tier_subtitle": "Change a user's package directly by user ID. Leave extra days blank to keep the current expiry.",
+                "admin_tier_subtitle": "Change a user's package directly by user ID or email. Leave extra days blank to keep the current expiry.",
                 "admin_tier_target": "Target package",
                 "admin_tier_duration_days": "Add days (optional)",
                 "admin_tier_duration_hint": "If the target is a paid tier and the user has no active subscription, please enter days here.",
@@ -383,7 +383,7 @@
                 "admin_tier_apply_success": "Membership tier updated",
                 "admin_tier_apply_failed": "Failed to update membership tier",
                 "admin_requires_order_id": "Please enter an order ID first",
-                "admin_requires_user_id": "Please enter a target user ID first"
+                "admin_requires_user_id": "Please enter a target user ID or email first"
             },
             "ai": {
                 "label": "AI Features",
@@ -820,7 +820,8 @@
             "copy": "Copy",
             "retry": "Try again",
             "delete_newline": "Delete Newline",
-            "translate_back": "Translation back to the original"
+            "translate_back": "Translation back to the original",
+            "source_placeholder": "Type, paste, or select text to translate"
         },
         "recognize": {
             "recognize": "Recognize",

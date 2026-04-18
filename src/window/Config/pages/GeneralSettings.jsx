@@ -1,12 +1,9 @@
 ﻿import { enable, isEnabled, disable } from 'tauri-plugin-autostart-api';
-import { DropdownTrigger } from '@nextui-org/react';
 import React, { useEffect, useMemo, useState } from 'react';
-import { DropdownMenu } from '@nextui-org/react';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { CardBody } from '@nextui-org/react';
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@nextui-org/react';
-import { Dropdown } from '@nextui-org/react';
 import { info } from 'tauri-plugin-log-api';
 import { Button } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
@@ -16,6 +13,7 @@ import { Card } from '@nextui-org/react';
 import { invoke } from '@tauri-apps/api';
 import { useTheme } from 'next-themes';
 
+import SettingsDropdown from '../../../components/SettingsDropdown';
 import { useConfig } from '../../../hooks/useConfig';
 import { applyAppFont, buildAppFontStack, getCuratedFontList, isChineseCapableFont } from '../../../utils/appFont';
 import { appVersion } from '../../../utils/env';
@@ -54,13 +52,11 @@ export default function GeneralSettings() {
     const [appLanguage, setAppLanguage] = useConfig('app_language', 'en');
     const [appTheme, setAppTheme] = useConfig('app_theme', 'system');
     const [appFont, setAppFont] = useConfig('app_font', 'default');
-    const [appFontSize, setAppFontSize] = useConfig('app_font_size', 16);
     const [trayClickEvent, setTrayClickEvent] = useConfig('tray_click_event', 'config');
     const [aboutModalOpen, setAboutModalOpen] = useState(false);
     const { t, i18n } = useTranslation();
     const { setTheme } = useTheme();
     const fontOptions = useMemo(() => getCuratedFontList(fontList, appFont), [fontList, appFont]);
-    const selectedFontSupportsChinese = appFont !== 'default' && isChineseCapableFont(appFont);
 
     const renderChineseSupportBadge = () => (
         <span
@@ -120,168 +116,117 @@ export default function GeneralSettings() {
                     <div className='config-item'>
                         <h3 className='my-auto'>{t('config.general.app_language')}</h3>
                         {appLanguage !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>
-                                        {t(`languages.${appLanguage}`)}
-                                    </Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='app language'
-                                    className='max-h-[40vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        setAppLanguage(key);
-                                        i18n.changeLanguage(key);
-                                        invoke('update_tray', { language: key, copyMode: '' });
-                                    }}
-                                >
-                                    {LANGUAGE_OPTIONS.map((languageKey) => (
-                                        <DropdownItem key={languageKey}>
-                                            {t(`languages.${languageKey}`)}
-                                        </DropdownItem>
-                                    ))}
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`languages.${appLanguage}`)}
+                                ariaLabel='app language'
+                                selectedKey={appLanguage}
+                                menuClassName='max-h-[40vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    setAppLanguage(key);
+                                    i18n.changeLanguage(key);
+                                    invoke('update_tray', { language: key, copyMode: '' });
+                                }}
+                            >
+                                {LANGUAGE_OPTIONS.map((languageKey) => (
+                                    <DropdownItem key={languageKey}>
+                                        {t(`languages.${languageKey}`)}
+                                    </DropdownItem>
+                                ))}
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>
                         <h3 className='my-auto'>{t('config.general.app_theme')}</h3>
                         {appTheme !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`config.general.theme.${appTheme}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='app theme'
-                                    onAction={(key) => {
-                                        setAppTheme(key);
-                                        if (key !== 'system') {
-                                            setTheme(key);
+                            <SettingsDropdown
+                                label={t(`config.general.theme.${appTheme}`)}
+                                ariaLabel='app theme'
+                                selectedKey={appTheme}
+                                onAction={(key) => {
+                                    setAppTheme(key);
+                                    if (key !== 'system') {
+                                        setTheme(key);
+                                    } else {
+                                        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                                            setTheme('dark');
                                         } else {
-                                            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                                                setTheme('dark');
-                                            } else {
-                                                setTheme('light');
-                                            }
-                                            window
-                                                .matchMedia('(prefers-color-scheme: dark)')
-                                                .addEventListener('change', (event) => {
-                                                    if (event.matches) {
-                                                        setTheme('dark');
-                                                    } else {
-                                                        setTheme('light');
-                                                    }
-                                                });
+                                            setTheme('light');
                                         }
-                                    }}
-                                >
-                                    <DropdownItem key='system'>{t('config.general.theme.system')}</DropdownItem>
-                                    <DropdownItem key='light'>{t('config.general.theme.light')}</DropdownItem>
-                                    <DropdownItem key='dark'>{t('config.general.theme.dark')}</DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                                        window
+                                            .matchMedia('(prefers-color-scheme: dark)')
+                                            .addEventListener('change', (event) => {
+                                                if (event.matches) {
+                                                    setTheme('dark');
+                                                } else {
+                                                    setTheme('light');
+                                                }
+                                            });
+                                    }
+                                }}
+                            >
+                                <DropdownItem key='system'>{t('config.general.theme.system')}</DropdownItem>
+                                <DropdownItem key='light'>{t('config.general.theme.light')}</DropdownItem>
+                                <DropdownItem key='dark'>{t('config.general.theme.dark')}</DropdownItem>
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className='config-item'>
                         <h3 className='my-auto'>{t('config.general.app_font')}</h3>
                         {appFont !== null && fontList !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>
-                                        <span className='flex items-center gap-2'>
-                                            <span
-                                                style={{
-                                                    fontFamily: buildAppFontStack(appFont),
-                                                }}
-                                            >
-                                                {appFont === 'default' ? t('config.general.default_font') : appFont}
-                                            </span>
-                                            {selectedFontSupportsChinese && renderChineseSupportBadge()}
-                                        </span>
-                                    </Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='app font'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        applyAppFont(key);
-                                        setAppFont(key);
-                                    }}
-                                >
-                                    <DropdownItem key='default' style={{ fontFamily: 'sans-serif' }}>
-                                        {t('config.general.default_font')}
-                                    </DropdownItem>
-                                    {fontOptions.map((fontName) => {
-                                        const fontSupportsChinese = isChineseCapableFont(fontName);
+                            <SettingsDropdown
+                                label={appFont === 'default' ? t('config.general.default_font') : appFont}
+                                ariaLabel='app font'
+                                selectedKey={appFont}
+                                menuClassName='max-h-[50vh] overflow-y-auto'
+                                onAction={(key) => {
+                                    applyAppFont(key);
+                                    setAppFont(key);
+                                }}
+                            >
+                                <DropdownItem key='default' style={{ fontFamily: 'sans-serif' }} textValue='default'>
+                                    {t('config.general.default_font')}
+                                </DropdownItem>
+                                {fontOptions.map((fontName) => {
+                                    const fontSupportsChinese = isChineseCapableFont(fontName);
 
-                                        return (
-                                            <DropdownItem key={fontName} textValue={fontName}>
-                                                <div className='flex items-center gap-2'>
-                                                    <span
-                                                        className='truncate'
-                                                        style={{ fontFamily: buildAppFontStack(fontName) }}
-                                                    >
-                                                        {fontName}
-                                                    </span>
-                                                    {fontSupportsChinese && renderChineseSupportBadge()}
-                                                </div>
-                                            </DropdownItem>
-                                        );
-                                    })}
-                                </DropdownMenu>
-                            </Dropdown>
-                        )}
-                    </div>
-                    <div className='config-item'>
-                        <h3 className='my-auto mx-0'>{t('config.general.font_size.title')}</h3>
-                        {appFontSize !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`config.general.font_size.${appFontSize}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='app font size'
-                                    className='max-h-[50vh] overflow-y-auto'
-                                    onAction={(key) => {
-                                        document.documentElement.style.fontSize = `${key}px`;
-                                        setAppFontSize(key);
-                                    }}
-                                >
-                                    <DropdownItem key={10}>{t('config.general.font_size.10')}</DropdownItem>
-                                    <DropdownItem key={12}>{t('config.general.font_size.12')}</DropdownItem>
-                                    <DropdownItem key={14}>{t('config.general.font_size.14')}</DropdownItem>
-                                    <DropdownItem key={16}>{t('config.general.font_size.16')}</DropdownItem>
-                                    <DropdownItem key={18}>{t('config.general.font_size.18')}</DropdownItem>
-                                    <DropdownItem key={20}>{t('config.general.font_size.20')}</DropdownItem>
-                                    <DropdownItem key={24}>{t('config.general.font_size.24')}</DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                                    return (
+                                        <DropdownItem key={fontName} textValue={fontName}>
+                                            <div className='flex items-center gap-2'>
+                                                <span
+                                                    className='truncate'
+                                                    style={{ fontFamily: buildAppFontStack(fontName) }}
+                                                >
+                                                    {fontName}
+                                                </span>
+                                                {fontSupportsChinese && renderChineseSupportBadge()}
+                                            </div>
+                                        </DropdownItem>
+                                    );
+                                })}
+                            </SettingsDropdown>
                         )}
                     </div>
                     <div className={`config-item ${osType !== 'Windows_NT' && 'hidden'}`}>
                         <h3 className='my-auto'>{t('config.general.tray_click_event')}</h3>
                         {trayClickEvent !== null && (
-                            <Dropdown>
-                                <DropdownTrigger>
-                                    <Button variant='bordered'>{t(`config.general.event.${trayClickEvent}`)}</Button>
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    aria-label='tray click event'
-                                    onAction={(key) => {
-                                        setTrayClickEvent(key);
-                                    }}
-                                >
-                                    <DropdownItem key='config'>{t('config.general.event.config')}</DropdownItem>
-                                    <DropdownItem key='translate'>{t('config.general.event.translate')}</DropdownItem>
-                                    <DropdownItem key='ocr_recognize'>
-                                        {t('config.general.event.ocr_recognize')}
-                                    </DropdownItem>
-                                    <DropdownItem key='ocr_translate'>
-                                        {t('config.general.event.ocr_translate')}
-                                    </DropdownItem>
-                                    <DropdownItem key='disable'>{t('config.general.event.disable')}</DropdownItem>
-                                </DropdownMenu>
-                            </Dropdown>
+                            <SettingsDropdown
+                                label={t(`config.general.event.${trayClickEvent}`)}
+                                ariaLabel='tray click event'
+                                selectedKey={trayClickEvent}
+                                onAction={(key) => {
+                                    setTrayClickEvent(key);
+                                }}
+                            >
+                                <DropdownItem key='config'>{t('config.general.event.config')}</DropdownItem>
+                                <DropdownItem key='translate'>{t('config.general.event.translate')}</DropdownItem>
+                                <DropdownItem key='ocr_recognize'>
+                                    {t('config.general.event.ocr_recognize')}
+                                </DropdownItem>
+                                <DropdownItem key='ocr_translate'>
+                                    {t('config.general.event.ocr_translate')}
+                                </DropdownItem>
+                                <DropdownItem key='disable'>{t('config.general.event.disable')}</DropdownItem>
+                            </SettingsDropdown>
                         )}
                     </div>
                 </CardBody>

@@ -7,6 +7,11 @@ function trim(value) {
     return String(value || '').trim();
 }
 
+function isEmailLike(value) {
+    const normalized = trim(value);
+    return normalized.includes('@') && !normalized.includes(' ');
+}
+
 function safeEqual(left, right) {
     const a = Buffer.from(trim(left), 'utf8');
     const b = Buffer.from(trim(right), 'utf8');
@@ -98,16 +103,60 @@ export async function requireAdminRequest(req) {
     return context;
 }
 
+async function findUserIdByEmail(email) {
+    const normalizedEmail = trim(email).toLowerCase();
+    if (!normalizedEmail) return '';
+
+    let page = 1;
+    const perPage = 200;
+    while (page <= 50) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+        if (error) {
+            throw createHttpError(500, error.message || 'Failed to lookup user by email');
+        }
+        const users = Array.isArray(data?.users) ? data.users : [];
+        const matchedUser = users.find((user) => trim(user?.email).toLowerCase() === normalizedEmail);
+        if (matchedUser?.id) {
+            return trim(matchedUser.id);
+        }
+        if (users.length < perPage) {
+            break;
+        }
+        page += 1;
+    }
+
+    return '';
+}
+
+export async function resolveAdminTargetUserId(req, body = null) {
+    const url = new URL(req.url, 'http://localhost');
+    const requestedUserId = trim(
+        body?.userId || url.searchParams.get('userId') || getHeader(req?.headers, 'x-user-id')
+    );
+    const requestedEmail = trim(
+        body?.userEmail || body?.email || url.searchParams.get('email') || getHeader(req?.headers, 'x-user-email')
+    );
+    const candidateEmail = requestedEmail || (isEmailLike(requestedUserId) ? requestedUserId : '');
+
+    if (candidateEmail) {
+        const resolvedUserId = await findUserIdByEmail(candidateEmail);
+        if (!resolvedUserId) {
+            throw createHttpError(404, 'User not found');
+        }
+        return resolvedUserId;
+    }
+
+    if (!requestedUserId) {
+        throw createHttpError(400, 'Missing userId or email');
+    }
+
+    return requestedUserId;
+}
+
 export async function resolveActingUserId(req, body = null, { allowAdmin = false } = {}) {
     const context = await getRequestAuthContext(req, { allowAdmin });
     if (context.role === 'admin') {
-        const url = new URL(req.url, 'http://localhost');
-        const requestedUserId = trim(
-            body?.userId || url.searchParams.get('userId') || getHeader(req?.headers, 'x-user-id')
-        );
-        if (!requestedUserId) {
-            throw createHttpError(400, 'Missing userId');
-        }
+        const requestedUserId = await resolveAdminTargetUserId(req, body);
         return {
             context,
             userId: requestedUserId,

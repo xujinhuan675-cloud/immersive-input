@@ -1,12 +1,9 @@
 import { readTextFile, BaseDirectory } from '@tauri-apps/api/fs';
-import { DropdownTrigger } from '@nextui-org/react';
 import { useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
-import { DropdownMenu } from '@nextui-org/react';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { CardBody } from '@nextui-org/react';
-import { Dropdown } from '@nextui-org/react';
 import { warn } from 'tauri-plugin-log-api';
 import { Button } from '@nextui-org/react';
 import { Input } from '@nextui-org/react';
@@ -14,6 +11,7 @@ import { Card } from '@nextui-org/react';
 import { Avatar, Tooltip } from '@nextui-org/react';
 import React, { useEffect, useState } from 'react';
 
+import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { useConfig, useToastStyle } from '../../../../hooks';
 import { osType } from '../../../../utils/env';
 import * as webdav from './utils/webdav';
@@ -185,21 +183,18 @@ export default function Backup() {
                 <div className='config-item'>
                     <h3 className='my-auto'>{t('config.backup.type')}</h3>
                     {backupType !== null && (
-                        <Dropdown>
-                            <DropdownTrigger>
-                                <Button variant='bordered'>{t(`config.backup.${backupType}`)}</Button>
-                            </DropdownTrigger>
-                            <DropdownMenu
-                                aria-label='backup type'
-                                onAction={(key) => {
-                                    setBackupType(key);
-                                }}
-                            >
-                                <DropdownItem key='webdav'>{t('config.backup.webdav')}</DropdownItem>
-                                <DropdownItem key='aliyun'>{t('config.backup.aliyun')}</DropdownItem>
-                                <DropdownItem key='local'>{t('config.backup.local')}</DropdownItem>
-                            </DropdownMenu>
-                        </Dropdown>
+                        <SettingsDropdown
+                            label={t(`config.backup.${backupType}`)}
+                            ariaLabel='backup type'
+                            selectedKey={backupType}
+                            onAction={(key) => {
+                                setBackupType(key);
+                            }}
+                        >
+                            <DropdownItem key='webdav'>{t('config.backup.webdav')}</DropdownItem>
+                            <DropdownItem key='aliyun'>{t('config.backup.aliyun')}</DropdownItem>
+                            <DropdownItem key='local'>{t('config.backup.local')}</DropdownItem>
+                        </SettingsDropdown>
                     )}
                 </div>
                 <div className={backupType !== 'webdav' ? 'hidden' : ''}>
