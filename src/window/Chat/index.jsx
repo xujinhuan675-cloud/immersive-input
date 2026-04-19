@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { HiOutlineChatAlt2 } from 'react-icons/hi';
+import { HiDotsHorizontal, HiOutlineChatAlt2 } from 'react-icons/hi';
 
 import WindowHeader, {
-    WindowHeaderButton,
     WindowHeaderCloseButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
@@ -138,6 +137,7 @@ const styles = {
         padding: '10px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.8)',
         background: 'rgba(248, 250, 252, 0.72)',
+        alignItems: 'flex-end',
     },
     input: {
         flex: 1,
@@ -154,6 +154,50 @@ const styles = {
         lineHeight: 1.5,
         color: '#0f172a',
     },
+    footerMenuWrap: {
+        position: 'relative',
+        alignSelf: 'flex-end',
+        flexShrink: 0,
+    },
+    footerIconButton: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '40px',
+        height: '40px',
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.84)',
+        color: '#475569',
+        cursor: 'pointer',
+    },
+    footerMenu: {
+        position: 'absolute',
+        right: 0,
+        bottom: 'calc(100% + 8px)',
+        minWidth: '116px',
+        padding: '6px',
+        borderRadius: '12px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.98)',
+        boxShadow: '0 16px 36px -24px rgba(15, 23, 42, 0.35)',
+        zIndex: 5,
+    },
+    footerMenuItem: (danger = false, disabled = false) => ({
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        height: '34px',
+        padding: '0 10px',
+        border: 'none',
+        borderRadius: '8px',
+        background: 'transparent',
+        color: danger ? '#dc2626' : '#334155',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+    }),
     footerButton: (primary) => ({
         alignSelf: 'flex-end',
         height: '40px',
@@ -187,10 +231,13 @@ export default function Chat() {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [apiConfig, setApiConfig] = useState(null);
+    const [menuOpen, setMenuOpen] = useState(false);
     const abortRef = useRef(null);
     const bottomRef = useRef(null);
     const textareaRef = useRef(null);
     const messageIdRef = useRef(0);
+    const menuRef = useRef(null);
+    const menuButtonRef = useRef(null);
 
     useEffect(() => {
         let mounted = true;
@@ -213,6 +260,23 @@ export default function Chat() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    useEffect(() => {
+        if (!menuOpen) return undefined;
+
+        const handlePointerDown = (event) => {
+            const target = event.target;
+            if (menuRef.current?.contains(target) || menuButtonRef.current?.contains(target)) {
+                return;
+            }
+            setMenuOpen(false);
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+        };
+    }, [menuOpen]);
+
     const stop = useCallback(() => {
         try {
             abortRef.current?.abort();
@@ -223,12 +287,14 @@ export default function Chat() {
     const clearMessages = useCallback(() => {
         if (loading) return;
         setMessages([]);
+        setMenuOpen(false);
     }, [loading]);
 
     const send = useCallback(async () => {
         const text = input.trim();
         if (!text || loading || !apiConfig) return;
 
+        setMenuOpen(false);
         setInput('');
         if (textareaRef.current) {
             textareaRef.current.style.height = '40px';
@@ -299,17 +365,7 @@ export default function Chat() {
                         AI 对话
                     </WindowHeaderTitle>
                 }
-                right={
-                    <>
-                        <WindowHeaderButton
-                            onClick={clearMessages}
-                            disabled={loading || messages.length === 0}
-                        >
-                            清空对话
-                        </WindowHeaderButton>
-                        <WindowHeaderCloseButton />
-                    </>
-                }
+                right={<WindowHeaderCloseButton />}
             />
 
             <TrayWindowBody>
@@ -396,6 +452,29 @@ export default function Chat() {
                                 }
                             }}
                         />
+                        <div style={styles.footerMenuWrap}>
+                            {menuOpen ? (
+                                <div ref={menuRef} style={styles.footerMenu}>
+                                    <button
+                                        type='button'
+                                        style={styles.footerMenuItem(true, loading || messages.length === 0)}
+                                        onClick={clearMessages}
+                                        disabled={loading || messages.length === 0}
+                                    >
+                                        清空对话
+                                    </button>
+                                </div>
+                            ) : null}
+                            <button
+                                ref={menuButtonRef}
+                                type='button'
+                                title='更多'
+                                style={styles.footerIconButton}
+                                onClick={() => setMenuOpen((prev) => !prev)}
+                            >
+                                <HiDotsHorizontal className='text-[18px]' />
+                            </button>
+                        </div>
                         {loading ? (
                             <button
                                 type='button'

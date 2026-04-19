@@ -1,6 +1,6 @@
 import { readDir, BaseDirectory, readTextFile, exists } from '@tauri-apps/api/fs';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { appWindow, currentMonitor } from '@tauri-apps/api/window';
+import { appWindow } from '@tauri-apps/api/window';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import React, { useState, useEffect } from 'react';
@@ -28,7 +28,6 @@ import { store } from '../../utils/store';
 import { info } from 'tauri-plugin-log-api';
 
 let blurTimeout = null;
-let resizeTimeout = null;
 
 const listenBlur = () => {
     return listen('tauri://blur', () => {
@@ -89,7 +88,6 @@ export default function Translate() {
     const [collectionServiceInstanceList] = useConfig('collection_service_list', []);
     const closeOnBlur = true;
     const alwaysOnTop = false;
-    const rememberWindowSize = true;
     const hideLanguage = false;
     const [pined, setPined] = useState(false);
     const [pluginList, setPluginList] = useState(null);
@@ -120,32 +118,6 @@ export default function Translate() {
             setPined(true);
         }
     }, [alwaysOnTop]);
-    // 保存窗口位置
-    // 保存窗口大小
-    useEffect(() => {
-        const unlistenResize = listen('tauri://resize', async () => {
-            if (resizeTimeout) {
-                clearTimeout(resizeTimeout);
-            }
-            resizeTimeout = setTimeout(async () => {
-                if (appWindow.label === 'translate') {
-                    let size = await appWindow.outerSize();
-                    const monitor = await currentMonitor();
-                    const factor = monitor.scaleFactor;
-                    size = size.toLogical(factor);
-                    await store.set('translate_window_height', parseInt(size.height));
-                    await store.set('translate_window_width', parseInt(size.width));
-                    await store.save();
-                }
-            }, 100);
-        });
-        return () => {
-            unlistenResize.then((f) => {
-                f();
-            });
-        };
-    }, [rememberWindowSize]);
-
     const loadPluginList = async () => {
         const serviceTypeList = ['translate', 'tts', 'recognize', 'collection'];
         let temp = {};

@@ -1,4 +1,5 @@
-import { appWindow } from '@tauri-apps/api/window';
+import { appWindow, currentMonitor } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
 import { BrowserRouter } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { warn } from 'tauri-plugin-log-api';
@@ -42,6 +43,18 @@ const windowMap = {
     phrases: <Phrases />,
     phrases_inline: <PhrasesInline />,
     login: <Login />,
+};
+
+const WINDOW_SIZE_MEMORY = {
+    config: { width: true, height: true, minWidth: 800, minHeight: 400 },
+    translate: { width: true, height: true },
+    recognize: { width: true, height: true },
+    light_ai: { width: true, height: true },
+    explain: { width: true, height: true },
+    chat: { width: true, height: true },
+    vault: { width: true, height: true },
+    updater: { width: true, height: true },
+    phrases_inline: { width: true, height: false },
 };
 
 export default function App() {
@@ -112,6 +125,58 @@ export default function App() {
         }
         document.documentElement.style.fontSize = `${DEFAULT_APP_FONT_SIZE}px`;
     }, [appFont]);
+
+    useEffect(() => {
+        const memoryConfig = WINDOW_SIZE_MEMORY[appWindow.label];
+        if (!memoryConfig) {
+            return undefined;
+        }
+
+        let resizeTimeout = null;
+        const unlistenResize = listen('tauri://resize', async () => {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+
+            resizeTimeout = setTimeout(async () => {
+                try {
+                    const visible = await appWindow.isVisible();
+                    if (!visible) {
+                        return;
+                    }
+
+                    let size = await appWindow.outerSize();
+                    const monitor = await currentMonitor();
+                    const factor = monitor?.scaleFactor ?? 1;
+                    size = size.toLogical(factor);
+                    const roundedWidth = Math.round(size.width);
+                    const roundedHeight = Math.round(size.height);
+
+                    if (memoryConfig.minWidth && roundedWidth < memoryConfig.minWidth) {
+                        return;
+                    }
+                    if (memoryConfig.minHeight && roundedHeight < memoryConfig.minHeight) {
+                        return;
+                    }
+
+                    if (memoryConfig.width) {
+                        await store.set(`${appWindow.label}_window_width`, roundedWidth);
+                    }
+                    if (memoryConfig.height) {
+                        await store.set(`${appWindow.label}_window_height`, roundedHeight);
+                    }
+                    await store.save();
+                } catch (_) {}
+            }, 100);
+        });
+
+        return () => {
+            if (resizeTimeout) {
+                clearTimeout(resizeTimeout);
+            }
+            unlistenResize.then((off) => off());
+        };
+    }, []);
 
     return (
         <BrowserRouter>

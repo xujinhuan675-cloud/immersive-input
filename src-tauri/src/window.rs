@@ -74,6 +74,79 @@ fn get_current_monitor(x: i32, y: i32) -> Monitor {
     daemon_window.primary_monitor().unwrap().unwrap()
 }
 
+fn window_size_key(label: &str, field: &str) -> String {
+    format!("{}_window_{}", label, field)
+}
+
+fn get_saved_window_dimension(label: &str, field: &str, default_value: i64) -> i64 {
+    let key = window_size_key(label, field);
+    match get(&key) {
+        Some(value) => value.as_i64().unwrap_or(default_value),
+        None => {
+            set(&key, default_value);
+            default_value
+        }
+    }
+}
+
+fn get_saved_window_size(label: &str, default_width: i64, default_height: i64) -> (i64, i64) {
+    (
+        get_saved_window_dimension(label, "width", default_width),
+        get_saved_window_dimension(label, "height", default_height),
+    )
+}
+
+fn get_saved_window_size_with_min(
+    label: &str,
+    default_width: i64,
+    default_height: i64,
+    min_width: i64,
+    min_height: i64,
+) -> (i64, i64) {
+    let (saved_width, saved_height) = get_saved_window_size(label, default_width, default_height);
+    if saved_width >= min_width && saved_height >= min_height {
+        return (saved_width, saved_height);
+    }
+
+    set(&window_size_key(label, "width"), default_width);
+    set(&window_size_key(label, "height"), default_height);
+    (default_width, default_height)
+}
+
+fn apply_saved_window_size(
+    window: &Window,
+    label: &str,
+    default_width: i64,
+    default_height: i64,
+) -> (i64, i64) {
+    let (width, height) = get_saved_window_size(label, default_width, default_height);
+    window
+        .set_size(tauri::LogicalSize::new(width as f64, height as f64))
+        .unwrap_or_default();
+    (width, height)
+}
+
+fn apply_saved_window_size_with_min(
+    window: &Window,
+    label: &str,
+    default_width: i64,
+    default_height: i64,
+    min_width: i64,
+    min_height: i64,
+) -> (i64, i64) {
+    let (width, height) = get_saved_window_size_with_min(
+        label,
+        default_width,
+        default_height,
+        min_width,
+        min_height,
+    );
+    window
+        .set_size(tauri::LogicalSize::new(width as f64, height as f64))
+        .unwrap_or_default();
+    (width, height)
+}
+
 // Creating a window on the mouse monitor
 fn build_window(label: &str, title: &str) -> (Window, bool) {
     use mouse_position::mouse_position::{Mouse, Position};
@@ -151,6 +224,7 @@ pub fn config_window() {
     .additional_browser_args("--disable-web-security")
     .focused(true)
     .title("Config")
+    .inner_size(800.0, 600.0)
     .visible(false);
 
     #[cfg(target_os = "macos")]
@@ -172,7 +246,7 @@ pub fn config_window() {
     window
         .set_min_size(Some(tauri::LogicalSize::new(800, 400)))
         .unwrap();
-    window.set_size(tauri::LogicalSize::new(800, 600)).unwrap();
+    apply_saved_window_size_with_min(&window, "config", 800, 600, 800, 400);
     window.center().unwrap();
     window.show().unwrap();
     info!(
@@ -193,30 +267,13 @@ fn translate_window() -> Window {
     };
     let (window, _) = build_window("translate", "Translate");
     window.set_skip_taskbar(true).unwrap();
-    // Get Translate Window Size
-    let width = match get("translate_window_width") {
-        Some(v) => v.as_i64().unwrap(),
-        None => {
-            set("translate_window_width", 350);
-            350
-        }
-    };
-    let height = match get("translate_window_height") {
-        Some(v) => v.as_i64().unwrap(),
-        None => {
-            set("translate_window_height", 420);
-            420
-        }
-    };
+    let (width, height) = get_saved_window_size("translate", 350, 420);
 
     let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
 
     window
-        .set_size(tauri::PhysicalSize::new(
-            (width as f64) * dpi,
-            (height as f64) * dpi,
-        ))
+        .set_size(tauri::LogicalSize::new(width as f64, height as f64))
         .unwrap();
 
     // Adjust window position
@@ -343,28 +400,7 @@ pub fn recognize_window() {
         window.show().unwrap();
         return;
     }
-    let width = match get("recognize_window_width") {
-        Some(v) => v.as_i64().unwrap(),
-        None => {
-            set("recognize_window_width", 800);
-            800
-        }
-    };
-    let height = match get("recognize_window_height") {
-        Some(v) => v.as_i64().unwrap(),
-        None => {
-            set("recognize_window_height", 400);
-            400
-        }
-    };
-    let monitor = get_window_monitor(&window);
-    let dpi = monitor.scale_factor();
-    window
-        .set_size(tauri::PhysicalSize::new(
-            (width as f64) * dpi,
-            (height as f64) * dpi,
-        ))
-        .unwrap();
+    apply_saved_window_size(&window, "recognize", 800, 400);
     window.center().unwrap();
     window.show().unwrap();
     window.emit("new_image", "").unwrap();
@@ -577,7 +613,7 @@ pub fn light_ai_window() {
         drop(guard);
         s
     };
-    let (window, exists) = build_window("light_ai", "Light AI");
+    let (window, exists) = build_window("light_ai", "AI Polish");
     window.set_skip_taskbar(true).unwrap_or_default();
     if exists {
         window.emit("new_text", text).unwrap_or_default();
@@ -587,14 +623,9 @@ pub fn light_ai_window() {
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_width = 460.0_f64;
-    let w_height = 540.0_f64;
-    window
-        .set_size(tauri::PhysicalSize::new(
-            (w_width * dpi) as u32,
-            (w_height * dpi) as u32,
-        ))
-        .unwrap_or_default();
+    let (saved_width, saved_height) = apply_saved_window_size(&window, "light_ai", 460, 540);
+    let w_width = saved_width as f64;
+    let w_height = saved_height as f64;
     let mut x = mouse_pos.x;
     let mut y = mouse_pos.y;
     if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
@@ -643,14 +674,9 @@ pub fn explain_window() {
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_width = 400.0_f64;
-    let w_height = 500.0_f64;
-    window
-        .set_size(tauri::PhysicalSize::new(
-            (w_width * dpi) as u32,
-            (w_height * dpi) as u32,
-        ))
-        .unwrap_or_default();
+    let (saved_width, saved_height) = apply_saved_window_size(&window, "explain", 400, 500);
+    let w_width = saved_width as f64;
+    let w_height = saved_height as f64;
     let mut x = mouse_pos.x;
     let mut y = mouse_pos.y;
     if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
@@ -704,9 +730,7 @@ pub fn chat_window() {
     window
         .set_min_size(Some(tauri::LogicalSize::new(400, 300)))
         .unwrap_or_default();
-    window
-        .set_size(tauri::LogicalSize::new(600, 800))
-        .unwrap_or_default();
+    apply_saved_window_size(&window, "chat", 460, 540);
     window.center().unwrap_or_default();
     window.show().unwrap_or_default();
 }
@@ -744,6 +768,7 @@ pub fn phrases_inline_window() {
     use mouse_position::mouse_position::{Mouse, Position};
     const QUICK_W: f64 = 372.0;
     const QUICK_H: f64 = 96.0;
+    let quick_width = (get_saved_window_dimension("phrases_inline", "width", QUICK_W as i64) as f64).max(QUICK_W);
     let mouse_pos = match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => Position { x, y },
         Mouse::Error => Position { x: 0, y: 0 },
@@ -753,7 +778,7 @@ pub fn phrases_inline_window() {
     if let Some(w) = app_handle.get_window("phrases_inline") {
         let monitor = get_window_monitor(&w);
         let dpi = monitor.scale_factor();
-        let w_w = (QUICK_W * dpi) as i32;
+        let w_w = (quick_width * dpi) as i32;
         let w_h = (QUICK_H * dpi) as i32;
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
@@ -785,13 +810,10 @@ pub fn phrases_inline_window() {
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_w = QUICK_W;
+    let w_w = quick_width;
     let w_h = QUICK_H;
     window
-        .set_size(tauri::PhysicalSize::new(
-            (w_w * dpi) as u32,
-            (w_h * dpi) as u32,
-        ))
+        .set_size(tauri::LogicalSize::new(w_w, w_h))
         .unwrap_or_default();
     let mut x = mouse_pos.x - (w_w * dpi / 2.0) as i32;
     let mut y = mouse_pos.y - (w_h * dpi + 12.0) as i32;
@@ -824,9 +846,7 @@ pub fn vault_window() {
     window
         .set_min_size(Some(tauri::LogicalSize::new(600, 400)))
         .unwrap_or_default();
-    window
-        .set_size(tauri::LogicalSize::new(800, 600))
-        .unwrap_or_default();
+    apply_saved_window_size(&window, "vault", 800, 600);
     window.center().unwrap_or_default();
     window.show().unwrap_or_default();
 }
@@ -887,7 +907,7 @@ pub fn updater_window() {
     window
         .set_min_size(Some(tauri::LogicalSize::new(600, 400)))
         .unwrap();
-    window.set_size(tauri::LogicalSize::new(600, 400)).unwrap();
+    apply_saved_window_size(&window, "updater", 600, 400);
     window.center().unwrap();
     window.show().unwrap_or_default();
 }

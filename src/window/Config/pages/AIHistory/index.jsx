@@ -8,7 +8,7 @@ import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../.
 import { useToastStyle } from '../../../../hooks';
 import { getActiveAiApiConfig } from '../../../../utils/aiConfig';
 
-const TYPE_LABELS = { lightai: '轻AI润色', explain: '解析', chat: '对话' };
+const TYPE_LABELS = { lightai: 'AI 润色', explain: '解析', chat: '对话' };
 
 async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
@@ -163,7 +163,7 @@ export default function AIHistory() {
                 <CardBody>
                     <h4 className='text-[14px] font-bold mb-[8px]'>最近 {records.length} 条记录</h4>
                     {records.length === 0 ? (
-                        <div className='text-default-400 text-[13px]'>暂无记录。使用轻AI/解析/对话功能后会自动保存。</div>
+                        <div className='text-default-400 text-[13px]'>暂无记录。使用 AI 润色/解析/对话功能后会自动保存。</div>
                     ) : (
                         <div className='space-y-[8px] max-h-[400px] overflow-auto'>
                             {records.map((r) => (

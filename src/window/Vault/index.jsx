@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FiDownload, FiEdit3, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-icons/fi';
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
@@ -18,11 +19,12 @@ import {
     TrayWindowSurface,
 } from '../../components/TrayWindow';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
+import { exportTableCsv } from '../../utils/exportTable';
 import { getRecords, addRecord, updateRecord, deleteRecord, getAllTags } from './vaultDb';
 
-// ─────────────────────────────────────────────
-// 密码生成器工具函数（移植自 CS PasswordGenerator）
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 鐎靛棛鐖滈悽鐔稿灇閸ｃ劌浼愰崗宄板毐閺佸府绱欑粔缁橆槻閼?CS PasswordGenerator閿?
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 const LOWER = 'abcdefghijklmnopqrstuvwxyz';
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const NUMBERS = '0123456789';
@@ -70,9 +72,9 @@ const STRENGTH_KEYS = [
 ];
 const STRENGTH_COLOR = ['#ccc', '#e53935', '#fb8c00', '#fdd835', '#7cb342', '#43a047'];
 
-// ─────────────────────────────────────────────
-// 样式常量
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 閺嶅嘲绱＄敮鎼佸櫤
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 const S = {
     root: {
         display: 'flex',
@@ -121,16 +123,31 @@ const S = {
         borderBottom: '1px solid rgba(226,232,240,0.72)',
         flexShrink: 0,
     },
+    searchWrap: {
+        position: 'relative',
+        flex: '1 1 100%',
+        width: '100%',
+        minWidth: 0,
+    },
     searchInput: {
-        flex: 1,
+        width: '100%',
         height: '32px',
-        padding: '0 10px',
+        padding: '0 10px 0 32px',
         border: '1px solid rgba(203,213,225,0.9)',
         borderRadius: '9px',
         fontSize: '12px',
         outline: 'none',
         background: 'rgba(255,255,255,0.9)',
         color: '#0f172a',
+        boxSizing: 'border-box',
+    },
+    searchIcon: {
+        position: 'absolute',
+        left: '10px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        color: '#94a3b8',
+        pointerEvents: 'none',
     },
     tagBtn: (active) => ({
         padding: '4px 10px',
@@ -149,6 +166,46 @@ const S = {
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
+    },
+    listShell: {
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        overflow: 'hidden',
+    },
+    tagColumn: {
+        width: '96px',
+        flexShrink: 0,
+        borderRight: '1px solid rgba(226,232,240,0.88)',
+        background: 'rgba(248,250,252,0.62)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        padding: '10px 8px',
+        overflow: 'auto',
+    },
+    tagColumnBtn: (active) => ({
+        width: '100%',
+        minHeight: '32px',
+        padding: '0 10px',
+        borderRadius: '10px',
+        border: active ? '1px solid rgba(15,23,42,0.84)' : '1px solid rgba(226,232,240,0.9)',
+        background: active ? '#0f172a' : 'rgba(255,255,255,0.88)',
+        color: active ? '#fff' : '#475569',
+        fontSize: '12px',
+        fontWeight: active ? 600 : 500,
+        cursor: 'pointer',
+        textAlign: 'left',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    }),
+    listArea: {
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
     },
     card: (selected) => ({
         background: selected ? 'rgba(241,245,249,0.94)' : 'rgba(255,255,255,0.9)',
@@ -192,7 +249,7 @@ const S = {
         color: '#64748b',
         flexShrink: 0,
     },
-    // 编辑面板
+    // 缂傛牞绶棃銏℃緲
     panel: {
         flex: 1,
         overflow: 'auto',
@@ -248,7 +305,7 @@ const S = {
         transition: 'width 0.3s, background 0.3s',
     }),
     strengthText: (strength) => ({ fontSize: '11px', color: STRENGTH_COLOR[strength], marginTop: '2px' }),
-    // 密码生成器
+    // 鐎靛棛鐖滈悽鐔稿灇閸?
     genPanel: {
         background: 'rgba(255,255,255,0.9)',
         border: '1px solid rgba(226,232,240,0.9)',
@@ -262,7 +319,7 @@ const S = {
     genRow: { display: 'flex', alignItems: 'center', gap: '8px' },
     slider: { flex: 1 },
     checkbox: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: 'pointer' },
-    // 通用按钮
+    // 闁氨鏁ら幐澶愭尦
     btn: (variant = 'default', small = false) => {
         const base = {
             padding: small ? '3px 9px' : '6px 14px',
@@ -290,7 +347,7 @@ const S = {
             };
         return { ...base, background: 'rgba(255,255,255,0.9)', color: '#475569', borderColor: 'rgba(226,232,240,0.9)' };
     },
-    // 快速新增覆盖层
+    // 韫囶偊鈧喐鏌婃晶鐐额洬閻╂牕鐪?
     overlay: {
         position: 'fixed',
         top: 0,
@@ -314,11 +371,26 @@ const S = {
         gap: '12px',
         boxShadow: '0 24px 60px -36px rgba(15,23,42,0.35)',
     },
+    bottomBar: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '8px',
+        padding: '10px 12px',
+        background: 'rgba(248,250,252,0.78)',
+        borderTop: '1px solid rgba(226,232,240,0.72)',
+        flexShrink: 0,
+    },
+    buttonContent: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+    },
 };
 
-// ─────────────────────────────────────────────
-// 密码生成器面板组件
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 鐎靛棛鐖滈悽鐔稿灇閸ｃ劑娼伴弶璺ㄧ矋娴?
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 function PasswordGenPanel({ onUse, onCopySuccess }) {
     const { t } = useTranslation();
     const [len, setLen] = useState(14);
@@ -342,7 +414,10 @@ function PasswordGenPanel({ onUse, onCopySuccess }) {
 
     return (
         <div style={S.genPanel}>
-            <div style={S.genTitle}>🔑 {t('vault.gen_title')}</div>
+            <div style={{ ...S.genTitle, ...S.buttonContent }}>
+                <FiKey size={14} />
+                <span>{t('vault.gen_title')}</span>
+            </div>
             <div style={S.genRow}>
                 <span style={{ fontSize: '11px', color: '#666', width: 38 }}>{t('vault.gen_length', { n: len })}</span>
                 <input
@@ -393,7 +468,7 @@ function PasswordGenPanel({ onUse, onCopySuccess }) {
                     wordBreak: 'break-all',
                 }}
             >
-                {pwd || <span style={{ color: '#bbb' }}>—</span>}
+                {pwd || <span style={{ color: '#bbb' }}>-</span>}
             </div>
             <div style={S.strengthBar(strength)} />
             <div style={S.strengthText(strength)}>
@@ -429,9 +504,9 @@ function PasswordGenPanel({ onUse, onCopySuccess }) {
     );
 }
 
-// ─────────────────────────────────────────────
-// 编辑视图
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 缂傛牞绶憴鍡楁禈
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 function EditView({ record, allTags, onSave, onCancel }) {
     const { t } = useTranslation();
     const isNew = !record;
@@ -476,30 +551,19 @@ function EditView({ record, allTags, onSave, onCancel }) {
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* 标题栏 */}
+            {/* 閺嶅洭顣介弽?*/}
             <WindowHeader
                 style={TRAY_WINDOW_HEADER_STYLE}
                 center={
                     <WindowHeaderTitle
+                        icon={<FiLock size={15} style={{ color: '#64748b', flexShrink: 0 }} />}
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
                         {isNew ? t('vault.new_record') : t('vault.edit_record')}
                     </WindowHeaderTitle>
                 }
-                right={
-                    <>
-                        <WindowHeaderButton onClick={onCancel}>{t('common.cancel')}</WindowHeaderButton>
-                        <WindowHeaderButton
-                            variant='primary'
-                            style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
-                            onClick={handleSave}
-                            disabled={saving}
-                        >
-                            {saving ? t('vault.saving') : t('vault.save')}
-                        </WindowHeaderButton>
-                    </>
-                }
+                right={<WindowHeaderCloseButton />}
             />
             {false && (
                 <div style={S.header}>
@@ -508,7 +572,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
                         data-tauri-drag-region='true'
                     />
                     <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>
-                        {isNew ? `➕ ${t('vault.new_record')}` : `✏️ ${t('vault.edit_record')}`}
+                        {isNew ? `閴?${t('vault.new_record')}` : `閴佸骏绗?${t('vault.edit_record')}`}
                     </span>
                     <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 1 }}>
                         <button
@@ -614,7 +678,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
                                 style={S.tagPill(tags.includes(tag))}
                                 onClick={() => toggleTag(tag)}
                             >
-                                {tags.includes(tag) ? '✓ ' : ''}
+                                
                                 {tag}
                             </span>
                         ))}
@@ -639,7 +703,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
                             {t('vault.add_tag')}
                         </button>
                     </div>
-                    {/* 已选标签预览 */}
+                    {/* 瀹告煡鈧鐖ｇ粵楣冾暕鐟?*/}
                     {tags.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', marginTop: '4px' }}>
                             {tags.map((t) => (
@@ -652,7 +716,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
                                         style={{ marginLeft: 4, cursor: 'pointer' }}
                                         onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
                                     >
-                                        ×
+                                        ?
                                     </span>
                                 </span>
                             ))}
@@ -660,13 +724,28 @@ function EditView({ record, allTags, onSave, onCancel }) {
                     )}
                 </div>
             </div>
+            <div style={S.bottomBar}>
+                <button
+                    style={S.btn()}
+                    onClick={onCancel}
+                >
+                    {t('common.cancel')}
+                </button>
+                <button
+                    style={S.btn('primary')}
+                    onClick={handleSave}
+                    disabled={saving}
+                >
+                    {saving ? t('vault.saving') : t('vault.save')}
+                </button>
+            </div>
         </div>
     );
 }
 
-// ─────────────────────────────────────────────
-// 快速新增模态框
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 韫囶偊鈧喐鏌婃晶鐐茨侀幀浣诡攱
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 function QuickAddModal({ onSave, onClose, initialAccount = '', initialPassword = '' }) {
     const { t } = useTranslation();
     const [account, setAccount] = useState(initialAccount);
@@ -693,7 +772,10 @@ function QuickAddModal({ onSave, onClose, initialAccount = '', initialPassword =
             }}
         >
             <div style={S.modal}>
-                <div style={{ fontWeight: 700, fontSize: '14px' }}>⚡ {t('vault.quick_add_title')}</div>
+                <div style={{ ...S.buttonContent, fontWeight: 700, fontSize: '14px' }}>
+                    <FiEdit3 size={15} />
+                    <span>{t('vault.quick_add_title')}</span>
+                </div>
                 <div style={S.formRow}>
                     <label style={S.label}>{t('vault.account_short')}</label>
                     <input
@@ -743,9 +825,9 @@ function QuickAddModal({ onSave, onClose, initialAccount = '', initialPassword =
     );
 }
 
-// ─────────────────────────────────────────────
-// 列表视图（主视图）
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 閸掓銆冪憴鍡楁禈閿涘牅瀵岀憴鍡楁禈閿?
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     const { t } = useTranslation();
     const [records, setRecords] = useState([]);
@@ -760,10 +842,10 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     const toastTimer = useRef(null);
     const searchRef = useRef(null);
 
-    // 根据模式自动操作
+    // 閺嶈宓佸Ο鈥崇础閼奉亜濮╅幙宥勭稊
     useEffect(() => {
         if (pendingMode === 'quick_fill') {
-            // 快捷键填写模式：聚焦搜索框 + 开启 fillMode（Enter 触发一键填写）
+            // 韫囶偅宓庨柨顔硷綖閸愭瑦膩瀵骏绱伴懕姘卞妽閹兼粎鍌ㄥ?+ 瀵偓閸?fillMode閿涘湕nter 鐟欙箑褰傛稉鈧柨顔硷綖閸愭瑱绱?
             setTimeout(() => searchRef.current?.focus(), 100);
             setFillMode(true);
             onModeConsumed?.();
@@ -810,6 +892,36 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
 
     const selectedRecord = records.find((r) => r.id === selectedId) ?? null;
 
+    const handleExport = async () => {
+        if (filtered.length === 0) {
+            showToast(t('vault.export_empty'));
+            return;
+        }
+
+        try {
+            const date = new Date().toISOString().slice(0, 10);
+            const exported = await exportTableCsv({
+                defaultFileName: `${t('vault.export_filename')}-${date}.csv`,
+                columns: [
+                    { header: t('vault.account_label'), value: (row) => row.account },
+                    { header: t('vault.password_label'), value: (row) => row.password },
+                    { header: t('vault.website_label'), value: (row) => row.website },
+                    { header: t('vault.notes_label'), value: (row) => row.notes },
+                    { header: t('vault.tags_label'), value: (row) => row.tags.join(' / ') },
+                    { header: t('vault.export_created_at'), value: (row) => row.created_at },
+                    { header: t('vault.export_modified_at'), value: (row) => row.modified_at },
+                ],
+                rows: filtered,
+            });
+
+            if (exported) {
+                showToast(t('vault.export_success'));
+            }
+        } catch (error) {
+            showToast(t('vault.export_failed') + (error?.message ?? error));
+        }
+    };
+
     const copyText = async (text, label) => {
         if (!text) return;
         await invoke('write_clipboard', { text });
@@ -827,7 +939,7 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
         }
     };
 
-    // 一键填写：账号 → Tab → 密码
+    // 娑撯偓闁款喖锝為崘娆欑窗鐠愶箑褰?閳?Tab 閳?鐎靛棛鐖?
     const handleAutoFill = async (record) => {
         if (!record?.account && !record?.password) return;
         try {
@@ -848,11 +960,12 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* 顶部标题栏 */}
+            {/* 妞ゅ爼鍎撮弽鍥暯閺?*/}
             <WindowHeader
                 style={TRAY_WINDOW_HEADER_STYLE}
                 center={
                     <WindowHeaderTitle
+                        icon={<FiLock size={15} style={{ color: '#64748b', flexShrink: 0 }} />}
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
@@ -868,24 +981,27 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                         data-tauri-drag-region='true'
                     />
                     <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>
-                        🔐 {t('vault.title')}
+                        棣冩敿 {t('vault.title')}
                     </span>
                     <button
                         style={{ ...S.btn(), position: 'relative', zIndex: 1 }}
                         onClick={() => appWindow.close()}
                     >
-                        ✕ {t('vault.close')}
+                        閴?{t('vault.close')}
                     </button>
                 </div>
             )}
 
-            {/* 工具栏 */}
+            {/* 瀹搞儱鍙块弽?*/}
             <div style={S.toolbar}>
                 <button
                     style={S.btn('primary')}
                     onClick={() => onEdit(null)}
                 >
-                    ➕ {t('vault.add')}
+                    <span style={S.buttonContent}>
+                        <FiPlus size={14} />
+                        <span>{t('vault.add')}</span>
+                    </span>
                 </button>
                 <button
                     style={S.btn()}
@@ -898,13 +1014,30 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                         }
                     }}
                 >
-                    ⚡ {t('vault.quick_add')}
+                    <span style={S.buttonContent}>
+                        <FiEdit3 size={14} />
+                        <span>{t('vault.quick_add')}</span>
+                    </span>
                 </button>
                 <button
                     style={S.btn()}
                     onClick={() => setShowGenStandalone((v) => !v)}
                 >
-                    🔑 {showGenStandalone ? t('vault.collapse_gen') : t('vault.password_gen')}
+                    <span style={S.buttonContent}>
+                        <FiKey size={14} />
+                        <span>{showGenStandalone ? t('vault.collapse_gen') : t('vault.password_gen')}</span>
+                    </span>
+                </button>
+                <button
+                    style={S.btn()}
+                    onClick={() => {
+                        void handleExport();
+                    }}
+                >
+                    <span style={S.buttonContent}>
+                        <FiDownload size={14} />
+                        <span>{t('vault.export')}</span>
+                    </span>
                 </button>
                 {selectedRecord && (
                     <>
@@ -914,7 +1047,10 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                             onClick={() => handleAutoFill(selectedRecord)}
                             title={t('vault.fill_one_tip')}
                         >
-                            ⚡ {t('vault.fill_one')}
+                            <span style={S.buttonContent}>
+                                <FiZap size={13} />
+                                <span>{t('vault.fill_one')}</span>
+                            </span>
                         </button>
                         <button
                             style={S.btn('', true)}
@@ -933,8 +1069,6 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                     </>
                 )}
             </div>
-
-            {/* 密码生成器独立面板 */}
             {showGenStandalone && (
                 <div
                     style={{
@@ -954,117 +1088,127 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                 </div>
             )}
 
-            {/* 搜索 + 标签筛选 */}
+            {/* 閹兼粎鍌?+ 閺嶅洨顒风粵娑⑩偓?*/}
             <div style={S.filterBar}>
-                <input
-                    ref={searchRef}
-                    style={{
-                        ...S.searchInput,
-                        ...(fillMode && {
-                            borderColor: 'rgba(15,23,42,0.34)',
-                            boxShadow: '0 0 0 2px rgba(15,23,42,0.08)',
-                        }),
-                    }}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && fillMode && filtered.length > 0) {
-                            e.preventDefault();
-                            handleAutoFill(filtered[0]);
-                        }
-                    }}
-                    placeholder={fillMode ? `🔑 ${t('vault.search')} (Enter auto-fill)` : `🔍 ${t('vault.search')}`}
-                />
-                <span
-                    style={S.tagBtn(!tagFilter)}
-                    onClick={() => setTagFilter(null)}
-                >
-                    {t('vault.all_tags')}
-                </span>
-                {allTags.map((t) => (
-                    <span
-                        key={t}
-                        style={S.tagBtn(tagFilter === t)}
-                        onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                    >
-                        {t}
+                <div style={S.searchWrap}>
+                    <span style={S.searchIcon}>
+                        <FiSearch size={14} />
                     </span>
-                ))}
+                    <input
+                        ref={searchRef}
+                        style={{
+                            ...S.searchInput,
+                            ...(fillMode && {
+                                borderColor: 'rgba(15,23,42,0.34)',
+                                boxShadow: '0 0 0 2px rgba(15,23,42,0.08)',
+                            }),
+                        }}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && fillMode && filtered.length > 0) {
+                                e.preventDefault();
+                                handleAutoFill(filtered[0]);
+                            }
+                        }}
+                        placeholder={fillMode ? t('vault.search') + ' (Enter auto-fill)' : t('vault.search')}
+                    />
+                </div>
             </div>
-
-            {/* 记录列表 */}
-            <div style={S.list}>
-                {filtered.length === 0 && (
-                    <div style={S.emptyTip}>
-                        {records.length === 0 ? t('vault.empty_new') : t('vault.empty_search')}
-                    </div>
-                )}
-                {filtered.map((r) => (
-                    <div
-                        key={r.id}
-                        style={S.card(selectedId === r.id)}
-                        onClick={() => setSelectedId(r.id)}
+            <div style={S.listShell}>
+                <div style={S.tagColumn}>
+                    <button
+                        style={S.tagColumnBtn(!tagFilter)}
+                        onClick={() => setTagFilter(null)}
                     >
-                        <div style={S.cardLeft}>
-                            <div style={S.cardAccount}>
-                                {r.account || <span style={{ color: '#aaa' }}>（无账号）</span>}
-                            </div>
-                            <div style={S.cardMeta}>
-                                {r.website && <span style={{ marginRight: 8 }}>🌐 {r.website}</span>}
-                                {r.tags.length > 0 && <span>{r.tags.map((t) => `[${t}]`).join(' ')}</span>}
-                                {r.notes && (
-                                    <span style={{ marginLeft: 6, color: '#aaa' }}>· {r.notes.slice(0, 30)}</span>
-                                )}
-                            </div>
-                        </div>
-                        <div
-                            style={S.cardActions}
-                            onClick={(e) => e.stopPropagation()}
+                        {t('vault.all_tags')}
+                    </button>
+                    {allTags.map((tag) => (
+                        <button
+                            key={tag}
+                            style={S.tagColumnBtn(tagFilter === tag)}
+                            onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
                         >
-                            <button
-                                style={S.btn('', true)}
-                                onClick={() => copyText(r.account, t('vault.account_short'))}
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+                <div style={S.listArea}>
+                    <div style={S.list}>
+                        {filtered.length === 0 && (
+                            <div style={S.emptyTip}>
+                                {records.length === 0 ? t('vault.empty_new') : t('vault.empty_search')}
+                            </div>
+                        )}
+                        {filtered.map((r) => (
+                            <div
+                                key={r.id}
+                                style={S.card(selectedId === r.id)}
+                                onClick={() => setSelectedId(r.id)}
                             >
-                                {t('vault.account_short')}
-                            </button>
-                            <button
-                                style={S.btn('ghost', true)}
-                                onClick={() => copyText(r.password, t('vault.password_short'))}
-                            >
-                                {t('vault.password_short')}
-                            </button>
-                            <button
-                                style={S.btn('', true)}
-                                onClick={() => onEdit(r)}
-                            >
-                                {t('vault.edit')}
-                            </button>
-                            <button
-                                style={S.btn('danger', true)}
-                                onClick={() => handleDelete(r.id)}
-                            >
-                                {t('vault.delete')}
-                            </button>
-                        </div>
+                                <div style={S.cardLeft}>
+                                    <div style={S.cardAccount}>
+                                        {r.account || <span style={{ color: '#aaa' }}>-</span>}
+                                    </div>
+                                    <div style={S.cardMeta}>
+                                        {r.website && (
+                                            <span style={{ marginRight: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                <FiGlobe size={12} />
+                                                <span>{r.website}</span>
+                                            </span>
+                                        )}
+                                        {r.tags.length > 0 && <span>{r.tags.map((tag) => '[' + tag + ']').join(' ')}</span>}
+                                        {r.notes && <span style={{ marginLeft: 6, color: '#aaa' }}>- {r.notes.slice(0, 30)}</span>}
+                                    </div>
+                                </div>
+                                <div
+                                    style={S.cardActions}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        style={S.btn('', true)}
+                                        onClick={() => copyText(r.account, t('vault.account_short'))}
+                                    >
+                                        {t('vault.account_short')}
+                                    </button>
+                                    <button
+                                        style={S.btn('ghost', true)}
+                                        onClick={() => copyText(r.password, t('vault.password_short'))}
+                                    >
+                                        {t('vault.password_short')}
+                                    </button>
+                                    <button
+                                        style={S.btn('', true)}
+                                        onClick={() => onEdit(r)}
+                                    >
+                                        {t('vault.edit')}
+                                    </button>
+                                    <button
+                                        style={S.btn('danger', true)}
+                                        onClick={() => handleDelete(r.id)}
+                                    >
+                                        {t('vault.delete')}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
+                </div>
             </div>
-
-            {/* 状态栏 */}
             <div style={S.statusBar}>
                 {t('vault.records_total', { n: records.length })}
                 {search || tagFilter ? t('vault.records_filtered', { n: filtered.length }) : ''}
-                {selectedRecord ? t('vault.records_selected', { name: selectedRecord.account || '—' }) : ''}
+                {selectedRecord ? t('vault.records_selected', { name: selectedRecord.account || '-' }) : ''}
             </div>
 
-            {/* 快速新增模态框（划词捕获流程完成后预填） */}
+            {/* 韫囶偊鈧喐鏌婃晶鐐茨侀幀浣诡攱閿涘牆鍨濈拠宥嗗礋閼鹃攱绁︾粙瀣暚閹存劕鎮楁０鍕綖閿?*/}
             {prefillData != null && (
                 <QuickAddModal
                     initialAccount={prefillData.account}
                     initialPassword={prefillData.password}
                     onSave={() => {
                         setPrefillData(null);
-                        appWindow.close(); // 保存后关闭密码本窗口
+                        appWindow.close(); // 娣囨繂鐡ㄩ崥搴″彠闂傤厼鐦戦惍浣规拱缁愭褰?
                     }}
                     onClose={() => {
                         setPrefillData(null);
@@ -1072,7 +1216,7 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                 />
             )}
 
-            {/* Toast 提示 */}
+            {/* Toast 閹绘劗銇?*/}
             {toast && (
                 <div
                     style={{
@@ -1096,10 +1240,10 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
     );
 }
 
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// 主组件 — 视图路由
-// ─────────────────────────────────────────────
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+// 娑撹崵绮嶆禒?閳?鐟欏棗娴樼捄顖滄暠
+// 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 export default function Vault() {
     const [view, setView] = useState('list');
     const [editRecord, setEditRecord] = useState(null);
@@ -1108,7 +1252,7 @@ export default function Vault() {
     // 'idle' | 'quick_add' | 'quick_fill'
     const [pendingMode, setPendingMode] = useState('idle');
 
-    // 读取 Rust 侧存储的待触发模式（新窗口首次挂载时）
+    // 鐠囪褰?Rust 娓氀冪摠閸屻劎娈戝鍛靶曢崣鎴災佸蹇ョ礄閺傛壆鐛ラ崣锝夘浕濞嗏剝瀵曟潪鑺ユ閿?
     useEffect(() => {
         invoke('get_vault_mode')
             .then((mode) => {
@@ -1116,7 +1260,7 @@ export default function Vault() {
             })
             .catch(() => {});
 
-        // 已打开的窗口通过 event 接收新模式
+        // 瀹稿弶澧﹀鈧惃鍕崶閸欙綁鈧俺绻?event 閹恒儲鏁归弬鐗埬佸?
         const unlisten = listen('vault_mode', (e) => {
             if (e.payload) setPendingMode(e.payload);
         });
@@ -1142,7 +1286,7 @@ export default function Vault() {
 
     const handleCancel = () => setView('list');
 
-    // 固定根容器确保整个视口有不透明背景（Tauri 窗口是 transparent=true）
+    // 閸ュ搫鐣鹃弽鐟邦啇閸ｃ劎鈥樻穱婵囨殻娑擃亣顫嬮崣锝嗘箒娑撳秹鈧繑妲戦懗灞炬珯閿涘湵auri 缁愭褰涢弰?transparent=true閿?
     return (
         <TrayWindow>
             <TrayWindowBody>

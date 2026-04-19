@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { HiSparkles } from 'react-icons/hi';
 
 import WindowHeader, {
-    WindowHeaderButton,
     WindowHeaderCloseButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
@@ -24,6 +23,10 @@ import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getActiveAiApiConfig } from '../../utils/aiConfig';
 
 const VERSION_COUNT = 3;
+const LIGHT_AI_TITLE = 'AI 润色';
+const GENERATE_LABEL = '生成';
+const REGENERATE_LABEL = '重新生成';
+const STOP_LABEL = '停止';
 
 const QUICK_TEMPLATES = [
     { label: '缩写', prompt: '请在保留核心信息的前提下尽量精简压缩。' },
@@ -182,6 +185,7 @@ export default function LightAI() {
     const [versions, setVersions] = useState(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
     const [errors, setErrors] = useState(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
     const [loading, setLoading] = useState(false);
+    const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
     const [refining, setRefining] = useState(Array(VERSION_COUNT).fill(false));
     const abortRefs = useRef(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => null));
     const inputRef = useRef(null);
@@ -232,6 +236,7 @@ export default function LightAI() {
         const controllers = STYLE_KEYS.slice(0, VERSION_COUNT).map(() => new AbortController());
         abortRefs.current = controllers;
         setLoading(true);
+        setHasGeneratedOnce(true);
         setVersions(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
         setErrors(STYLE_KEYS.slice(0, VERSION_COUNT).map(() => ''));
         setRefining(Array(VERSION_COUNT).fill(false));
@@ -276,6 +281,12 @@ export default function LightAI() {
             void generate();
         }
     }, [apiConfig, generate, sourceText]);
+
+    useEffect(() => {
+        if (!sourceText.trim()) {
+            setHasGeneratedOnce(false);
+        }
+    }, [sourceText]);
 
     const refineVersion = useCallback(
         async (index) => {
@@ -369,6 +380,9 @@ export default function LightAI() {
         }
     };
 
+    const canGenerate = Boolean(sourceText.trim());
+    const mainButtonLabel = loading ? STOP_LABEL : hasGeneratedOnce ? REGENERATE_LABEL : GENERATE_LABEL;
+
     return (
         <TrayWindow>
             <WindowHeader
@@ -379,27 +393,10 @@ export default function LightAI() {
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        轻 AI
+                        {LIGHT_AI_TITLE}
                     </WindowHeaderTitle>
                 }
-                right={
-                    <>
-                        {loading ? (
-                            <WindowHeaderButton onClick={stopAll}>停止</WindowHeaderButton>
-                        ) : (
-                            <WindowHeaderButton
-                                variant='primary'
-                                style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
-                                onClick={() => {
-                                    void generate();
-                                }}
-                            >
-                                重新生成
-                            </WindowHeaderButton>
-                        )}
-                        <WindowHeaderCloseButton />
-                    </>
-                }
+                right={<WindowHeaderCloseButton />}
             />
 
             <TrayWindowBody>
@@ -510,11 +507,15 @@ export default function LightAI() {
                             style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
                             className='h-10 rounded-[10px] px-4 text-[13px] font-semibold'
                             onClick={() => {
-                                void generate();
+                                if (loading) {
+                                    stopAll();
+                                } else {
+                                    void generate();
+                                }
                             }}
-                            disabled={loading || !sourceText.trim()}
+                            disabled={!loading && !canGenerate}
                         >
-                            {loading ? '生成中' : '生成'}
+                            {mainButtonLabel}
                         </button>
                     </div>
                 </TrayWindowSurface>
