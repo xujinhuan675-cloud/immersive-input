@@ -4,7 +4,6 @@ import { BaseDirectory, readTextFile } from '@tauri-apps/api/fs';
 import { sendNotification } from '@tauri-apps/api/notification';
 import React, { useEffect, useRef, useState } from 'react';
 import { writeText } from '@tauri-apps/api/clipboard';
-import PulseLoader from 'react-spinners/PulseLoader';
 import { TbTransformFilled } from 'react-icons/tb';
 import { HiOutlineVolumeUp } from 'react-icons/hi';
 import toast, { Toaster } from 'react-hot-toast';
@@ -14,8 +13,6 @@ import Database from 'tauri-plugin-sql-api';
 import { GiCycle } from 'react-icons/gi';
 import { useAtomValue } from 'jotai';
 import { nanoid } from 'nanoid';
-import { animated, useSpring } from '@react-spring/web';
-import useMeasure from 'react-use-measure';
 
 import * as builtinCollectionServices from '../../../../services/collection';
 import { sourceLanguageAtom, targetLanguageAtom } from '../LanguageArea';
@@ -44,6 +41,7 @@ const FOOTER_ACTION_BUTTON_CLASS =
     'h-7 w-7 min-w-0 rounded-[8px] text-default-400 transition-colors hover:bg-default-100 hover:text-default-700 data-[hover=true]:bg-default-100';
 const SERVICE_TRIGGER_BUTTON_CLASS =
     'h-auto min-h-[38px] w-full justify-start rounded-[10px] border border-default-200/70 bg-default-50/70 px-2.5 py-1.5 text-default-700 transition-colors hover:bg-default-100 data-[hover=true]:bg-default-100';
+const RESULT_UPDATE_THROTTLE_MS = 120;
 
 function stripHtml(value = '') {
     return value
@@ -91,9 +89,8 @@ export default function TargetArea(props) {
     const [translateSecondLanguage] = useConfig('translate_second_language', 'en');
     const [autoCopy] = useConfig('translate_auto_copy', 'disable');
     const [clipboardMonitor] = useConfig('clipboard_monitor', false);
-
-    const historyDisable = false;
-    const hideWindow = false;
+    const [historyDisable] = useConfig('history_disable', false);
+    const [hideWindow] = useConfig('translate_hide_window', false);
 
     const [isLoading, setIsLoading] = useState(false);
     const [collapsed, setCollapsed] = useState(index !== 0);
@@ -108,8 +105,39 @@ export default function TargetArea(props) {
 
     const { t } = useTranslation();
     const textAreaRef = useRef(null);
+    const pendingResultRef = useRef(undefined);
+    const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
     const speak = useVoice();
+
+    function clearPendingResultUpdate() {
+        if (resultUpdateTimerRef.current) {
+            clearTimeout(resultUpdateTimerRef.current);
+            resultUpdateTimerRef.current = null;
+        }
+        pendingResultRef.current = undefined;
+    }
+
+    function applyResultUpdate(value, immediate = false) {
+        pendingResultRef.current = value;
+
+        if (immediate) {
+            clearPendingResultUpdate();
+            setResult(value);
+            return;
+        }
+
+        if (resultUpdateTimerRef.current) {
+            return;
+        }
+
+        resultUpdateTimerRef.current = setTimeout(() => {
+            const nextValue = pendingResultRef.current;
+            resultUpdateTimerRef.current = null;
+            pendingResultRef.current = undefined;
+            setResult(nextValue);
+        }, RESULT_UPDATE_THROTTLE_MS);
+    }
 
     function getInstanceName(instanceKey, serviceNameSupplier) {
         const instanceConfig = serviceInstanceConfigMap[instanceKey] ?? {};
@@ -135,6 +163,7 @@ export default function TargetArea(props) {
     }, [currentTranslateServiceInstanceKey, error]);
 
     useEffect(() => {
+        clearPendingResultUpdate();
         setResult('');
         setError('');
 
@@ -167,6 +196,12 @@ export default function TargetArea(props) {
         sourceText,
         targetLanguage,
     ]);
+
+    useEffect(() => {
+        return () => {
+            clearPendingResultUpdate();
+        };
+    }, []);
 
     const addToHistory = async (text, source, target, serviceInstanceKey, nextResult) => {
         const db = await Database.load('sqlite:history.db');
@@ -217,7 +252,7 @@ export default function TargetArea(props) {
                     detect: detectLanguage,
                     setResult: (value) => {
                         if (translateID[index] !== id) return;
-                        setResult(value);
+                        applyResultUpdate(value);
                     },
                     utils,
                 }).then(
@@ -226,7 +261,7 @@ export default function TargetArea(props) {
                         if (translateID[index] !== id) return;
 
                         const nextResult = typeof value === 'string' ? value.trim() : value;
-                        setResult(nextResult);
+                        applyResultUpdate(nextResult, true);
                         setIsLoading(false);
 
                         if (!historyDisable && typeof nextResult === 'string' && nextResult !== '') {
@@ -266,11 +301,13 @@ export default function TargetArea(props) {
                     (e) => {
                         info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
                         if (translateID[index] !== id) return;
+                        clearPendingResultUpdate();
                         setError(e.toString());
                         setIsLoading(false);
                     }
                 );
             } else {
+                clearPendingResultUpdate();
                 setError('Language not supported');
                 setIsLoading(false);
             }
@@ -289,17 +326,17 @@ export default function TargetArea(props) {
                         detect: detectLanguage,
                         setResult: (value) => {
                             if (translateID[index] !== id) return;
-                            setResult(value);
+                            applyResultUpdate(value);
                         },
                     })
                     .then(
                         (value) => {
                             info(`[${currentTranslateServiceInstanceKey}]resolve:` + value);
-                            if (translateID[index] !== id) return;
+                        if (translateID[index] !== id) return;
 
-                            const nextResult = typeof value === 'string' ? value.trim() : value;
-                            setResult(nextResult);
-                            setIsLoading(false);
+                        const nextResult = typeof value === 'string' ? value.trim() : value;
+                        applyResultUpdate(nextResult, true);
+                        setIsLoading(false);
 
                             if (!historyDisable && typeof nextResult === 'string' && nextResult !== '') {
                                 addToHistory(
@@ -335,14 +372,16 @@ export default function TargetArea(props) {
                                 }
                             }
                         },
-                        (e) => {
-                            info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
-                            if (translateID[index] !== id) return;
-                            setError(e.toString());
-                            setIsLoading(false);
-                        }
-                    );
+                    (e) => {
+                        info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
+                        if (translateID[index] !== id) return;
+                        clearPendingResultUpdate();
+                        setError(e.toString());
+                        setIsLoading(false);
+                    }
+                );
             } else {
+                clearPendingResultUpdate();
                 setError('Language not supported');
                 setIsLoading(false);
             }
@@ -370,7 +409,6 @@ export default function TargetArea(props) {
         }
     }, [ttsServiceList]);
 
-    const [boundRef, bounds] = useMeasure({ scroll: true });
     const hasStringResult = typeof result === 'string' && result.trim() !== '';
     const hasStructuredResult =
         !!result && typeof result === 'object' && !Array.isArray(result) && Object.keys(result).length > 0;
@@ -383,13 +421,6 @@ export default function TargetArea(props) {
     const headerPreview = previewText || (isLoading ? '...' : '');
     const showBody = !collapsed && (isLoading || hasStringResult || hasStructuredResult || error !== '');
     const showFooter = !collapsed && (hasStringResult || error !== '');
-    const springs = useSpring({
-        from: { height: 0, opacity: 0 },
-        to: {
-            height: showBody ? bounds.height : 0,
-            opacity: showBody ? 1 : 0,
-        },
-    });
 
     const handleSpeak = async () => {
         const instanceKey = ttsServiceList[0];
@@ -453,20 +484,22 @@ export default function TargetArea(props) {
                     config: instanceConfig,
                     detect: detectLanguage,
                     setResult: (value) => {
-                        setResult(value);
+                        applyResultUpdate(value);
                     },
                     utils,
                 }).then(
                     (value) => {
-                        setResult(typeof value === 'string' ? value.trim() : value);
+                        applyResultUpdate(typeof value === 'string' ? value.trim() : value, true);
                         setIsLoading(false);
                     },
                     (e) => {
+                        clearPendingResultUpdate();
                         setError(e.toString());
                         setIsLoading(false);
                     }
                 );
             } else {
+                clearPendingResultUpdate();
                 setError('Language not supported');
                 setIsLoading(false);
             }
@@ -479,20 +512,22 @@ export default function TargetArea(props) {
                         config: instanceConfig,
                         detect: newSourceLanguage,
                         setResult: (value) => {
-                            setResult(value);
+                            applyResultUpdate(value);
                         },
                     })
                     .then(
                         (value) => {
-                            setResult(typeof value === 'string' ? value.trim() : value);
+                            applyResultUpdate(typeof value === 'string' ? value.trim() : value, true);
                             setIsLoading(false);
                         },
                         (e) => {
+                            clearPendingResultUpdate();
                             setError(e.toString());
                             setIsLoading(false);
                         }
                     );
             } else {
+                clearPendingResultUpdate();
                 setError('Language not supported');
                 setIsLoading(false);
             }
@@ -500,7 +535,7 @@ export default function TargetArea(props) {
     };
 
     return (
-        <div className='overflow-hidden rounded-[14px] border border-default-200/80 bg-content1/94'>
+        <div className='overflow-hidden rounded-[14px] border border-default-200/80 bg-content1'>
             <Toaster />
             <div
                 className='flex items-center justify-between gap-2 px-3 py-2'
@@ -564,12 +599,7 @@ export default function TargetArea(props) {
                     </Dropdown>
                 </div>
                 <div className='flex items-center gap-1'>
-                    {isLoading ? (
-                        <PulseLoader
-                            color='#94a3b8'
-                            size={4}
-                        />
-                    ) : null}
+                    {isLoading ? <span className='px-1 text-[11px] text-default-400'>{t('translate.translate')}...</span> : null}
                     <Button
                         size='sm'
                         isIconOnly
@@ -586,18 +616,12 @@ export default function TargetArea(props) {
                 </div>
             </div>
 
-            <animated.div
-                className='overflow-hidden'
-                style={springs}
-            >
-                <div ref={boundRef}>
+            {showBody ? (
+                <div className='overflow-hidden'>
                     <div className='border-t border-default-200/60 px-3 py-2.5 text-default-700'>
                         {isLoading && !hasStringResult && !hasStructuredResult && error === '' ? (
-                            <div className='flex items-center gap-2 py-1'>
-                                <PulseLoader
-                                    color='#94a3b8'
-                                    size={5}
-                                />
+                            <div className='py-1 text-[12px] text-default-400'>
+                                {t('translate.translate')}...
                             </div>
                         ) : null}
 
@@ -615,10 +639,10 @@ export default function TargetArea(props) {
                         ) : null}
                         {hasStructuredResult ? (
                             <div className='space-y-1.5 text-[14px] leading-[1.6] text-default-700'>
-                                {result.pronunciations?.map((pronunciation) => {
+                                {result.pronunciations?.map((pronunciation, pronunciationIndex) => {
                                     return (
                                         <div
-                                            key={nanoid()}
+                                            key={`${pronunciation.region ?? ''}-${pronunciation.symbol ?? ''}-${pronunciationIndex}`}
                                             className='flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[10px] bg-default-50/65 px-2.5 py-2'
                                         >
                                             {pronunciation.region ? (
@@ -650,15 +674,15 @@ export default function TargetArea(props) {
                                     );
                                 })}
 
-                                {result.explanations?.map((explanations) => {
+                                {result.explanations?.map((explanations, explanationGroupIndex) => {
                                     return (
                                         <div
-                                            key={nanoid()}
+                                            key={`${explanations.trait ?? 'trait'}-${explanationGroupIndex}`}
                                             className='rounded-[10px] bg-default-50/65 px-2.5 py-2'
                                         >
                                             {explanations.explains?.map((explain, explainIndex) => {
                                                 return (
-                                                    <span key={nanoid()}>
+                                                    <span key={`${explanationGroupIndex}-${explainIndex}`}>
                                                         {explainIndex === 0 ? (
                                                             <>
                                                                 <span
@@ -690,10 +714,10 @@ export default function TargetArea(props) {
                                     );
                                 })}
 
-                                {result.associations?.map((association) => {
+                                {result.associations?.map((association, associationIndex) => {
                                     return (
                                         <div
-                                            key={nanoid()}
+                                            key={`${association}-${associationIndex}`}
                                             className='rounded-[10px] bg-default-50/60 px-2.5 py-2'
                                         >
                                             <span
@@ -709,7 +733,7 @@ export default function TargetArea(props) {
                                 {result.sentence?.map((sentence, sentenceIndex) => {
                                     return (
                                         <div
-                                            key={nanoid()}
+                                            key={`${sentence.source ?? sentence.target ?? 'sentence'}-${sentenceIndex}`}
                                             className='rounded-[10px] bg-default-50/65 px-2.5 py-2'
                                         >
                                             <span
@@ -899,7 +923,7 @@ export default function TargetArea(props) {
                         </div>
                     ) : null}
                 </div>
-            </animated.div>
+            ) : null}
         </div>
     );
 }

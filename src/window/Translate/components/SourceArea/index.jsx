@@ -23,8 +23,6 @@ import detect from '../../../../utils/lang_detect';
 export const sourceTextAtom = atom('');
 export const detectLanguageAtom = atom('');
 
-let unlisten = null;
-
 const TOOL_ICON_BUTTON_CLASS =
     'h-7 w-7 min-w-0 rounded-[8px] text-default-400 transition-colors hover:bg-default-100 hover:text-default-600 data-[hover=true]:bg-default-100';
 const PRIMARY_TRANSLATE_BUTTON_CLASS =
@@ -37,19 +35,25 @@ export default function SourceArea(props) {
     const [incrementalTranslate] = useConfig('incremental_translate', false);
     const [dynamicTranslate] = useConfig('dynamic_translate', false);
     const [deleteNewline] = useConfig('translate_delete_newline', false);
+    const [hideWindow] = useConfig('translate_hide_window', false);
+    const [hideSource] = useConfig('hide_source', false);
     const [recognizeLanguage] = useConfig('recognize_language', 'auto');
     const [recognizeServiceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
     const [ttsServiceList] = useConfig('tts_service_list', ['lingva_tts']);
-    const hideWindow = false;
-    const hideSource = false;
     const [ttsPluginInfo, setTtsPluginInfo] = useState();
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
     const textAreaRef = useRef(null);
     const sourceTextChangeTimerRef = useRef(null);
+    const handleNewTextRef = useRef(null);
+    const hasHydratedInitialTextRef = useRef(false);
     const speak = useVoice();
     const hasSourceText = sourceText.trim() !== '';
+
+    const appendIncrementalText = useCallback((previousText, incomingText) => {
+        return previousText ? `${previousText} ${incomingText}` : incomingText;
+    }, []);
 
     const detect_language = useCallback(
         async (text) => {
@@ -68,17 +72,12 @@ export default function SourceArea(props) {
         async (text) => {
             text = text.trim();
             if (hideWindow) {
-                appWindow.hide();
-            } else {
-                appWindow.show();
-                appWindow.setFocus();
+                await appWindow.hide().catch(() => {});
             }
 
             setDetectLanguage('');
             if (text === '[INPUT_TRANSLATE]') {
                 setWindowType('[INPUT_TRANSLATE]');
-                appWindow.show();
-                appWindow.setFocus();
                 setSourceText('', true);
                 return;
             }
@@ -107,7 +106,7 @@ export default function SourceArea(props) {
                                 }
                                 if (incrementalTranslate) {
                                     setSourceText((old) => {
-                                        return old + ' ' + newText;
+                                        return appendIncrementalText(old, newText);
                                     });
                                 } else {
                                     setSourceText(newText);
@@ -142,7 +141,7 @@ export default function SourceArea(props) {
                                     }
                                     if (incrementalTranslate) {
                                         setSourceText((old) => {
-                                            return old + ' ' + newText;
+                                            return appendIncrementalText(old, newText);
                                         });
                                     } else {
                                         setSourceText(newText);
@@ -166,7 +165,7 @@ export default function SourceArea(props) {
             let newText = deleteNewline ? text.replace(/\-\s+/g, '').replace(/\s+/g, ' ') : text.trim();
             if (incrementalTranslate) {
                 setSourceText((old) => {
-                    return old + ' ' + newText;
+                    return appendIncrementalText(old, newText);
                 });
             } else {
                 setSourceText(newText);
@@ -176,6 +175,7 @@ export default function SourceArea(props) {
             });
         },
         [
+            appendIncrementalText,
             deleteNewline,
             detect_language,
             hideWindow,
@@ -189,6 +189,10 @@ export default function SourceArea(props) {
             syncSourceText,
         ]
     );
+
+    useEffect(() => {
+        handleNewTextRef.current = handleNewText;
+    }, [handleNewText]);
 
     const keyDown = (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
@@ -258,23 +262,15 @@ export default function SourceArea(props) {
     };
 
     useEffect(() => {
-        if (unlisten) {
-            unlisten.then((fn) => {
-                fn();
-            });
-        }
-
-        unlisten = listen('new_text', (event) => {
-            appWindow.setFocus();
-            handleNewText(event.payload);
+        const unlistenPromise = listen('new_text', (event) => {
+            handleNewTextRef.current?.(event.payload);
         });
-
         return () => {
-            unlisten?.then((fn) => {
+            unlistenPromise.then((fn) => {
                 fn();
             });
         };
-    }, [handleNewText]);
+    }, []);
 
     useEffect(() => {
         if (ttsServiceList && getServiceSouceType(ttsServiceList[0]) === ServiceSourceType.PLUGIN) {
@@ -288,16 +284,22 @@ export default function SourceArea(props) {
 
     useEffect(() => {
         if (
-            deleteNewline !== null &&
-            incrementalTranslate !== null &&
-            recognizeLanguage !== null &&
-            recognizeServiceList !== null
+            hasHydratedInitialTextRef.current ||
+            deleteNewline === null ||
+            incrementalTranslate === null ||
+            recognizeLanguage === null ||
+            recognizeServiceList === null
         ) {
-            invoke('get_text').then((v) => {
-                handleNewText(v);
-            });
+            return;
         }
-    }, [deleteNewline, handleNewText, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
+
+        hasHydratedInitialTextRef.current = true;
+        invoke('get_text').then((v) => {
+            if (v?.trim()) {
+                handleNewTextRef.current?.(v);
+            }
+        });
+    }, [deleteNewline, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
 
     useEffect(() => {
         if (!textAreaRef.current) return;

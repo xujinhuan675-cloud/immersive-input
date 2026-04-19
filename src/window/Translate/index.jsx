@@ -25,9 +25,9 @@ import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
 import { useConfig } from '../../hooks';
 import { store } from '../../utils/store';
-import { info } from 'tauri-plugin-log-api';
 
 let blurTimeout = null;
+let unlisten = null;
 
 const listenBlur = () => {
     return listen('tauri://blur', () => {
@@ -35,40 +35,46 @@ const listenBlur = () => {
             if (blurTimeout) {
                 clearTimeout(blurTimeout);
             }
-            info('Blur');
             // 100ms后关闭窗口，因为在 windows 下拖动窗口时会先切换成 blur 再立即切换成 focus
             // 如果直接关闭将导致窗口无法拖动
             // 800ms 超时给前端足够时间加载并调用 appWindow.setFocus()
             // 从而取消关闭定时器；也给用户时间单击窗口以保持其打开
             blurTimeout = setTimeout(async () => {
-                info('Confirm Blur');
                 await appWindow.close();
             }, 800);
         }
     });
 };
 
-let unlisten = listenBlur();
+const ensureBlurListener = () => {
+    if (!unlisten) {
+        unlisten = listenBlur();
+    }
+};
+
+ensureBlurListener();
 // 取消 blur 监听
 const unlistenBlur = () => {
-    unlisten.then((f) => {
+    if (!unlisten) {
+        return;
+    }
+
+    const current = unlisten;
+    unlisten = null;
+    current.then((f) => {
         f();
     });
 };
 
 // 监听 focus 事件取消 blurTimeout 时间之内的关闭窗口
 void listen('tauri://focus', () => {
-    info('Focus');
     if (blurTimeout) {
-        info('Cancel Close');
         clearTimeout(blurTimeout);
     }
 });
 // 监听 move 事件取消 blurTimeout 时间之内的关闭窗口
 void listen('tauri://move', () => {
-    info('Move');
     if (blurTimeout) {
-        info('Cancel Close');
         clearTimeout(blurTimeout);
     }
 });
@@ -86,9 +92,9 @@ export default function Translate() {
     const [recognizeServiceInstanceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
     const [ttsServiceInstanceList] = useConfig('tts_service_list', ['lingva_tts']);
     const [collectionServiceInstanceList] = useConfig('collection_service_list', []);
-    const closeOnBlur = true;
-    const alwaysOnTop = false;
-    const hideLanguage = false;
+    const [closeOnBlur] = useConfig('translate_close_on_blur', false);
+    const [alwaysOnTop] = useConfig('translate_always_on_top', false);
+    const [hideLanguage] = useConfig('hide_language', false);
     const [pined, setPined] = useState(false);
     const [pluginList, setPluginList] = useState(null);
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
@@ -106,18 +112,33 @@ export default function Translate() {
     };
     // 是否自动关闭窗口
     useEffect(() => {
-        if (!closeOnBlur) {
+        if (closeOnBlur === null) {
+            return;
+        }
+
+        if (closeOnBlur) {
+            ensureBlurListener();
+        } else {
             unlistenBlur();
         }
     }, [closeOnBlur]);
     // 是否默认置顶
     useEffect(() => {
+        if (alwaysOnTop === null) {
+            return;
+        }
+
         if (alwaysOnTop) {
             appWindow.setAlwaysOnTop(true);
             unlistenBlur();
             setPined(true);
+        } else if (!pined) {
+            appWindow.setAlwaysOnTop(false);
+            if (closeOnBlur) {
+                ensureBlurListener();
+            }
         }
-    }, [alwaysOnTop]);
+    }, [alwaysOnTop, closeOnBlur, pined]);
     const loadPluginList = async () => {
         const serviceTypeList = ['translate', 'tts', 'recognize', 'collection'];
         let temp = {};
@@ -206,7 +227,7 @@ export default function Translate() {
                                 onClick={() => {
                                     if (pined) {
                                         if (closeOnBlur) {
-                                            unlisten = listenBlur();
+                                            ensureBlurListener();
                                         }
                                         appWindow.setAlwaysOnTop(false);
                                     } else {
