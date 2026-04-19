@@ -56,14 +56,14 @@
                 "app_font": "字体",
                 "app_fallback_font": "后备字体",
                 "font_size": {
-                    "title": "字体大小",
                     "10": "极小 (10px)",
                     "12": "特小 (12px)",
                     "14": "小 (14px)",
                     "16": "标准 (16px)",
                     "18": "大 (18px)",
                     "20": "特大 (20px)",
-                    "24": "超大 (24px)"
+                    "24": "超大 (24px)",
+                    "title": "字体大小"
                 },
                 "default_font": "默认",
                 "theme": {
@@ -93,8 +93,8 @@
                 }
             },
             "advanced": {
-                "label": "\u9ad8\u7ea7\u8bbe\u7f6e",
-                "title": "\u9ad8\u7ea7\u8bbe\u7f6e"
+                "label": "高级设置",
+                "title": "高级设置"
             },
             "translate": {
                 "label": "翻译设置",
@@ -113,14 +113,14 @@
                 "delete_newline": "自动删除换行",
                 "remember_language": "记住目标语言",
                 "font_size": {
-                    "title": "字体大小",
                     "10": "极小 (10px)",
                     "12": "特小 (12px)",
                     "14": "小 (14px)",
                     "16": "标准 (16px)",
                     "18": "大 (18px)",
                     "20": "特大 (20px)",
-                    "24": "超大 (24px)"
+                    "24": "超大 (24px)",
+                    "title": "字体大小"
                 },
                 "window_position": "窗口位置",
                 "mouse": "跟随鼠标",
@@ -323,6 +323,8 @@
                 "subscription_renewal_note": "当前会员仍在生效时，新购买的时长会从现有到期时间往后顺延",
                 "credit_topup_title": "积分充值",
                 "credit_topup_subtitle": "购买积分后，可用于超额调用与持续使用。",
+      "billing_summary_subtitle": "每日重置，积分可用于超额使用。",
+                "billing_summary_subtitle_with_reset": "{{time}} 重置，积分可用于超额使用。",
                 "credit_purchase_amount": "购买金额",
                 "credit_purchase_action": "购买积分",
                 "topup_presets_title": "快速充值",
@@ -383,7 +385,9 @@
                 "admin_tier_apply_success": "会员套餐已更新",
                 "admin_tier_apply_failed": "会员调档失败",
                 "admin_requires_order_id": "请先输入订单号",
-                "admin_requires_user_id": "请先输入目标用户 ID 或邮箱"
+                "admin_requires_user_id": "请先输入目标用户 ID 或邮箱",
+                "billing_daily_quota_hint": "{{time}} 重置",
+                "billing_daily_quota_hint_no_reset": "每日重置"
             },
             "ai": {
                 "label": "AI 功能",
@@ -947,6 +951,13 @@
             "tags_save": "保存",
             "confirm_delete_tag": "删除「{{name}}」？该分类下的常用语将变为未分类。",
             "close": "✕"
+        },
+        "float_toolbar": {
+            "apply_result": "??",
+            "apply_result_title": "????",
+            "apply_formula": "??",
+            "apply_formula_title": "????",
+            "calc_error": "????"
         }
     }
 }

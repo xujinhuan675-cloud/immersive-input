@@ -9,7 +9,9 @@ import { useToastStyle } from '../../../../../../hooks';
 import {
     AI_API_DEFAULT_MODEL,
     AI_API_DEFAULT_URL,
+    AI_PROVIDER_OPTIONS,
     createDefaultAiApiConfig,
+    inferAiProviderId,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../../utils/service_instance';
@@ -53,6 +55,7 @@ function AIApiConfigForm(props) {
         const mergedConfig = getMergedAiApiConfig(aiConfig);
         const needsRepair =
             aiConfig[INSTANCE_NAME_CONFIG_KEY] === undefined ||
+            aiConfig.provider === undefined ||
             aiConfig.apiUrl === undefined ||
             aiConfig.apiKey === undefined ||
             aiConfig.model === undefined ||
@@ -115,6 +118,35 @@ function AIApiConfigForm(props) {
                             });
                         }}
                     />
+                </div>
+
+                <div className='config-item'>
+                    <div className='my-auto text-[length:--nextui-font-size-medium]'>
+                        {t('ai_config.provider', { defaultValue: 'Provider' })}
+                    </div>
+                    <div className='w-full max-w-[55%]'>
+                        <select
+                            value={aiConfig.provider || inferAiProviderId(aiConfig)}
+                            className='w-full rounded-[14px] border border-default-200 bg-default-50 px-3 py-2 text-sm outline-none transition-colors hover:border-default-300 focus:border-primary'
+                            onChange={(event) => {
+                                setAiConfig({
+                                    ...aiConfig,
+                                    provider: event.target.value,
+                                });
+                            }}
+                        >
+                            {AI_PROVIDER_OPTIONS.map((option) => (
+                                <option
+                                    key={option.key}
+                                    value={option.key}
+                                >
+                                    {t(`ai_config.providers.${option.key}`, {
+                                        defaultValue: option.label,
+                                    })}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 <div className='config-item'>

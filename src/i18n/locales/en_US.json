@@ -56,14 +56,14 @@
                 "app_font": "Font",
                 "app_fallback_font": "Fallback Font",
                 "font_size": {
-                    "title": "Font Size",
                     "10": "Extra Small (10px)",
                     "12": "Very Small (12px)",
                     "14": "Small (14px)",
                     "16": "Standard (16px)",
                     "18": "Large (18px)",
                     "20": "Very Large (20px)",
-                    "24": "Extra Large (24px)"
+                    "24": "Extra Large (24px)",
+                    "title": "Font Size"
                 },
                 "default_font": "Default",
                 "theme": {
@@ -113,14 +113,14 @@
                 "delete_newline": "Delete Newline",
                 "remember_language": "Remember Target Language",
                 "font_size": {
-                    "title": "Font Size",
                     "10": "Very Very Small (10px)",
                     "12": "Very Small (12px)",
                     "14": "Small (14px)",
                     "16": "Standard (16px)",
                     "18": "Large (18px)",
                     "20": "Very Large (20px)",
-                    "24": "Very Very Large (24px)"
+                    "24": "Very Very Large (24px)",
+                    "title": "Font Size"
                 },
                 "window_position": "Window Position",
                 "mouse": "Follow the Mouse",
@@ -323,6 +323,8 @@
                 "subscription_renewal_note": "If your current subscription is still active, the newly purchased duration will extend from the existing expiry time",
                 "credit_topup_title": "Credit Top-up",
                 "credit_topup_subtitle": "Buy credits for extra usage and uninterrupted access.",
+      "billing_summary_subtitle": "Resets daily, credits cover overage.",
+                "billing_summary_subtitle_with_reset": "Resets {{time}}, credits cover overage.",
                 "credit_purchase_amount": "Purchase amount",
                 "credit_purchase_action": "Buy credits",
                 "topup_presets_title": "Recharge presets",
@@ -383,12 +385,14 @@
                 "admin_tier_apply_success": "Membership tier updated",
                 "admin_tier_apply_failed": "Failed to update membership tier",
                 "admin_requires_order_id": "Please enter an order ID first",
-                "admin_requires_user_id": "Please enter a target user ID or email first"
+                "admin_requires_user_id": "Please enter a target user ID or email first",
+                "billing_daily_quota_hint": "Resets {{time}}",
+                "billing_daily_quota_hint_no_reset": "Resets daily"
             },
             "ai": {
                 "label": "AI Features",
                 "title": "AI Features",
-                "api_tip": "API settings moved to Service \u2192 AI API tab",
+                "api_tip": "API settings moved to Service → AI API tab",
                 "pref_title": "Personal Writing Preferences",
                 "pref_desc": "This text will be appended to the System Prompt for each AI Polish session to better match your writing style.",
                 "pref_placeholder": "Enter your writing style preferences...",
@@ -454,7 +458,7 @@
         "login": {
             "welcome_title": "Welcome to Immersive Input",
             "welcome_subtitle": "Please sign in to continue",
-            "subtitle": "Text Selection \u00b7 AI Analysis",
+            "subtitle": "Text Selection · AI Analysis",
             "language_label": "Display Language",
             "language_hint": "Choose your preferred interface language",
             "tab_login": "Sign In",
@@ -538,9 +542,9 @@
             "ai_explain": "Explain",
             "ai_chat": "Chat",
             "report_title": "Analysis Report",
-            "generating_placeholder": "\u25b7 Generating\u2026",
+            "generating_placeholder": "▷ Generating…",
             "generate_report": "Generate AI Report",
-            "generating_btn": "Generating\u2026",
+            "generating_btn": "Generating…",
             "stop": "Stop",
             "export": "Export",
             "cleared": "Cleared",
@@ -557,7 +561,7 @@
             "export_result": "Result:",
             "confirm_clear_translate": "Clear all translation history?",
             "confirm_clear_ai": "Clear all \"{{name}}\" history?",
-            "error_no_api_key": "Please configure API Key in Service \u2192 AI API",
+            "error_no_api_key": "Please configure API Key in Service → AI API",
             "error_insufficient": "Insufficient history (< 3 records) to generate report",
             "error_generate": "Generation failed: ",
             "modal_before": "Before (Original)",
@@ -947,6 +951,13 @@
             "tags_save": "Save",
             "confirm_delete_tag": "Delete \"{{name}}\"? Phrases in this category will become uncategorized.",
             "close": "✕"
+        },
+        "float_toolbar": {
+            "apply_result": "Result",
+            "apply_result_title": "Apply Result",
+            "apply_formula": "Formula",
+            "apply_formula_title": "Apply Formula",
+            "calc_error": "Unable to calculate"
         }
     }
 }

@@ -18,7 +18,7 @@ import {
 } from '../../components/TrayWindow';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { saveHistory } from '../../utils/aiHistory';
-import { getActiveAiApiConfig } from '../../utils/aiConfig';
+import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
@@ -335,7 +335,7 @@ export default function Chat() {
                 );
                 setLoading(false);
                 try {
-                    saveHistory('chat', text, full);
+                    saveHistory('chat', text, full, getAiHistoryServiceMeta(apiConfig));
                 } catch {}
             },
             (error) => {

@@ -10,7 +10,7 @@ import WindowHeader, {
 } from '../../components/WindowHeader';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { saveHistory } from '../../utils/aiHistory';
-import { getActiveAiApiConfig } from '../../utils/aiConfig';
+import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 
 const SYSTEM_PROMPT =
     '你是一位知识渊博的助手。请详细解释用户提供的内容，包括：核心含义、背景知识、关键概念、实际用法和延伸拓展。' +
@@ -124,7 +124,7 @@ export default function Explain() {
                 setLoading(false);
                 // Save to history (only initial source text + full AI response)
                 if (extraHistory.length === 0) {
-                    try { saveHistory('explain', text, full); } catch {}
+                    try { saveHistory('explain', text, full, getAiHistoryServiceMeta(apiConfig)); } catch {}
                 }
             },
             (err) => { setOutput((prev) => prev + '\n' + err); setLoading(false); },

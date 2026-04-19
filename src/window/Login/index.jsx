@@ -133,10 +133,7 @@ export default function Login({ embedded = false, onSuccess }) {
                             {t('login.subtitle')}
                         </p>
 
-                        <div className='mt-4 flex flex-col items-center gap-1.5'>
-                            <p className='text-[10px] font-medium uppercase tracking-[0.22em] text-default-400'>
-                                {t('login.language_label')}
-                            </p>
+                        <div className='mt-4'>
                             <div
                                 ref={languageMenuRef}
                                 className='relative'
@@ -175,9 +172,6 @@ export default function Login({ embedded = false, onSuccess }) {
                                     </div>
                                 ) : null}
                             </div>
-                            <p className='text-[11px] text-default-400'>
-                                {t('login.language_hint')}
-                            </p>
                         </div>
                     </div>
 

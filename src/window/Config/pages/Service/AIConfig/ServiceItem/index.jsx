@@ -1,13 +1,15 @@
 import { Button, Switch } from '@nextui-org/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuBot, LuPencilLine, LuTrash2 } from 'react-icons/lu';
+import { LuPencilLine, LuTrash2 } from 'react-icons/lu';
 
+import AiProviderIcon from '../../../../../../components/AiProviderIcon';
 import SortableConfigRow from '../../../../../../components/SortableConfigRow';
 import { useConfig } from '../../../../../../hooks';
 import {
-    AI_API_PROVIDER_TITLE,
     getAiApiDisplayName,
+    getAiProviderId,
+    getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
 
@@ -27,15 +29,16 @@ export default function ServiceItem(props) {
     }
 
     const mergedConfig = getMergedAiApiConfig(serviceInstanceConfig);
-    const providerTitle = t('ai_config.provider_title', {
-        defaultValue: AI_API_PROVIDER_TITLE,
+    const providerId = getAiProviderId(mergedConfig);
+    const providerTitle = t(`ai_config.providers.${providerId}`, {
+        defaultValue: getAiProviderTitle(providerId),
     });
     const displayName = getAiApiDisplayName(mergedConfig, providerTitle);
 
     return (
         <SortableConfigRow
             dragHandleProps={drag}
-            icon={<LuBot className='text-[18px] text-primary' />}
+            icon={<AiProviderIcon providerId={providerId} className='text-[18px]' />}
             title={displayName}
             description={providerTitle}
             actions={

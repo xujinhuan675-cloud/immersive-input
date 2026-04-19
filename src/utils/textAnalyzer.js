@@ -3,7 +3,7 @@
  * Detects: url, email, filepath, number, color, english, text
  */
 
-const URL_RE    = /^(https?:\/\/|www\.)[^\s]+$/i;
+const URL_RE    = /^(?:(?:https?:\/\/)|(?:www\.))?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{2,5})?(?:[/?#][^\s]*)?$/i;
 const EMAIL_RE  = /^[\w.+-]+@[\w.-]+\.\w{2,}$/i;
 const PATH_RE   = /^[a-zA-Z]:\\[^<>:"/|?*]+/;
 const NUMBER_RE = /^[\d\s\t\n\r.+\-*/()（）×÷%=]+$/;

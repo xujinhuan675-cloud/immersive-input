@@ -23,7 +23,7 @@ const CARD_PADDING_Y = 8;
 const ROW_HEIGHT = BUTTON_SIZE + CARD_PADDING_Y * 2;
 const EXTRA_PANEL_HEIGHT = 44;
 const MIN_WIDTH = 92;
-const RESULT_MIN_WIDTH = 180;
+const RESULT_MIN_WIDTH = 260;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -35,6 +35,15 @@ const RESULT_PANEL_STYLE = {
     borderTop: '1px solid rgba(148, 163, 184, 0.18)',
     background: 'rgba(248, 250, 252, 0.72)',
 };
+
+function getFormulaResultText(text, calcResult) {
+    const expression = (text || '').trim().replace(/=+\s*$/, '').trim();
+    if (!expression) {
+        return calcResult ?? '';
+    }
+
+    return `${expression} = ${calcResult}`;
+}
 
 function getButtonPalette(isAccent = false) {
     if (isAccent) {
@@ -102,7 +111,10 @@ const BUTTON_ACTIONS = {
     },
 
     open_url: (text, { hide }) => {
-        const url = text.startsWith('http') ? text : `https://${text}`;
+        const trimmedText = text.trim();
+        const url = /^https?:\/\//i.test(trimmedText)
+            ? trimmedText
+            : `https://${trimmedText.replace(/^\/\//, '')}`;
         open(url).catch(() => {});
         hide();
     },
@@ -119,22 +131,37 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    calculate: (text, { setCalcResult }) => {
+    calculate: (text, { setCalcResult, setColorVal, t }) => {
         const result = calculateExpr(text);
-        setCalcResult(result ?? 'Unable to calculate');
+        setColorVal(null);
+        setCalcResult(
+            result ??
+                t('float_toolbar.calc_error', {
+                    defaultValue: 'Unable to calculate',
+                })
+        );
 
         if (result != null) {
             invoke('write_clipboard', { text: result }).catch(() => {});
         }
     },
 
-    show_color: (text, { setColorVal }) => {
+    show_color: (text, { setColorVal, setCalcResult }) => {
+        setCalcResult(null);
         setColorVal(text.trim());
     },
 
-    copy_calc: (_text, { calcResult, hide }) => {
-        invoke('write_clipboard', { text: calcResult }).catch(() => {});
+    apply_calc_result: async (_text, { calcResult, hide }) => {
         hide();
+        await delay(80);
+        invoke('paste_result', { text: calcResult }).catch(() => {});
+    },
+
+    apply_calc_formula: async (text, { calcResult, hide }) => {
+        const formulaText = getFormulaResultText(text, calcResult);
+        hide();
+        await delay(80);
+        invoke('paste_result', { text: formulaText }).catch(() => {});
     },
 
     copy_color: (_text, { colorVal, hide }) => {
@@ -153,6 +180,7 @@ export default function FloatToolbar() {
     const [smartBtns, setSmartBtns] = useState([]);
     const [calcResult, setCalcResult] = useState(null);
     const [colorVal, setColorVal] = useState(null);
+    const hasStickyExtraPanel = calcResult != null || colorVal != null;
 
     const resizeWindow = useCallback((buttons, hasExtra) => {
         const buttonCount = Math.max(buttons.length, 2);
@@ -164,6 +192,24 @@ export default function FloatToolbar() {
         const height = ROW_HEIGHT + (hasExtra ? EXTRA_PANEL_HEIGHT : 0);
 
         appWindow.setSize(new LogicalSize(width, height)).catch(() => {});
+    }, []);
+
+    const refreshSelectionState = useCallback(async () => {
+        try {
+            const text = await invoke('get_text');
+            selectedText.current = text || '';
+            setCalcResult(null);
+            setColorVal(null);
+
+            const detectedType = detectType(text);
+            const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
+            setSmartBtns(smartButton ? [smartButton] : []);
+        } catch {
+            selectedText.current = '';
+            setCalcResult(null);
+            setColorVal(null);
+            setSmartBtns([]);
+        }
     }, []);
 
     const loadConfig = useCallback(async () => {
@@ -195,15 +241,6 @@ export default function FloatToolbar() {
                 visibleButtons.length > 0 ? visibleButtons : BASE_TOOLBAR_BUTTONS
             );
         } catch {}
-
-        try {
-            const text = await invoke('get_text');
-            selectedText.current = text || '';
-
-            const detectedType = detectType(text);
-            const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
-            setSmartBtns(smartButton ? [smartButton] : []);
-        } catch {}
     }, []);
 
     useEffect(() => {
@@ -215,7 +252,8 @@ export default function FloatToolbar() {
 
     useEffect(() => {
         loadConfig();
-    }, [loadConfig]);
+        refreshSelectionState();
+    }, [loadConfig, refreshSelectionState]);
 
     useEffect(() => {
         const forceTransparentBackground = (element) => {
@@ -238,10 +276,15 @@ export default function FloatToolbar() {
     const resetTimer = useCallback(() => {
         if (timerRef.current) {
             clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+
+        if (hasStickyExtraPanel) {
+            return;
         }
 
         timerRef.current = setTimeout(hide, autoHideMs);
-    }, [hide, autoHideMs]);
+    }, [hide, autoHideMs, hasStickyExtraPanel]);
 
     useEffect(() => {
         resetTimer();
@@ -256,6 +299,9 @@ export default function FloatToolbar() {
 
         let blurTimer = null;
         const unlistenBlur = listen('tauri://blur', () => {
+            if (hasStickyExtraPanel) {
+                return;
+            }
             blurTimer = setTimeout(hide, 150);
         });
         const unlistenFocus = listen('tauri://focus', () => {
@@ -263,6 +309,10 @@ export default function FloatToolbar() {
                 clearTimeout(blurTimer);
                 blurTimer = null;
             }
+        });
+        const unlistenSelectionUpdate = listen('selection_text_updated', () => {
+            refreshSelectionState();
+            resetTimer();
         });
 
         return () => {
@@ -277,8 +327,9 @@ export default function FloatToolbar() {
             window.removeEventListener('keydown', onKeyDown);
             unlistenBlur.then((fn) => fn());
             unlistenFocus.then((fn) => fn());
+            unlistenSelectionUpdate.then((fn) => fn());
         };
-    }, [hide, resetTimer]);
+    }, [hasStickyExtraPanel, hide, refreshSelectionState, resetTimer]);
 
     const handleClick = useCallback(
         async (id) => {
@@ -292,6 +343,7 @@ export default function FloatToolbar() {
                 setColorVal,
                 calcResult,
                 colorVal,
+                t,
             };
 
             await action(selectedText.current || '', ctx);
@@ -355,6 +407,41 @@ export default function FloatToolbar() {
 
     const smartButtons = smartBtns.map(renderToolbarButton);
     const baseButtons = baseVisible.map(renderToolbarButton);
+    const renderPanelActionButton = (label, title, actionId) => (
+        <button
+            type='button'
+            title={title}
+            aria-label={title}
+            style={{
+                minWidth: '40px',
+                height: '28px',
+                padding: '0 10px',
+                border: 'none',
+                borderRadius: '9px',
+                background: 'rgba(15, 23, 42, 0.06)',
+                color: '#475569',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 120ms ease, color 120ms ease',
+                flexShrink: 0,
+                fontSize: '12px',
+                fontWeight: 600,
+            }}
+            onClick={() => handleClick(actionId)}
+            onMouseEnter={(event) => {
+                event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
+                event.currentTarget.style.color = '#1f2937';
+            }}
+            onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
+                event.currentTarget.style.color = '#475569';
+            }}
+        >
+            {label}
+        </button>
+    );
 
     return (
         <div
@@ -413,36 +500,24 @@ export default function FloatToolbar() {
                     >
                         = {calcResult}
                     </span>
-                    <button
-                        type='button'
-                        title={t('common.copy', { defaultValue: 'Copy' })}
-                        aria-label={t('common.copy', { defaultValue: 'Copy' })}
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            border: 'none',
-                            borderRadius: '9px',
-                            background: 'rgba(15, 23, 42, 0.06)',
-                            color: '#475569',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 120ms ease, color 120ms ease',
-                            flexShrink: 0,
-                        }}
-                        onClick={() => handleClick('copy_calc')}
-                        onMouseEnter={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
-                            event.currentTarget.style.color = '#1f2937';
-                        }}
-                        onMouseLeave={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
-                            event.currentTarget.style.color = '#475569';
-                        }}
-                    >
-                        <LuClipboardCopy size={14} />
-                    </button>
+                    {renderPanelActionButton(
+                        t('float_toolbar.apply_result', {
+                            defaultValue: '结果',
+                        }),
+                        t('float_toolbar.apply_result_title', {
+                            defaultValue: '应用结果',
+                        }),
+                        'apply_calc_result'
+                    )}
+                    {renderPanelActionButton(
+                        t('float_toolbar.apply_formula', {
+                            defaultValue: '公式',
+                        }),
+                        t('float_toolbar.apply_formula_title', {
+                            defaultValue: '应用公式',
+                        }),
+                        'apply_calc_formula'
+                    )}
                 </div>
             )}
 

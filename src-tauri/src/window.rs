@@ -529,6 +529,7 @@ pub fn float_toolbar_window() {
         w.set_position(tauri::PhysicalPosition::new(x, y))
             .unwrap_or_default();
         w.show().unwrap_or_default();
+        w.emit("selection_text_updated", ()).unwrap_or_default();
         return;
     }
     let window = match tauri::WindowBuilder::new(

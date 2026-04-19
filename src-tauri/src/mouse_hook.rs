@@ -14,6 +14,33 @@ static LAST_Y: AtomicI64 = AtomicI64::new(0);
 static PRESS_X: AtomicI64 = AtomicI64::new(0);
 static PRESS_Y: AtomicI64 = AtomicI64::new(0);
 
+fn point_inside_float_toolbar(x: i64, y: i64) -> bool {
+    let Some(app) = APP.get() else {
+        return false;
+    };
+    let Some(window) = app.get_window("float_toolbar") else {
+        return false;
+    };
+
+    if !window.is_visible().unwrap_or(false) {
+        return false;
+    }
+
+    let Ok(position) = window.outer_position() else {
+        return false;
+    };
+    let Ok(size) = window.outer_size() else {
+        return false;
+    };
+
+    let left = position.x as i64;
+    let top = position.y as i64;
+    let right = left + size.width as i64;
+    let bottom = top + size.height as i64;
+
+    x >= left && x <= right && y >= top && y <= bottom
+}
+
 /// Start the global mouse hook in a background thread.
 /// Detects left-button drag → release events and triggers the configured behavior
 /// (show toolbar / direct translate / disabled) based on `text_select_behavior` config.
@@ -70,8 +97,15 @@ fn handle_event(event: Event) {
             const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
             if drag_sq < MIN_DRAG_SQ {
                 // Single click (no drag): hide the floating toolbar if it is visible.
-                // A 50 ms delay lets any toolbar-button JS click fire first before we hide.
+                // Clicking inside the toolbar should be handled by the toolbar itself.
+                // Clicking outside still dismisses it.
                 if behavior == "toolbar" {
+                    let click_x = LAST_X.load(Ordering::Relaxed);
+                    let click_y = LAST_Y.load(Ordering::Relaxed);
+                    if point_inside_float_toolbar(click_x, click_y) {
+                        return;
+                    }
+
                     std::thread::spawn(|| {
                         std::thread::sleep(std::time::Duration::from_millis(50));
                         if let Some(app) = APP.get() {

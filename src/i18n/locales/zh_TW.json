@@ -79,14 +79,14 @@
                 "app_font": "字型",
                 "app_fallback_font": "備用字型",
                 "font_size": {
-                    "title": "字型大小",
                     "10": "特小（10px）",
                     "12": "非常小（12px）",
                     "14": "小（14px）",
+                    "16": "標準（16px）",
                     "18": "大（18px）",
                     "20": "非常大（20px）",
                     "24": "特大（24px）",
-                    "16": "標準（16px）"
+                    "title": "字型大小"
                 },
                 "default_font": "預設",
                 "dev_mode": "開發者模式"
@@ -125,14 +125,14 @@
                 "yandex": "Yandex",
                 "local": "本地",
                 "font_size": {
+                    "10": "非常小（10px）",
+                    "12": "很小（12px）",
+                    "14": "小（14px）",
+                    "16": "標準（16px）",
                     "18": "大（18px）",
                     "20": "很大（20px）",
                     "24": "非常大（24px）",
-                    "16": "標準（16px）",
-                    "10": "非常小（10px）",
-                    "title": "字型大小",
-                    "12": "很小（12px）",
-                    "14": "小（14px）"
+                    "title": "字型大小"
                 }
             },
             "recognize": {
@@ -212,6 +212,12 @@
                 "qq_group": "QQ 群組",
                 "telegram": "Telegram",
                 "discussion": "Github 討論區"
+            },
+            "account": {
+      "billing_summary_subtitle": "每日重置，積分可用於超額使用。",
+                "billing_summary_subtitle_with_reset": "{{time}} 重置，積分可用於超額使用。",
+                "billing_daily_quota_hint": "{{time}} 重置",
+                "billing_daily_quota_hint_no_reset": "每日重置"
             }
         },
         "updater": {
@@ -464,6 +470,13 @@
             "copy_text": "複製",
             "delete_newline": "刪除換行",
             "delete_space": "刪除空格"
+        },
+        "float_toolbar": {
+            "apply_result": "??",
+            "apply_result_title": "????",
+            "apply_formula": "??",
+            "apply_formula_title": "????",
+            "calc_error": "????"
         }
     }
 }
