@@ -1,22 +1,25 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { PiTranslateFill } from 'react-icons/pi';
 import { useTranslation } from 'react-i18next';
 import {
-    MdKeyboardAlt, MdExtension, MdAccountCircle,
-    MdSettings, MdHistory,
+    MdOutlineAutoAwesome,
+    MdOutlineDns,
+    MdOutlineHistory,
+    MdOutlineKeyboardCommandKey,
+    MdOutlineManageAccounts,
+    MdOutlineTranslate,
+    MdOutlineTune,
 } from 'react-icons/md';
-import { TbBrain } from 'react-icons/tb';
 import { Button } from '@nextui-org/react';
 import React from 'react';
 
 const MENU = [
-    { path: '/account',  Icon: MdAccountCircle, key: 'account'  },
-    { path: '/ai',       Icon: TbBrain,         key: 'ai'      },
-    { path: '/general',  Icon: MdSettings,      key: 'general'  },
-    { path: '/translate',Icon: PiTranslateFill, key: 'translate'},
-    { path: '/hotkey',   Icon: MdKeyboardAlt,   key: 'hotkey'  },
-    { path: '/service',  Icon: MdExtension,     key: 'service' },
-    { path: '/history',  Icon: MdHistory,       key: 'history' },
+    { path: '/account', Icon: MdOutlineManageAccounts, key: 'account' },
+    { path: '/ai', Icon: MdOutlineAutoAwesome, key: 'ai' },
+    { path: '/general', Icon: MdOutlineTune, key: 'general' },
+    { path: '/translate', Icon: MdOutlineTranslate, key: 'translate' },
+    { path: '/hotkey', Icon: MdOutlineKeyboardCommandKey, key: 'hotkey' },
+    { path: '/service', Icon: MdOutlineDns, key: 'service' },
+    { path: '/history', Icon: MdOutlineHistory, key: 'history' },
 ];
 
 export default function SideBar() {

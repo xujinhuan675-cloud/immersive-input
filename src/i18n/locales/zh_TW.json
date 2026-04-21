@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "確定",
@@ -435,12 +435,6 @@
                     "title": "QR Code"
                 }
             },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "請求路徑"
-                }
-            },
             "collection": {
                 "anki": {
                     "title": "Anki",
@@ -480,3 +474,4 @@
         }
     }
 }
+

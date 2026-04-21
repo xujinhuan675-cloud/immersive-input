@@ -1,3 +1,5 @@
-import * as _lingva_tts from './lingva';
+import * as _openai_tts from './openai';
+import * as _volcengine_tts from './volcengine';
 
-export const lingva_tts = _lingva_tts;
+export const openai_tts = _openai_tts;
+export const volcengine_tts = _volcengine_tts;

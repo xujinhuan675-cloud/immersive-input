@@ -10,7 +10,7 @@ import Database from 'tauri-plugin-sql-api';
 import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../../../utils/aiHistory';
 
 import AiProviderIcon from '../../../../components/AiProviderIcon';
-import * as builtinCollectionServices from '../../../../services/collection';
+import ServiceIdentity from '../../../../components/ServiceIdentity';
 import * as builtinServices from '../../../../services/translate';
 import { useConfig, useToastStyle } from '../../../../hooks';
 import {
@@ -23,7 +23,6 @@ import {
     getMergedAiApiConfig,
 } from '../../../../utils/aiConfig';
 import { normalizeLanguageKey } from '../../../../utils/language';
-import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import {
     ServiceSourceType,
     ServiceType,
@@ -127,7 +126,6 @@ async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, 
 }
 
 export default function History() {
-    const [collectionServiceList] = useConfig('collection_service_list', []);
     const [aiApiServiceInstanceList] = useConfig(AI_API_SERVICE_LIST_KEY, []);
     const [pluginList, setPluginList] = useState(null);
     const [aiApiConfigMap, setAiApiConfigMap] = useState({});
@@ -197,10 +195,10 @@ export default function History() {
 
     const getData = async () => {
         const db = await Database.load('sqlite:history.db');
-        const result = await db.select(
-            'SELECT * FROM history ORDER BY id DESC LIMIT $1 OFFSET $2',
-            [pageSize, pageSize * (page - 1)]
-        );
+        const result = await db.select('SELECT * FROM history ORDER BY id DESC LIMIT $1 OFFSET $2', [
+            pageSize,
+            pageSize * (page - 1),
+        ]);
         setItems(result);
     };
 
@@ -213,10 +211,11 @@ export default function History() {
     const getAiData = async () => {
         if (!AI_TYPE_LABELS[activeTab]) return;
         const db = await Database.load('sqlite:ai_history.db');
-        const result = await db.select(
-            'SELECT * FROM ai_history WHERE type = $1 ORDER BY id DESC LIMIT $2 OFFSET $3',
-            [activeTab, pageSize, pageSize * (aiPage - 1)]
-        );
+        const result = await db.select('SELECT * FROM ai_history WHERE type = $1 ORDER BY id DESC LIMIT $2 OFFSET $3', [
+            activeTab,
+            pageSize,
+            pageSize * (aiPage - 1),
+        ]);
         setAiItems(result);
     };
 
@@ -282,10 +281,7 @@ export default function History() {
 
     const exportActiveTab = async () => {
         try {
-            const md =
-                activeTab === 'translate'
-                    ? await exportTranslateMd()
-                    : await exportHistoryMd(activeTab);
+            const md = activeTab === 'translate' ? await exportTranslateMd() : await exportHistoryMd(activeTab);
             const path = await save({
                 filters: [{ name: 'Markdown', extensions: ['md'] }],
                 defaultPath:
@@ -316,9 +312,7 @@ export default function History() {
         await getData();
         setItems((current) =>
             current.map((item) =>
-                item.id === selectedItem.id
-                    ? { ...item, text: selectedItem.text, result: selectedItem.result }
-                    : item
+                item.id === selectedItem.id ? { ...item, text: selectedItem.text, result: selectedItem.result } : item
             )
         );
         toast.success(t('common.save'), { style: toastStyle });
@@ -426,15 +420,10 @@ export default function History() {
         const extraInstanceKey = extra?.serviceInstanceKey ?? null;
         const currentConfig = extraInstanceKey ? aiApiConfigMap[extraInstanceKey] ?? null : null;
         const fallbackConfig = currentConfig ?? getFallbackAiConfig();
-        const providerId =
-            extra?.providerId ??
-            getAiProviderId(currentConfig ?? fallbackConfig ?? {});
+        const providerId = extra?.providerId ?? getAiProviderId(currentConfig ?? fallbackConfig ?? {});
         const displayName =
             extra?.serviceDisplayName ??
-            getAiApiDisplayName(
-                currentConfig ?? fallbackConfig ?? {},
-                getAiProviderTitle(providerId)
-            );
+            getAiApiDisplayName(currentConfig ?? fallbackConfig ?? {}, getAiProviderTitle(providerId));
 
         return {
             providerId,
@@ -462,39 +451,6 @@ export default function History() {
         });
     };
 
-    const addToCollection = async (instanceKey) => {
-        if (!selectedItem || selectedItem.__type === 'ai') return;
-
-        try {
-            if (getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN) {
-                const pluginConfig = (await store.get(instanceKey)) ?? {};
-                const [func, utils] = await invoke_plugin('collection', getServiceName(instanceKey));
-                await func(selectedItem.text, selectedItem.result, {
-                    config: pluginConfig,
-                    utils,
-                });
-            } else {
-                const instanceConfig = (await store.get(instanceKey)) ?? {};
-                await builtinCollectionServices[getServiceName(instanceKey)].collection(
-                    selectedItem.text,
-                    selectedItem.result,
-                    {
-                        config: instanceConfig,
-                    }
-                );
-            }
-
-            toast.success(t('translate.add_collection_success'), { style: toastStyle });
-        } catch (e) {
-            toast.error(e.toString(), { style: toastStyle });
-        }
-    };
-
-    const getCollectionIcon = (instanceKey) =>
-        getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN
-            ? pluginList?.[ServiceType.COLLECTION]?.[getServiceName(instanceKey)]?.icon ?? null
-            : builtinCollectionServices[getServiceName(instanceKey)]?.info.icon ?? null;
-
     const loadAiApiConfigMap = async () => {
         const instanceList = await ensureAiApiConfigMigration();
         const nextMap = {};
@@ -511,7 +467,7 @@ export default function History() {
     };
 
     const loadPluginList = async () => {
-        const serviceTypeList = ['translate', 'collection'];
+        const serviceTypeList = ['translate'];
         const nextPlugins = {};
 
         for (const serviceType of serviceTypeList) {
@@ -588,30 +544,6 @@ export default function History() {
         setAiGenerating(false);
     };
 
-    const renderHistoryServiceCell = ({ iconSrc, iconNode, title, subtitle, titleClassName = '' }) => (
-        <div className='flex min-w-0 items-center gap-[10px]'>
-            {iconSrc ? (
-                <img
-                    src={iconSrc}
-                    className='block h-[24px] w-[24px] shrink-0 object-contain'
-                    draggable={false}
-                />
-            ) : iconNode ? (
-                <div className='flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-[6px] bg-default-50'>
-                    {iconNode}
-                </div>
-            ) : (
-                <div className='h-[24px] w-[24px] shrink-0 rounded-[6px] bg-default-200' />
-            )}
-            <div className='min-w-0'>
-                <p className={`truncate text-[13px] font-medium leading-5 text-default-700 ${titleClassName}`}>
-                    {title}
-                </p>
-                {subtitle ? <p className='truncate text-[12px] leading-4 text-default-400'>{subtitle}</p> : null}
-            </div>
-        </div>
-    );
-
     const isAiTab = activeTab !== 'translate' && Boolean(AI_TYPE_LABELS[activeTab]);
     const translateItems = items.filter((item) =>
         whetherAvailableService(item.service, {
@@ -673,28 +605,7 @@ export default function History() {
                     onChange={(e) => updateSelectedTranslateField('result', e.target.value)}
                 />
                 {!isAiItem && (
-                    <div className='flex flex-wrap items-center justify-between gap-[10px]'>
-                        <div className='flex flex-wrap items-center gap-[8px]'>
-                            {collectionServiceList?.map((instanceKey) => {
-                                const iconSrc = getCollectionIcon(instanceKey);
-                                if (!iconSrc) return null;
-                                return (
-                                    <Button
-                                        key={instanceKey}
-                                        isIconOnly
-                                        size='sm'
-                                        variant='flat'
-                                        onPress={() => addToCollection(instanceKey)}
-                                    >
-                                        <img
-                                            src={iconSrc}
-                                            className='h-[20px] w-[20px]'
-                                            draggable={false}
-                                        />
-                                    </Button>
-                                );
-                            })}
-                        </div>
+                    <div className='flex flex-wrap items-center justify-end gap-[8px]'>
                         <div className='flex items-center gap-[8px]'>
                             <Button
                                 size='sm'
@@ -706,7 +617,11 @@ export default function History() {
                             >
                                 {t('common.close')}
                             </Button>
-                            <Button size='sm' color='primary' onPress={updateData}>
+                            <Button
+                                size='sm'
+                                color='primary'
+                                onPress={updateData}
+                            >
                                 {t('common.save')}
                             </Button>
                         </div>
@@ -725,34 +640,38 @@ export default function History() {
         const timeText = isAiTab ? formatListTime(item.ts) : formatListTime(item.timestamp);
 
         return (
-            <div key={rowKey} className='border-t border-default-100 first:border-t-0'>
+            <div
+                key={rowKey}
+                className='border-t border-default-100 first:border-t-0'
+            >
                 <button
                     type='button'
                     onClick={() => toggleRow(item, activeTab)}
                     className='grid w-full grid-cols-[minmax(0,116px)_minmax(0,1fr)_56px] items-start gap-[8px] px-[12px] py-[14px] text-left transition-colors hover:bg-default-50'
                 >
                     <div className='min-w-0'>
-                        {renderHistoryServiceCell({
-                            iconSrc: isAiTab ? null : getTranslateServiceIcon(item.service),
-                            iconNode: isAiTab ? (
-                                <AiProviderIcon providerId={aiServiceInfo.providerId} className='text-[16px]' />
-                            ) : null,
-                            title: serviceTitle,
-                            subtitle: null,
-                            titleClassName: isAiTab ? 'text-default-700' : '',
-                        })}
+                        <ServiceIdentity
+                            iconSrc={isAiTab ? null : getTranslateServiceIcon(item.service)}
+                            iconNode={isAiTab ? <AiProviderIcon providerId={aiServiceInfo.providerId} /> : null}
+                            title={serviceTitle}
+                            titleClassName={isAiTab ? 'text-default-700' : ''}
+                        />
                     </div>
                     <div className='min-w-0 space-y-[4px]'>
-                        <p className='truncate text-[13px] leading-5 text-default-600' title={preview.source}>
+                        <p
+                            className='truncate text-[13px] leading-5 text-default-600'
+                            title={preview.source}
+                        >
                             {preview.source || '-'}
                         </p>
-                        <p className='truncate text-[13px] leading-5 text-default-500' title={preview.result}>
+                        <p
+                            className='truncate text-[13px] leading-5 text-default-500'
+                            title={preview.result}
+                        >
                             {preview.result || '-'}
                         </p>
                     </div>
-                    <p className='pt-[2px] text-right text-[12px] leading-5 text-default-400'>
-                        {timeText}
-                    </p>
+                    <p className='pt-[2px] text-right text-[12px] leading-5 text-default-400'>{timeText}</p>
                 </button>
                 {expanded ? renderExpandedContent() : null}
             </div>
@@ -778,9 +697,15 @@ export default function History() {
                         size='sm'
                         className='flex justify-center'
                     >
-                        <Tab key='translate' title={t('history.translate_tab')} />
+                        <Tab
+                            key='translate'
+                            title={t('history.translate_tab')}
+                        />
                         {Object.entries(AI_TYPE_LABELS).map(([key, label]) => (
-                            <Tab key={key} title={label} />
+                            <Tab
+                                key={key}
+                                title={label}
+                            />
                         ))}
                     </Tabs>
 
@@ -791,7 +716,11 @@ export default function History() {
                                     <span className='text-[13px] font-medium text-default-600'>
                                         {t('history.report_title')}
                                     </span>
-                                    <Button size='sm' variant='flat' onPress={() => setAiReport('')}>
+                                    <Button
+                                        size='sm'
+                                        variant='flat'
+                                        onPress={() => setAiReport('')}
+                                    >
                                         {t('common.close')}
                                     </Button>
                                 </div>
@@ -813,9 +742,7 @@ export default function History() {
                                 <div className='grid grid-cols-[minmax(0,116px)_minmax(0,1fr)_56px] gap-[8px] px-[12px] py-[11px] text-[11px] font-medium uppercase tracking-[0.08em] text-default-400'>
                                     <span>{t('history.service', { defaultValue: '服务' })}</span>
                                     <span>{t('history.content', { defaultValue: '内容' })}</span>
-                                    <span className='text-right'>
-                                        {t('history.time', { defaultValue: '时间' })}
-                                    </span>
+                                    <span className='text-right'>{t('history.time', { defaultValue: '时间' })}</span>
                                 </div>
 
                                 {visibleItems.length > 0 ? (
@@ -841,14 +768,26 @@ export default function History() {
                                         </Button>
                                     )}
                                     {isAiTab && aiGenerating && (
-                                        <Button size='sm' variant='flat' onPress={stopAiReport}>
+                                        <Button
+                                            size='sm'
+                                            variant='flat'
+                                            onPress={stopAiReport}
+                                        >
                                             {t('history.stop')}
                                         </Button>
                                     )}
-                                    <Button size='sm' variant='flat' onPress={exportActiveTab}>
+                                    <Button
+                                        size='sm'
+                                        variant='flat'
+                                        onPress={exportActiveTab}
+                                    >
                                         {t('history.export')}
                                     </Button>
-                                    <Button size='sm' variant='flat' onPress={clearActiveTab}>
+                                    <Button
+                                        size='sm'
+                                        variant='flat'
+                                        onPress={clearActiveTab}
+                                    >
                                         {t('common.clear')}
                                     </Button>
                                 </div>

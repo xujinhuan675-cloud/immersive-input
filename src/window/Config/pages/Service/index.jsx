@@ -6,16 +6,12 @@ import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import React, { useEffect, useState } from 'react';
 import {
-    LuBookMarked,
     LuBrainCircuit,
     LuFileSearch,
     LuLanguages,
-    LuVolume2,
 } from 'react-icons/lu';
 import Translate from './Translate';
 import Recognize from './Recognize';
-import Collection from './Collection';
-import Tts from './Tts';
 import AIConfig from './AIConfig';
 import { ServiceType } from '../../../../utils/service_instance';
 
@@ -37,7 +33,7 @@ export default function Service() {
     const { t } = useTranslation();
 
     const loadPluginList = async () => {
-        const serviceTypeList = ['translate', 'tts', 'recognize', 'collection'];
+        const serviceTypeList = ['translate', 'recognize'];
         let temp = {};
         for (const serviceType of serviceTypeList) {
             temp[serviceType] = {};
@@ -114,33 +110,11 @@ export default function Service() {
                     <Recognize pluginList={pluginList[ServiceType.RECOGNIZE]} />
                 </Tab>
                 <Tab
-                    key='tts'
-                    title={
-                        <ServiceTabTitle
-                            icon={LuVolume2}
-                            label={t(`config.service.tts`)}
-                        />
-                    }
-                >
-                    <Tts pluginList={pluginList[ServiceType.TTS]} />
-                </Tab>
-                <Tab
-                    key='collection'
-                    title={
-                        <ServiceTabTitle
-                            icon={LuBookMarked}
-                            label={t(`config.service.collection`)}
-                        />
-                    }
-                >
-                    <Collection pluginList={pluginList[ServiceType.COLLECTION]} />
-                </Tab>
-                <Tab
                     key='ai_api'
                     title={
                         <ServiceTabTitle
                             icon={LuBrainCircuit}
-                            label={t('ai_config.title', { defaultValue: 'AI API' })}
+                            label={t('ai_config.title', { defaultValue: 'AI Services' })}
                         />
                     }
                 >

@@ -45,8 +45,8 @@
         },
         "config": {
             "general": {
-                "label": "常规设置",
-                "title": "常规设置",
+                "label": "通用",
+                "title": "通用",
                 "auto_start": "开机时启动应用",
                 "check_update": "后台自动更新",
                 "server_port": "监听端口",
@@ -97,8 +97,8 @@
                 "title": "高级设置"
             },
             "translate": {
-                "label": "翻译设置",
-                "title": "翻译设置",
+                "label": "翻译",
+                "title": "翻译",
                 "source_language": "源语言",
                 "target_language": "目标语言",
                 "second_language": "第二目标语言",
@@ -150,8 +150,8 @@
                 "hide_window": "隐藏识别窗口"
             },
             "hotkey": {
-                "label": "热键设置",
-                "title": "热键设置",
+                "label": "快捷键",
+                "title": "快捷键",
                 "selection_translate": "划词翻译",
                 "input_translate": "输入翻译",
                 "ocr_recognize": "文字识别",
@@ -167,8 +167,8 @@
                 "doubletap_tip": "按下单键设置，Backspace 清除"
             },
             "service": {
-                "label": "服务设置",
-                "title": "服务设置",
+                "label": "服务",
+                "title": "服务",
                 "translate": "翻译",
                 "tts": "语音合成",
                 "recognize": "文字识别",
@@ -177,6 +177,9 @@
                 "add_builtin_service": "添加内置服务",
                 "add_external_service": "添加外部插件",
                 "add_service": "添加服务",
+                "builtin_services": "内置服务",
+                "external_plugins": "外部插件",
+                "no_plugins_installed": "当前还没有安装插件。",
                 "test_failed": "测试失败",
                 "install_plugin": "安装外部插件",
                 "view_plugin_list": "查看插件列表",
@@ -184,8 +187,8 @@
                 "homepage": "插件主页"
             },
             "history": {
-                "label": "历史记录",
-                "title": "历史记录"
+                "label": "历史",
+                "title": "历史"
             },
             "backup": {
                 "label": "备份设置",
@@ -208,8 +211,8 @@
                 "empty": "您还没有备份"
             },
             "account": {
-                "label": "账号",
-                "title": "账号",
+                "label": "账户",
+                "title": "账户",
                 "not_logged_in": "尚未登录",
                 "login_desc": "登录后可解锁更多 AI 功能",
                 "login_btn": "登录 / 注册账号",
@@ -390,9 +393,9 @@
                 "billing_daily_quota_hint_no_reset": "每日重置"
             },
             "ai": {
-                "label": "AI 功能",
-                "title": "AI 功能",
-                "api_tip": "API 配置已移至『服务 → AI API』标签页",
+                "label": "AI能力",
+                "title": "AI能力",
+            "api_tip": "API 配置已移至『服务 → AI 服务』标签页",
                 "pref_title": "个人写作偏好",
                 "pref_desc": "这段文字会附加到每次 AI 润色的 System Prompt，让 AI 更贴合你的表达风格。",
                 "pref_placeholder": "在此填写你的写作风格偏好...",
@@ -561,14 +564,16 @@
             "export_result": "结果：",
             "confirm_clear_translate": "确定清空全部翻译历史？",
             "confirm_clear_ai": "确定清空「{{name}}」的全部历史？",
-            "error_no_api_key": "请先在『服务 → AI API』中配置 API Key",
+            "error_no_api_key": "请先在『服务 → AI 服务』中配置 API Key",
             "error_insufficient": "历史记录不足 3 条，无法生成分析报告",
             "error_generate": "生成失败：",
             "modal_before": "变化前（原文）",
             "modal_after": "变化后（结果）"
         },
         "ai_config": {
-            "title": "AI API 配置",
+            "title": "AI 服务",
+            "provider_title": "OpenAI 兼容 API",
+            "provider": "提供方",
             "url_desc": "兼容 OpenAI 接口格式（硅基流动、DeepSeek 等均可）",
             "model_label": "模型",
             "model_desc": "例：gpt-4o-mini、Qwen/Qwen2.5-7B-Instruct、deepseek-chat",
@@ -578,7 +583,51 @@
             "test_error_fields": "请先填写 API URL、API Key 和模型名称",
             "test_success": "连接成功：{{msg}}",
             "test_failed": "失败：{{msg}}",
-            "test_error": "连接异常：{{msg}}"
+            "test_error": "连接异常：{{msg}}",
+            "service_section_title": "正常服务",
+            "service_section_desc": "管理应用里的 AI 对话与文本模型服务。",
+            "text_section_title": "文本模型",
+            "text_section_desc": "这部分配置用于 AI 对话、解释和轻量 AI 功能。",
+            "providers": {
+                "compatible": "OpenAI 兼容 API",
+                "openai": "OpenAI",
+                "claude": "Claude",
+                "gemini": "Gemini"
+            },
+            "speech_section_title": "语音配置 / 朗读",
+            "speech_section_desc": "内置朗读语音现在统一放在这里。默认朗读使用火山语音，也可以切换为使用你在这里配置的自定义语音提供方。",
+            "speech_service_item_title": "语音配置",
+            "speech_service_item_desc": "编辑内置语音和朗读设置。",
+            "speech_general_title": "朗读行为",
+            "speech_general_desc": "选择朗读是继续使用默认火山语音，还是跟随这里配置的自定义语音提供方。",
+            "speech_save_success": "语音配置已保存",
+            "speech_use_for_read_aloud": "朗读时使用这里的语音配置",
+            "speech_provider": "语音提供方",
+            "speech_speed": "语速：{{n}}",
+            "speech": {
+                "providers": {
+                    "volcengine_tts": "火山语音",
+                    "openai_tts": "OpenAI 语音"
+                }
+            },
+            "speech_volcengine_title": "火山语音",
+            "speech_volcengine_desc": "配置内置的火山语音合成服务，默认朗读会优先使用它。",
+            "speech_volcengine_appid": "火山 App ID",
+            "speech_volcengine_token": "火山 Access Token",
+            "speech_volcengine_cluster": "火山 Cluster",
+            "speech_volcengine_voice": "火山音色类型",
+            "speech_volcengine_voice_desc": "例如：BV700_streaming",
+            "speech_volcengine_encoding": "音频编码",
+            "speech_openai_title": "OpenAI 语音",
+            "speech_openai_desc": "配置内置的 OpenAI 语音合成服务。留空 URL 或 Key 时，会在合适的情况下尝试复用第一个启用的兼容 AI 服务。",
+            "speech_openai_url": "OpenAI 语音 URL",
+            "speech_openai_url_desc": "留空时，会尽量复用第一个启用的 AI API 地址，并在可行时自动转换为 /audio/speech。",
+            "speech_openai_key": "OpenAI 语音 API Key",
+            "speech_openai_key_desc": "留空时，会在可用时复用第一个启用的 AI API Key。",
+            "speech_openai_model": "OpenAI TTS 模型",
+            "speech_openai_voice": "OpenAI 音色",
+            "speech_openai_instructions": "语音风格指令",
+            "speech_openai_instructions_placeholder": "可选的语音风格说明，例如平静、温暖、活力。"
         },
         "updater": {
             "title": "检查更新",
@@ -798,12 +847,6 @@
                     "title": "二维码识别"
                 }
             },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "请求地址"
-                }
-            },
             "collection": {
                 "anki": {
                     "title": "Anki",
@@ -961,3 +1004,4 @@
         }
     }
 }
+

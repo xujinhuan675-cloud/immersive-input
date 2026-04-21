@@ -1,6 +1,5 @@
 import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Tooltip } from '@nextui-org/react';
 import { BiCollapseVertical, BiExpandVertical } from 'react-icons/bi';
-import { BaseDirectory, readTextFile } from '@tauri-apps/api/fs';
 import { sendNotification } from '@tauri-apps/api/notification';
 import React, { useEffect, useRef, useState } from 'react';
 import { writeText } from '@tauri-apps/api/clipboard';
@@ -14,22 +13,19 @@ import { GiCycle } from 'react-icons/gi';
 import { useAtomValue } from 'jotai';
 import { nanoid } from 'nanoid';
 
-import * as builtinCollectionServices from '../../../../services/collection';
 import { sourceLanguageAtom, targetLanguageAtom } from '../LanguageArea';
 import { useConfig, useToastStyle, useVoice } from '../../../../hooks';
 import { sourceTextAtom, detectLanguageAtom } from '../SourceArea';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import * as builtinServices from '../../../../services/translate';
-import * as builtinTtsServices from '../../../../services/tts';
+import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
 
 import { info, error as logError } from 'tauri-plugin-log-api';
 import {
     INSTANCE_NAME_CONFIG_KEY,
-    ServiceSourceType,
     getDisplayInstanceName,
     getServiceName,
-    getServiceSouceType,
     whetherPluginService,
 } from '../../../../utils/service_instance';
 
@@ -84,8 +80,6 @@ export default function TargetArea(props) {
     const { index, name, translateServiceInstanceList, pluginList, serviceInstanceConfigMap, ...drag } = props;
 
     const [currentTranslateServiceInstanceKey, setCurrentTranslateServiceInstanceKey] = useState(name);
-    const [collectionServiceList] = useConfig('collection_service_list', []);
-    const [ttsServiceList] = useConfig('tts_service_list', ['lingva_tts']);
     const [translateSecondLanguage] = useConfig('translate_second_language', 'en');
     const [autoCopy] = useConfig('translate_auto_copy', 'disable');
     const [clipboardMonitor] = useConfig('clipboard_monitor', false);
@@ -96,7 +90,6 @@ export default function TargetArea(props) {
     const [collapsed, setCollapsed] = useState(index !== 0);
     const [result, setResult] = useState('');
     const [error, setError] = useState('');
-    const [ttsPluginInfo, setTtsPluginInfo] = useState();
 
     const sourceText = useAtomValue(sourceTextAtom);
     const sourceLanguage = useAtomValue(sourceLanguageAtom);
@@ -399,16 +392,6 @@ export default function TargetArea(props) {
         }
     }, [result]);
 
-    useEffect(() => {
-        if (ttsServiceList && getServiceSouceType(ttsServiceList[0]) === ServiceSourceType.PLUGIN) {
-            readTextFile(`plugins/tts/${getServiceName(ttsServiceList[0])}/info.json`, {
-                dir: BaseDirectory.AppConfig,
-            }).then((infoStr) => {
-                setTtsPluginInfo(JSON.parse(infoStr));
-            });
-        }
-    }, [ttsServiceList]);
-
     const hasStringResult = typeof result === 'string' && result.trim() !== '';
     const hasStructuredResult =
         !!result && typeof result === 'object' && !Array.isArray(result) && Object.keys(result).length > 0;
@@ -423,32 +406,8 @@ export default function TargetArea(props) {
     const showFooter = !collapsed && (hasStringResult || error !== '');
 
     const handleSpeak = async () => {
-        const instanceKey = ttsServiceList[0];
-        if (getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN) {
-            const pluginConfig = serviceInstanceConfigMap[instanceKey];
-            if (!(targetLanguage in ttsPluginInfo.language)) {
-                throw new Error('Language not supported');
-            }
-            let [func, utils] = await invoke_plugin('tts', getServiceName(instanceKey));
-            let data = await func(result, ttsPluginInfo.language[targetLanguage], {
-                config: pluginConfig,
-                utils,
-            });
-            speak(data);
-        } else {
-            if (!(targetLanguage in builtinTtsServices[getServiceName(instanceKey)].Language)) {
-                throw new Error('Language not supported');
-            }
-            const instanceConfig = serviceInstanceConfigMap[instanceKey];
-            let data = await builtinTtsServices[getServiceName(instanceKey)].tts(
-                result,
-                builtinTtsServices[getServiceName(instanceKey)].Language[targetLanguage],
-                {
-                    config: instanceConfig,
-                }
-            );
-            speak(data);
-        }
+        const data = await synthesizeBuiltInTts(result, targetLanguage);
+        speak(data);
     };
 
     const handleTranslateBack = async () => {
@@ -847,78 +806,6 @@ export default function TargetArea(props) {
                             </div>
 
                             <div className='flex items-center gap-1'>
-                                {collectionServiceList?.map((collectionServiceInstanceName) => {
-                                    return (
-                                        <Button
-                                            key={collectionServiceInstanceName}
-                                            isIconOnly
-                                            variant='light'
-                                            size='sm'
-                                            className={FOOTER_ACTION_BUTTON_CLASS}
-                                            isDisabled={!hasStringResult}
-                                            onPress={async () => {
-                                                if (
-                                                    getServiceSouceType(collectionServiceInstanceName) ===
-                                                    ServiceSourceType.PLUGIN
-                                                ) {
-                                                    const pluginConfig =
-                                                        serviceInstanceConfigMap[collectionServiceInstanceName];
-                                                    let [func, utils] = await invoke_plugin(
-                                                        'collection',
-                                                        getServiceName(collectionServiceInstanceName)
-                                                    );
-                                                    func(sourceText.trim(), result.toString(), {
-                                                        config: pluginConfig,
-                                                        utils,
-                                                    }).then(
-                                                        () => {
-                                                            toast.success(t('translate.add_collection_success'), {
-                                                                style: toastStyle,
-                                                            });
-                                                        },
-                                                        (e) => {
-                                                            toast.error(e.toString(), { style: toastStyle });
-                                                        }
-                                                    );
-                                                } else {
-                                                    const instanceConfig =
-                                                        serviceInstanceConfigMap[collectionServiceInstanceName];
-                                                    builtinCollectionServices[
-                                                        getServiceName(collectionServiceInstanceName)
-                                                    ]
-                                                        .collection(sourceText, result, {
-                                                            config: instanceConfig,
-                                                        })
-                                                        .then(
-                                                            () => {
-                                                                toast.success(t('translate.add_collection_success'), {
-                                                                    style: toastStyle,
-                                                                });
-                                                            },
-                                                            (e) => {
-                                                                toast.error(e.toString(), { style: toastStyle });
-                                                            }
-                                                        );
-                                                }
-                                            }}
-                                        >
-                                            <img
-                                                src={
-                                                    getServiceSouceType(collectionServiceInstanceName) ===
-                                                    ServiceSourceType.PLUGIN
-                                                        ? pluginList['collection'][
-                                                              getServiceName(collectionServiceInstanceName)
-                                                          ].icon
-                                                        : builtinCollectionServices[
-                                                              getServiceName(collectionServiceInstanceName)
-                                                          ].info.icon
-                                                }
-                                                alt=''
-                                                className='h-4 w-4 rounded-[4px]'
-                                            />
-                                        </Button>
-                                    );
-                                })}
                             </div>
                         </div>
                     ) : null}

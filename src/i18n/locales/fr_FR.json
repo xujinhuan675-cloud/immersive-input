@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "services": {
             "help": "Guide de configuration",
@@ -217,12 +217,6 @@
                     "token": "Jeton",
                     "name": "Nom de la collection",
                     "title": "Eudic"
-                }
-            },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "Chemin de la requête"
                 }
             }
         },
@@ -470,3 +464,4 @@
         }
     }
 }
+

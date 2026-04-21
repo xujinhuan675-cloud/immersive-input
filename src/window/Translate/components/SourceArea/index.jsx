@@ -1,5 +1,4 @@
 import { Button, Card, CardBody, CardFooter, Tooltip } from '@nextui-org/react';
-import { BaseDirectory, readTextFile } from '@tauri-apps/api/fs';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { writeText } from '@tauri-apps/api/clipboard';
 import { HiOutlineVolumeUp, HiTranslate } from 'react-icons/hi';
@@ -17,7 +16,7 @@ import { useConfig, useSyncAtom, useToastStyle, useVoice } from '../../../../hoo
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import * as recognizeServices from '../../../../services/recognize';
-import * as builtinTtsServices from '../../../../services/tts';
+import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
 import detect from '../../../../utils/lang_detect';
 
 export const sourceTextAtom = atom('');
@@ -39,8 +38,6 @@ export default function SourceArea(props) {
     const [hideSource] = useConfig('hide_source', false);
     const [recognizeLanguage] = useConfig('recognize_language', 'auto');
     const [recognizeServiceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
-    const [ttsServiceList] = useConfig('tts_service_list', ['lingva_tts']);
-    const [ttsPluginInfo, setTtsPluginInfo] = useState();
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
@@ -228,37 +225,13 @@ export default function SourceArea(props) {
     );
 
     const handleSpeak = async () => {
-        const instanceKey = ttsServiceList[0];
         let detected = detectLanguage;
         if (detected === '') {
             detected = await detect(sourceText);
             setDetectLanguage(detected);
         }
-        if (getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN) {
-            if (!(detected in ttsPluginInfo.language)) {
-                throw new Error('Language not supported');
-            }
-            const pluginConfig = serviceInstanceConfigMap[instanceKey];
-            let [func, utils] = await invoke_plugin('tts', getServiceName(instanceKey));
-            let data = await func(sourceText, ttsPluginInfo.language[detected], {
-                config: pluginConfig,
-                utils,
-            });
-            speak(data);
-        } else {
-            if (!(detected in builtinTtsServices[getServiceName(instanceKey)].Language)) {
-                throw new Error('Language not supported');
-            }
-            const instanceConfig = serviceInstanceConfigMap[instanceKey];
-            let data = await builtinTtsServices[getServiceName(instanceKey)].tts(
-                sourceText,
-                builtinTtsServices[getServiceName(instanceKey)].Language[detected],
-                {
-                    config: instanceConfig,
-                }
-            );
-            speak(data);
-        }
+        const data = await synthesizeBuiltInTts(sourceText, detected);
+        speak(data);
     };
 
     useEffect(() => {
@@ -271,16 +244,6 @@ export default function SourceArea(props) {
             });
         };
     }, []);
-
-    useEffect(() => {
-        if (ttsServiceList && getServiceSouceType(ttsServiceList[0]) === ServiceSourceType.PLUGIN) {
-            readTextFile(`plugins/tts/${getServiceName(ttsServiceList[0])}/info.json`, {
-                dir: BaseDirectory.AppConfig,
-            }).then((infoStr) => {
-                setTtsPluginInfo(JSON.parse(infoStr));
-            });
-        }
-    }, [ttsServiceList]);
 
     useEffect(() => {
         if (

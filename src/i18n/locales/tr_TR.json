@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "Ok"
@@ -56,9 +56,6 @@
             "collection": {
                 "anki": {},
                 "eudic": {}
-            },
-            "tts": {
-                "lingva_tts": {}
             }
         },
         "languages": {},
@@ -84,3 +81,4 @@
         "recognize": {}
     }
 }
+

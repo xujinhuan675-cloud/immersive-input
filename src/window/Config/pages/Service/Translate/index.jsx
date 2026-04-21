@@ -5,21 +5,17 @@ import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 
 import { useToastStyle } from '../../../../../hooks';
-import SelectPluginModal from '../SelectPluginModal';
 import { osType } from '../../../../../utils/env';
 import { useConfig, deleteKey } from '../../../../../hooks';
+import { getServiceName } from '../../../../../utils/service_instance';
+import * as builtinServices from '../../../../../services/translate';
+import AddServiceModal from '../AddServiceModal';
 import ServiceItem from './ServiceItem';
-import SelectModal from './SelectModal';
 import ConfigModal from './ConfigModal';
 
 export default function Translate(props) {
     const { pluginList } = props;
-    const {
-        isOpen: isSelectPluginOpen,
-        onOpen: onSelectPluginOpen,
-        onOpenChange: onSelectPluginOpenChange,
-    } = useDisclosure();
-    const { isOpen: isSelectOpen, onOpen: onSelectOpen, onOpenChange: onSelectOpenChange } = useDisclosure();
+    const { isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange } = useDisclosure();
     const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
     const [currentConfigKey, setCurrentConfigKey] = useState('deepl');
     // now it's service instance list
@@ -64,6 +60,28 @@ export default function Translate(props) {
             setTranslateServiceInstanceList(newList);
         }
     };
+    const deletePluginServices = (pluginName, options = {}) => {
+        const nextList = translateServiceInstanceList.filter((item) => getServiceName(item) !== pluginName);
+        if (options.preview) {
+            if (nextList.length === 0) {
+                toast.error(t('config.service.least'), { style: toastStyle });
+                return false;
+            }
+            return true;
+        }
+        translateServiceInstanceList
+            .filter((item) => getServiceName(item) === pluginName)
+            .forEach((item) => {
+                deleteKey(item);
+            });
+        setTranslateServiceInstanceList(nextList);
+        return true;
+    };
+    const builtinServiceItems = Object.keys(builtinServices).map((serviceKey) => ({
+        key: serviceKey,
+        label: t(`services.translate.${builtinServices[serviceKey].info.name}.title`),
+        icon: builtinServices[serviceKey].info.icon,
+    }));
 
     return (
         <>
@@ -120,29 +138,20 @@ export default function Translate(props) {
                 </DragDropContext>
                 <Spacer y={2} />
                 <div className='flex'>
-                    <Button fullWidth variant='flat' onPress={onSelectOpen}>
-                        {t('config.service.add_builtin_service')}
-                    </Button>
-                    <Spacer x={2} />
-                    <Button fullWidth variant='flat' onPress={onSelectPluginOpen}>
-                        {t('config.service.add_external_service')}
+                    <Button fullWidth variant='flat' onPress={onAddOpen}>
+                        {t('config.service.add_service')}
                     </Button>
                 </div>
             </Card>
-            <SelectPluginModal
-                isOpen={isSelectPluginOpen}
-                onOpenChange={onSelectPluginOpenChange}
+            <AddServiceModal
+                isOpen={isAddOpen}
+                onOpenChange={onAddOpenChange}
                 setCurrentConfigKey={setCurrentConfigKey}
                 onConfigOpen={onConfigOpen}
+                builtinServices={builtinServiceItems}
                 pluginType='translate'
                 pluginList={pluginList}
-                deleteService={deleteServiceInstance}
-            />
-            <SelectModal
-                isOpen={isSelectOpen}
-                onOpenChange={onSelectOpenChange}
-                setCurrentConfigKey={setCurrentConfigKey}
-                onConfigOpen={onConfigOpen}
+                deletePluginServices={deletePluginServices}
             />
             <ConfigModal
                 serviceInstanceKey={currentConfigKey}

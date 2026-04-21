@@ -5,24 +5,19 @@ import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 
 import { useToastStyle } from '../../../../../hooks';
-import SelectPluginModal from '../SelectPluginModal';
 import { osType } from '../../../../../utils/env';
 import { useConfig, deleteKey } from '../../../../../hooks';
+import { getServiceName } from '../../../../../utils/service_instance';
+import * as builtinServices from '../../../../../services/recognize';
+import AddServiceModal from '../AddServiceModal';
 import ServiceItem from './ServiceItem';
-import SelectModal from './SelectModal';
 import ConfigModal from './ConfigModal';
 
 export default function Recognize(props) {
     const { pluginList } = props;
-    const {
-        isOpen: isSelectPluginOpen,
-        onOpen: onSelectPluginOpen,
-        onOpenChange: onSelectPluginOpenChange,
-    } = useDisclosure();
-    const { isOpen: isSelectOpen, onOpen: onSelectOpen, onOpenChange: onSelectOpenChange } = useDisclosure();
+    const { isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange } = useDisclosure();
     const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
     const [currentConfigKey, setCurrentConfigKey] = useState('system');
-    // now it's service instance list
     const [recognizeServiceInstanceList, setRecognizeServiceInstanceList] = useConfig('recognize_service_list', [
         'system',
         'tesseract',
@@ -52,6 +47,23 @@ export default function Recognize(props) {
             deleteKey(instanceKey);
         }
     };
+    const deletePluginServices = (pluginName, options = {}) => {
+        const nextList = recognizeServiceInstanceList.filter((item) => getServiceName(item) !== pluginName);
+        if (options.preview) {
+            if (nextList.length === 0) {
+                toast.error(t('config.service.least'), { style: toastStyle });
+                return false;
+            }
+            return true;
+        }
+        recognizeServiceInstanceList
+            .filter((item) => getServiceName(item) === pluginName)
+            .forEach((item) => {
+                deleteKey(item);
+            });
+        setRecognizeServiceInstanceList(nextList);
+        return true;
+    };
     const updateServiceInstanceList = (instanceKey) => {
         if (recognizeServiceInstanceList.includes(instanceKey)) {
             return;
@@ -60,6 +72,11 @@ export default function Recognize(props) {
             setRecognizeServiceInstanceList(newList);
         }
     };
+    const builtinServiceItems = Object.keys(builtinServices).map((serviceKey) => ({
+        key: serviceKey,
+        label: t(`services.recognize.${builtinServices[serviceKey].info.name}.title`),
+        icon: serviceKey === 'system' ? `logo/${osType}.svg` : builtinServices[serviceKey].info.icon,
+    }));
 
     return (
         <>
@@ -116,29 +133,20 @@ export default function Recognize(props) {
                 </DragDropContext>
                 <Spacer y={2} />
                 <div className='flex'>
-                    <Button fullWidth variant='flat' onPress={onSelectOpen}>
-                        {t('config.service.add_builtin_service')}
-                    </Button>
-                    <Spacer x={2} />
-                    <Button fullWidth variant='flat' onPress={onSelectPluginOpen}>
-                        {t('config.service.add_external_service')}
+                    <Button fullWidth variant='flat' onPress={onAddOpen}>
+                        {t('config.service.add_service')}
                     </Button>
                 </div>
             </Card>
-            <SelectPluginModal
-                isOpen={isSelectPluginOpen}
-                onOpenChange={onSelectPluginOpenChange}
+            <AddServiceModal
+                isOpen={isAddOpen}
+                onOpenChange={onAddOpenChange}
                 setCurrentConfigKey={setCurrentConfigKey}
                 onConfigOpen={onConfigOpen}
+                builtinServices={builtinServiceItems}
                 pluginType='recognize'
                 pluginList={pluginList}
-                deleteService={deleteServiceInstance}
-            />
-            <SelectModal
-                isOpen={isSelectOpen}
-                onOpenChange={onSelectOpenChange}
-                setCurrentConfigKey={setCurrentConfigKey}
-                onConfigOpen={onConfigOpen}
+                deletePluginServices={deletePluginServices}
             />
             <ConfigModal
                 serviceInstanceKey={currentConfigKey}

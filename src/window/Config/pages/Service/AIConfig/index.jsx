@@ -2,21 +2,62 @@ import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { Card, Spacer, Button, useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
+import { LuBrainCircuit, LuPencilLine, LuVolume2 } from 'react-icons/lu';
+import { useTranslation } from 'react-i18next';
 
+import SortableConfigRow from '../../../../../components/SortableConfigRow';
 import { useToastStyle } from '../../../../../hooks';
 import { osType } from '../../../../../utils/env';
 import { useConfig, deleteKey } from '../../../../../hooks';
-import { useTranslation } from 'react-i18next';
-import { AI_API_SERVICE_LIST_KEY, ensureAiApiConfigMigration } from '../../../../../utils/aiConfig';
+import {
+    AI_API_SERVICE_LIST_KEY,
+    createAiApiInstanceKey,
+    ensureAiApiConfigMigration,
+} from '../../../../../utils/aiConfig';
+import AddServiceModal from '../AddServiceModal';
 import ServiceItem from './ServiceItem';
-import SelectModal from './SelectModal';
 import ConfigModal from './ConfigModal';
+import SpeechConfigModal from './SpeechConfigModal';
+
+function SpeechServiceItem(props) {
+    const { onConfigOpen } = props;
+    const { t } = useTranslation();
+
+    return (
+        <SortableConfigRow
+            showDragHandle={false}
+            icon={<LuVolume2 className='text-[18px]' />}
+            title={t('ai_config.speech_service_item_title', {
+                defaultValue: 'Speech Configuration',
+            })}
+            description={t('ai_config.speech_service_item_desc', {
+                defaultValue: 'Edit the built-in speech and read aloud settings.',
+            })}
+            actions={
+                <Button
+                    isIconOnly
+                    size='sm'
+                    variant='light'
+                    className='text-default-500'
+                    onPress={onConfigOpen}
+                >
+                    <LuPencilLine className='text-[18px]' />
+                </Button>
+            }
+        />
+    );
+}
 
 export default function AIConfig() {
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
-    const { isOpen: isSelectOpen, onOpen: onSelectOpen, onOpenChange: onSelectOpenChange } = useDisclosure();
+    const { isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange } = useDisclosure();
     const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
+    const {
+        isOpen: isSpeechConfigOpen,
+        onOpen: onSpeechConfigOpen,
+        onOpenChange: onSpeechConfigOpenChange,
+    } = useDisclosure();
     const [currentConfigKey, setCurrentConfigKey] = useState(null);
     const [aiApiServiceInstanceList, setAiApiServiceInstanceList] = useConfig(AI_API_SERVICE_LIST_KEY, []);
 
@@ -72,6 +113,19 @@ export default function AIConfig() {
         setCurrentConfigKey(instanceKey);
     };
 
+    const builtinServiceItems = [
+        {
+            key: 'compatible_ai_service',
+            label: t('ai_config.provider_title', { defaultValue: 'OpenAI Compatible API' }),
+            icon: <LuBrainCircuit className='text-[18px]' />,
+            onSelect: () => {
+                const instanceKey = createAiApiInstanceKey();
+                setCurrentConfigKey(instanceKey);
+                onConfigOpen();
+            },
+        },
+    ];
+
     return (
         <>
             <Toaster />
@@ -80,7 +134,7 @@ export default function AIConfig() {
                     osType === 'Linux' ? 'h-[calc(100vh-140px)]' : 'h-[calc(100vh-120px)]'
                 } overflow-y-auto p-5 flex justify-between`}
             >
-                <div className='flex h-full flex-col'>
+                <div className='flex h-full min-h-0 flex-col'>
                     <DragDropContext onDragEnd={onDragEnd}>
                         <Droppable
                             droppableId='ai-api-droppable'
@@ -116,6 +170,7 @@ export default function AIConfig() {
                                                 )}
                                             </Draggable>
                                         ))}
+                                    <SpeechServiceItem onConfigOpen={onSpeechConfigOpen} />
                                     {provided.placeholder}
                                 </div>
                             )}
@@ -128,24 +183,29 @@ export default function AIConfig() {
                         <Button
                             fullWidth
                             variant='flat'
-                            onPress={onSelectOpen}
+                            onPress={onAddOpen}
                         >
-                            {t('config.service.add_builtin_service')}
+                            {t('config.service.add_service')}
                         </Button>
                     </div>
                 </div>
             </Card>
-            <SelectModal
-                isOpen={isSelectOpen}
-                onOpenChange={onSelectOpenChange}
+            <AddServiceModal
+                isOpen={isAddOpen}
+                onOpenChange={onAddOpenChange}
                 setCurrentConfigKey={setCurrentConfigKey}
                 onConfigOpen={onConfigOpen}
+                builtinServices={builtinServiceItems}
             />
             <ConfigModal
                 serviceInstanceKey={currentConfigKey}
                 isOpen={isConfigOpen}
                 onOpenChange={onConfigOpenChange}
                 updateServiceInstanceList={updateServiceInstanceList}
+            />
+            <SpeechConfigModal
+                isOpen={isSpeechConfigOpen}
+                onOpenChange={onSpeechConfigOpenChange}
             />
         </>
     );

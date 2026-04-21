@@ -1,12 +1,12 @@
 export const info = {
-    name: 'lingva_tts',
-    icon: 'logo/lingva.svg',
+    name: 'openai_tts',
+    icon: 'logo/openai.svg',
 };
 
 export enum Language {
     auto = 'auto',
     zh_cn = 'zh',
-    zh_tw = 'zh_HANT',
+    zh_tw = 'zh',
     ja = 'ja',
     en = 'en',
     ko = 'ko',

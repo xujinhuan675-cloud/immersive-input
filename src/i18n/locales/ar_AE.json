@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "cancel": "إلغاء",
@@ -388,12 +388,6 @@
                 }
             },
             "instance_name": "اسم التكوين",
-            "tts": {
-                "lingva_tts": {
-                    "request_path": "مسار الطلب",
-                    "title": "مترجم النصوص لينجفا"
-                }
-            },
             "recognize": {
                 "tencent_accurate_ocr": {
                     "secret_id": "المعرف السري",
@@ -470,3 +464,4 @@
         }
     }
 }
+

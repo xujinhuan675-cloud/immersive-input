@@ -6,6 +6,37 @@ export const AI_API_SERVICE_NAME = 'ai_api';
 export const AI_API_DEFAULT_URL = 'https://api.openai.com/v1/chat/completions';
 export const AI_API_DEFAULT_MODEL = 'gpt-4o-mini';
 export const AI_API_PROVIDER_TITLE = 'OpenAI Compatible API';
+
+export const BUILTIN_TTS_CONFIG_KEY = 'builtin_tts_config';
+export const BUILTIN_TTS_PROVIDER_IDS = {
+    VOLCENGINE: 'volcengine_tts',
+    OPENAI: 'openai_tts',
+};
+export const BUILTIN_TTS_PROVIDER_OPTIONS = [
+    { key: BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE, label: 'Volcengine TTS' },
+    { key: BUILTIN_TTS_PROVIDER_IDS.OPENAI, label: 'OpenAI TTS' },
+];
+export const OPENAI_TTS_DEFAULT_URL = 'https://api.openai.com/v1/audio/speech';
+export const OPENAI_TTS_DEFAULT_MODEL = 'gpt-4o-mini-tts';
+export const OPENAI_TTS_DEFAULT_VOICE = 'alloy';
+export const OPENAI_TTS_VOICE_OPTIONS = [
+    'alloy',
+    'ash',
+    'ballad',
+    'coral',
+    'echo',
+    'fable',
+    'nova',
+    'onyx',
+    'sage',
+    'shimmer',
+    'verse',
+];
+export const VOLCENGINE_TTS_DEFAULT_CLUSTER = 'volcano_tts';
+export const VOLCENGINE_TTS_DEFAULT_VOICE = 'BV700_streaming';
+export const VOLCENGINE_TTS_DEFAULT_ENCODING = 'mp3';
+export const VOLCENGINE_TTS_ENCODING_OPTIONS = ['mp3', 'wav', 'pcm', 'ogg_opus'];
+
 export const AI_PROVIDER_IDS = {
     COMPATIBLE: 'compatible',
     OPENAI: 'openai',
@@ -18,6 +49,41 @@ export const AI_PROVIDER_OPTIONS = [
     { key: AI_PROVIDER_IDS.CLAUDE, label: 'Claude' },
     { key: AI_PROVIDER_IDS.GEMINI, label: 'Gemini' },
 ];
+
+const AI_API_CONFIG_KEYS = [INSTANCE_NAME_CONFIG_KEY, 'provider', 'apiUrl', 'apiKey', 'model', 'temperature', 'enable'];
+const BUILTIN_TTS_CONFIG_KEYS = [
+    'speechUseForReadAloud',
+    'speechProvider',
+    'speechOpenaiApiUrl',
+    'speechOpenaiApiKey',
+    'speechOpenaiModel',
+    'speechOpenaiVoice',
+    'speechOpenaiSpeed',
+    'speechOpenaiInstructions',
+    'speechVolcengineAppId',
+    'speechVolcengineAccessToken',
+    'speechVolcengineCluster',
+    'speechVolcengineVoice',
+    'speechVolcengineSpeed',
+    'speechVolcengineEncoding',
+];
+
+function pickConfigKeys(config = {}, keys = []) {
+    return keys.reduce((result, key) => {
+        if (config?.[key] !== undefined) {
+            result[key] = config[key];
+        }
+        return result;
+    }, {});
+}
+
+function hasLegacySpeechConfig(config = {}) {
+    return BUILTIN_TTS_CONFIG_KEYS.some((key) => config?.[key] !== undefined);
+}
+
+function getLegacySpeechConfig(config = {}) {
+    return pickConfigKeys(config ?? {}, BUILTIN_TTS_CONFIG_KEYS);
+}
 
 export function createAiApiInstanceKey() {
     return createServiceInstanceKey(AI_API_SERVICE_NAME);
@@ -32,12 +98,97 @@ export function createDefaultAiApiConfig(overrides = {}) {
         model: AI_API_DEFAULT_MODEL,
         temperature: 0.7,
         enable: true,
-        ...overrides,
+        ...pickConfigKeys(overrides, AI_API_CONFIG_KEYS),
+    };
+}
+
+export function createDefaultBuiltInTtsConfig(overrides = {}) {
+    return {
+        speechUseForReadAloud: false,
+        speechProvider: BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE,
+        speechOpenaiApiUrl: '',
+        speechOpenaiApiKey: '',
+        speechOpenaiModel: OPENAI_TTS_DEFAULT_MODEL,
+        speechOpenaiVoice: OPENAI_TTS_DEFAULT_VOICE,
+        speechOpenaiSpeed: 1,
+        speechOpenaiInstructions: '',
+        speechVolcengineAppId: '',
+        speechVolcengineAccessToken: '',
+        speechVolcengineCluster: VOLCENGINE_TTS_DEFAULT_CLUSTER,
+        speechVolcengineVoice: VOLCENGINE_TTS_DEFAULT_VOICE,
+        speechVolcengineSpeed: 1,
+        speechVolcengineEncoding: VOLCENGINE_TTS_DEFAULT_ENCODING,
+        ...pickConfigKeys(overrides, BUILTIN_TTS_CONFIG_KEYS),
     };
 }
 
 export function getMergedAiApiConfig(config = {}) {
     return createDefaultAiApiConfig(config ?? {});
+}
+
+export function getMergedBuiltInTtsConfig(config = {}) {
+    return createDefaultBuiltInTtsConfig(config ?? {});
+}
+
+export function normalizeBuiltInTtsProviderId(providerId) {
+    const normalized = String(providerId ?? '').trim().toLowerCase();
+    if (normalized === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
+        return BUILTIN_TTS_PROVIDER_IDS.OPENAI;
+    }
+    return BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE;
+}
+
+export function getSelectedSpeechProviderId(config = {}) {
+    return normalizeBuiltInTtsProviderId(getMergedBuiltInTtsConfig(config).speechProvider);
+}
+
+export function getActiveReadAloudProviderId(config = {}) {
+    const mergedConfig = getMergedBuiltInTtsConfig(config);
+    if (mergedConfig.speechUseForReadAloud) {
+        return normalizeBuiltInTtsProviderId(mergedConfig.speechProvider);
+    }
+    return BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE;
+}
+
+export function getResolvedOpenAiSpeechConfig(config = {}, aiApiConfig = null) {
+    const mergedConfig = getMergedBuiltInTtsConfig(config);
+    const hasAiApiFallback = aiApiConfig && Object.keys(aiApiConfig).length > 0;
+    const mergedAiApiConfig = hasAiApiFallback ? getMergedAiApiConfig(aiApiConfig) : null;
+    const providerId = mergedAiApiConfig ? getAiProviderId(mergedAiApiConfig) : null;
+    const shouldReuseTextApiUrl =
+        providerId === AI_PROVIDER_IDS.OPENAI || providerId === AI_PROVIDER_IDS.COMPATIBLE;
+
+    return {
+        apiUrl:
+            mergedConfig.speechOpenaiApiUrl ||
+            (shouldReuseTextApiUrl ? mergedAiApiConfig?.apiUrl : '') ||
+            OPENAI_TTS_DEFAULT_URL,
+        apiKey: mergedConfig.speechOpenaiApiKey || mergedAiApiConfig?.apiKey || '',
+        model: mergedConfig.speechOpenaiModel || OPENAI_TTS_DEFAULT_MODEL,
+        voice: mergedConfig.speechOpenaiVoice || OPENAI_TTS_DEFAULT_VOICE,
+        speed: Number(mergedConfig.speechOpenaiSpeed ?? 1),
+        instructions: mergedConfig.speechOpenaiInstructions || '',
+    };
+}
+
+export function getResolvedVolcengineSpeechConfig(config = {}) {
+    const mergedConfig = getMergedBuiltInTtsConfig(config);
+    return {
+        appid: mergedConfig.speechVolcengineAppId || '',
+        accessToken: mergedConfig.speechVolcengineAccessToken || '',
+        cluster: mergedConfig.speechVolcengineCluster || VOLCENGINE_TTS_DEFAULT_CLUSTER,
+        voice: mergedConfig.speechVolcengineVoice || VOLCENGINE_TTS_DEFAULT_VOICE,
+        speed: Number(mergedConfig.speechVolcengineSpeed ?? 1),
+        encoding: mergedConfig.speechVolcengineEncoding || VOLCENGINE_TTS_DEFAULT_ENCODING,
+    };
+}
+
+export function getResolvedBuiltInTtsConfig(config = {}, providerId, aiApiConfig = null) {
+    const normalizedProviderId = normalizeBuiltInTtsProviderId(providerId);
+    if (normalizedProviderId === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
+        return getResolvedOpenAiSpeechConfig(config, aiApiConfig);
+    }
+    return getResolvedVolcengineSpeechConfig(config);
 }
 
 export function normalizeAiProviderId(providerId) {
@@ -78,7 +229,13 @@ export function inferAiProviderId(config = {}) {
     ) {
         return AI_PROVIDER_IDS.GEMINI;
     }
-    if (searchText.includes('openai') || searchText.includes('gpt') || searchText.includes('/o1') || searchText.includes('/o3') || searchText.includes('/o4')) {
+    if (
+        searchText.includes('openai') ||
+        searchText.includes('gpt') ||
+        searchText.includes('/o1') ||
+        searchText.includes('/o3') ||
+        searchText.includes('/o4')
+    ) {
         return AI_PROVIDER_IDS.OPENAI;
     }
     return AI_PROVIDER_IDS.COMPATIBLE;
@@ -139,20 +296,64 @@ export async function ensureAiApiConfigMigration() {
     return [instanceKey];
 }
 
-export async function getActiveAiApiConfig() {
+export async function ensureBuiltInTtsConfigMigration() {
+    await store.load();
+
+    const storedConfig = await store.get(BUILTIN_TTS_CONFIG_KEY);
+    if (storedConfig !== null) {
+        return getMergedBuiltInTtsConfig(storedConfig);
+    }
+
     const instanceList = await ensureAiApiConfigMigration();
+    let migratedConfig = null;
+
+    for (const instanceKey of instanceList) {
+        const config = await store.get(instanceKey);
+        if (!config || !hasLegacySpeechConfig(config)) {
+            continue;
+        }
+        migratedConfig = getLegacySpeechConfig(config);
+        break;
+    }
+
+    const nextConfig = getMergedBuiltInTtsConfig(migratedConfig ?? {});
+    await store.set(BUILTIN_TTS_CONFIG_KEY, nextConfig);
+    await store.save();
+
+    return nextConfig;
+}
+
+export async function getBuiltInTtsConfig() {
+    return ensureBuiltInTtsConfigMigration();
+}
+
+export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) {
+    const instanceList = await ensureAiApiConfigMigration();
+    let firstConfig = null;
 
     for (const instanceKey of instanceList) {
         const config = await store.get(instanceKey);
         if (!config) continue;
         const mergedConfig = getMergedAiApiConfig(config);
-        if (mergedConfig.enable ?? true) {
-            return {
-                ...mergedConfig,
-                instanceKey,
-            };
+        const instanceConfig = {
+            ...mergedConfig,
+            instanceKey,
+        };
+        if (!firstConfig) {
+            firstConfig = instanceConfig;
+        }
+        if ((mergedConfig.enable ?? true) || includeDisabled) {
+            return instanceConfig;
         }
     }
 
+    if (firstConfig) {
+        return firstConfig;
+    }
+
     return null;
+}
+
+export async function getActiveAiApiConfig() {
+    return getPreferredAiApiConfig();
 }

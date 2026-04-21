@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "Ok",
@@ -226,12 +226,6 @@
                     "token": "Token",
                     "name": "Nome da Coleção",
                     "title": "Eudic"
-                }
-            },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "Caminho do Pedido"
                 }
             }
         },
@@ -470,3 +464,5 @@
         }
     }
 }
+
+

@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "Ok",
@@ -198,12 +198,6 @@
                 "eudic": {
                     "token": "Token",
                     "name": "Nome della raccolta"
-                }
-            },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "Percorso richiesto"
                 }
             }
         },
@@ -431,3 +425,4 @@
         }
     }
 }
+

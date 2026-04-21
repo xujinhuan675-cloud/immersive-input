@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "ОК",
@@ -430,12 +430,6 @@
                 },
                 "qrcode": {
                     "title": "QR-код"
-                }
-            },
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva",
-                    "request_path": "Путь запроса"
                 }
             },
             "collection": {

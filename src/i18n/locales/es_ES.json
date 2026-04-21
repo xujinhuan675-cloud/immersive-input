@@ -1,4 +1,4 @@
-{
+﻿{
     "translation": {
         "common": {
             "ok": "De acuerdo",
@@ -315,12 +315,7 @@
                     "title": "Eudic"
                 }
             },
-            "help": "Guía de configuración",
-            "tts": {
-                "lingva_tts": {
-                    "title": "Lingva"
-                }
-            }
+            "help": "Guía de configuración"
         },
         "translate": {
             "speak": "Hablar",
@@ -329,3 +324,5 @@
         }
     }
 }
+
+
