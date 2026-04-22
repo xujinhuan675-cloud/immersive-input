@@ -90,8 +90,27 @@ fn configure_runtime_log_env() {
     env::set_var("RUST_LOG", rust_log);
 }
 
+#[cfg(target_os = "windows")]
+fn configure_windows_app_id(app_id: &str) {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+
+    if app_id.is_empty() {
+        return;
+    }
+
+    unsafe {
+        let _ = SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(app_id));
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn configure_windows_app_id(_app_id: &str) {}
+
 fn main() {
     configure_runtime_log_env();
+    let context = tauri::generate_context!();
+    configure_windows_app_id(&context.config().tauri.bundle.identifier);
 
     tauri::Builder::default()
         // tauri-plugin-single-instance has a null-pointer crash on some Windows configs.
@@ -234,7 +253,7 @@ fn main() {
             open_login_window
         ])
         .on_system_tray_event(tray_event_handler)
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while running tauri application")
         // 窗口关闭不退出
         .run(|_app_handle, event| {

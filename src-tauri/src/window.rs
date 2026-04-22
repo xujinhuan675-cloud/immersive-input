@@ -11,12 +11,19 @@ use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
 use log::{info, warn};
+#[cfg(target_os = "windows")]
+use once_cell::sync::OnceCell;
 use tauri::Manager;
 use tauri::Monitor;
 use tauri::Window;
 use tauri::WindowBuilder;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use window_shadows::set_shadow;
+#[cfg(target_os = "windows")]
+use windows::Win32::{
+    Foundation::{HINSTANCE, LPARAM, WPARAM},
+    UI::WindowsAndMessaging::{CreateIcon, HICON, ICON_BIG, ICON_SMALL, SendMessageW, WM_SETICON},
+};
 
 // Get daemon window instance
 fn get_daemon_window() -> Window {
@@ -53,22 +60,115 @@ fn get_window_monitor(window: &Window) -> Monitor {
 }
 
 #[cfg(target_os = "windows")]
-fn apply_default_window_icon(window: &Window) {
+fn default_window_icon() -> Option<tauri::Icon> {
     if let Ok(icon_image) = image::load_from_memory(include_bytes!("../icons/128x128.png")) {
         let rgba = icon_image.into_rgba8();
         let (width, height) = rgba.dimensions();
-        window
-            .set_icon(tauri::Icon::Rgba {
-                rgba: rgba.into_raw(),
-                width,
-                height,
-            })
-            .unwrap_or_default();
+        return Some(tauri::Icon::Rgba {
+            rgba: rgba.into_raw(),
+            width,
+            height,
+        });
+    }
+
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn default_window_icon() -> Option<tauri::Icon> {
+    None
+}
+
+#[cfg(target_os = "windows")]
+static WINDOWS_APP_ICON_HANDLE: OnceCell<usize> = OnceCell::new();
+
+#[cfg(target_os = "windows")]
+fn default_window_hicon() -> Option<HICON> {
+    WINDOWS_APP_ICON_HANDLE
+        .get_or_try_init(|| -> Result<usize, ()> {
+            let icon_image = image::load_from_memory(include_bytes!("../icons/128x128.png"))
+                .map_err(|_| ())?
+                .into_rgba8();
+            let (width, height) = icon_image.dimensions();
+            let mut rgba = icon_image.into_raw();
+            let mut and_mask = Vec::with_capacity((rgba.len() / 4).max(1));
+
+            for idx in (0..rgba.len()).step_by(4) {
+                and_mask.push(rgba[idx + 3].wrapping_sub(u8::MAX));
+                rgba.swap(idx, idx + 2);
+            }
+
+            let handle = unsafe {
+                CreateIcon(
+                    HINSTANCE::default(),
+                    width as i32,
+                    height as i32,
+                    1,
+                    32,
+                    and_mask.as_ptr(),
+                    rgba.as_ptr(),
+                )
+            }
+            .map_err(|_| ())?;
+
+            Ok(handle.0 as usize)
+        })
+        .ok()
+        .map(|handle| HICON(*handle as *mut core::ffi::c_void))
+}
+
+#[cfg(target_os = "windows")]
+fn apply_windows_window_icons(window: &Window) {
+    let Ok(raw_hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd = windows::Win32::Foundation::HWND(raw_hwnd.0 as *mut core::ffi::c_void);
+    let Some(hicon) = default_window_hicon() else {
+        return;
+    };
+
+    unsafe {
+        SendMessageW(
+            hwnd,
+            WM_SETICON,
+            WPARAM(ICON_SMALL as usize),
+            LPARAM(hicon.0 as isize),
+        );
+        SendMessageW(
+            hwnd,
+            WM_SETICON,
+            WPARAM(ICON_BIG as usize),
+            LPARAM(hicon.0 as isize),
+        );
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn apply_default_window_icon(_window: &Window) {}
+fn apply_windows_window_icons(_window: &Window) {}
+
+fn apply_default_window_icon(window: &Window) {
+    if let Some(icon) = default_window_icon() {
+        window.set_icon(icon).unwrap_or_default();
+    }
+    apply_windows_window_icons(window);
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_window_shows_in_taskbar(window: &Window) {
+    // These windows are created hidden first. On Windows, explicitly re-adding
+    // them after show() avoids cases where the taskbar button never appears.
+    window.set_skip_taskbar(false).unwrap_or_default();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ensure_window_shows_in_taskbar(_window: &Window) {}
+
+fn show_app_window(window: &Window) {
+    apply_default_window_icon(window);
+    window.show().unwrap_or_default();
+    ensure_window_shows_in_taskbar(window);
+    apply_default_window_icon(window);
+}
 
 // Get monitor where the mouse is currently located
 fn get_current_monitor(x: i32, y: i32) -> Monitor {
@@ -211,6 +311,11 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
             {
                 builder = builder.transparent(true).decorations(false);
             }
+
+            if let Some(icon) = default_window_icon() {
+                builder = builder.icon(icon).unwrap();
+            }
+
             let window = builder.build().unwrap();
             apply_default_window_icon(&window);
 
@@ -231,7 +336,7 @@ pub fn config_window() {
     // 如果窗口已存在，直接激活
     if let Some(w) = app_handle.get_window("config") {
         apply_default_window_icon(&w);
-        w.show().unwrap_or_default();
+        show_app_window(&w);
         w.set_focus().unwrap_or_default();
         return;
     }
@@ -260,6 +365,10 @@ pub fn config_window() {
         builder = builder.decorations(false);
     }
 
+    if let Some(icon) = default_window_icon() {
+        builder = builder.icon(icon).unwrap();
+    }
+
     let window = builder.build().unwrap();
     apply_default_window_icon(&window);
 
@@ -271,7 +380,7 @@ pub fn config_window() {
         .unwrap();
     apply_saved_window_size_with_min(&window, "config", 800, 600, 800, 400);
     window.center().unwrap();
-    window.show().unwrap();
+    show_app_window(&window);
     info!(
         "[startup] config window shown at {}ms (no transparent flash)",
         t0.elapsed().as_millis()
@@ -462,12 +571,12 @@ pub fn recognize_window() {
     let (window, exists) = build_window("recognize", "Recognize");
     if exists {
         window.emit("new_image", "").unwrap();
-        window.show().unwrap();
+        show_app_window(&window);
         return;
     }
     apply_saved_window_size(&window, "recognize", 800, 400);
     window.center().unwrap();
-    window.show().unwrap();
+    show_app_window(&window);
     window.emit("new_image", "").unwrap();
 }
 
@@ -788,7 +897,7 @@ pub fn open_explain_window() {
 pub fn chat_window() {
     let app_handle = APP.get().unwrap();
     if let Some(w) = app_handle.get_window("chat") {
-        w.show().unwrap_or_default();
+        show_app_window(&w);
         w.set_focus().unwrap_or_default();
         return;
     }
@@ -798,7 +907,7 @@ pub fn chat_window() {
         .unwrap_or_default();
     apply_saved_window_size(&window, "chat", 460, 540);
     window.center().unwrap_or_default();
-    window.show().unwrap_or_default();
+    show_app_window(&window);
 }
 
 #[tauri::command]
@@ -907,7 +1016,7 @@ pub fn phrases_inline_window() {
 pub fn vault_window() {
     let app_handle = APP.get().unwrap();
     if let Some(w) = app_handle.get_window("vault") {
-        w.show().unwrap_or_default();
+        show_app_window(&w);
         w.set_focus().unwrap_or_default();
         return;
     }
@@ -917,7 +1026,7 @@ pub fn vault_window() {
         .unwrap_or_default();
     apply_saved_window_size(&window, "vault", 800, 600);
     window.center().unwrap_or_default();
-    window.show().unwrap_or_default();
+    show_app_window(&window);
 }
 
 // ─────────────────────────────────────────────
@@ -928,7 +1037,7 @@ pub fn login_window() {
     info!("login_window called");
     if let Some(w) = app_handle.get_window("login") {
         apply_default_window_icon(&w);
-        w.show().unwrap_or_default();
+        show_app_window(&w);
         w.set_focus().unwrap_or_default();
         return;
     }
@@ -957,13 +1066,17 @@ pub fn login_window() {
         builder = builder.transparent(true).decorations(false);
     }
 
+    if let Some(icon) = default_window_icon() {
+        builder = builder.icon(icon).unwrap();
+    }
+
     let window = builder.build().unwrap();
     apply_default_window_icon(&window);
 
     #[cfg(not(target_os = "linux"))]
     set_shadow(&window, true).unwrap_or_default();
 
-    window.show().unwrap_or_default();
+    show_app_window(&window);
     window.set_focus().unwrap_or_default();
 }
 
@@ -980,5 +1093,5 @@ pub fn updater_window() {
         .unwrap();
     apply_saved_window_size(&window, "updater", 600, 400);
     window.center().unwrap();
-    window.show().unwrap_or_default();
+    show_app_window(&window);
 }
