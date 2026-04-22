@@ -5,7 +5,7 @@ import { HiOutlineVolumeUp, HiTranslate } from 'react-icons/hi';
 import { appWindow } from '@tauri-apps/api/window';
 import toast, { Toaster } from 'react-hot-toast';
 import { listen } from '@tauri-apps/api/event';
-import { MdContentCopy, MdSmartButton } from 'react-icons/md';
+import { MdContentCopy, MdOutlineNoteAdd, MdSmartButton } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { LuDelete } from 'react-icons/lu';
 import { invoke } from '@tauri-apps/api';
@@ -24,14 +24,15 @@ export const detectLanguageAtom = atom('');
 
 const TOOL_ICON_BUTTON_CLASS =
     'h-7 w-7 min-w-0 rounded-[8px] text-default-400 transition-colors hover:bg-default-100 hover:text-default-600 data-[hover=true]:bg-default-100';
+const ACTIVE_TOOL_ICON_BUTTON_CLASS =
+    'h-7 w-7 min-w-0 rounded-[8px] bg-primary/12 text-primary-600 transition-colors hover:bg-primary/18 hover:text-primary-700 data-[hover=true]:bg-primary/18';
 const PRIMARY_TRANSLATE_BUTTON_CLASS =
     'h-8 rounded-[9px] bg-default-900 px-3 text-[12px] font-medium text-white transition-opacity hover:opacity-90';
 
 export default function SourceArea(props) {
-    const { pluginList, serviceInstanceConfigMap } = props;
+    const { pluginList, serviceInstanceConfigMap, excerptMode, setExcerptMode } = props;
     const [sourceText, setSourceText, syncSourceText] = useSyncAtom(sourceTextAtom);
     const [detectLanguage, setDetectLanguage] = useAtom(detectLanguageAtom);
-    const [incrementalTranslate] = useConfig('incremental_translate', false);
     const [dynamicTranslate] = useConfig('dynamic_translate', false);
     const [deleteNewline] = useConfig('translate_delete_newline', false);
     const [hideWindow] = useConfig('translate_hide_window', false);
@@ -68,7 +69,7 @@ export default function SourceArea(props) {
     const handleNewText = useCallback(
         async (text) => {
             text = text.trim();
-            if (hideWindow) {
+            if (hideWindow && !excerptMode) {
                 await appWindow.hide().catch(() => {});
             }
 
@@ -101,7 +102,7 @@ export default function SourceArea(props) {
                                 if (deleteNewline) {
                                     newText = v.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
                                 }
-                                if (incrementalTranslate) {
+                                if (excerptMode) {
                                     setSourceText((old) => {
                                         return appendIncrementalText(old, newText);
                                     });
@@ -136,7 +137,7 @@ export default function SourceArea(props) {
                                     if (deleteNewline) {
                                         newText = v.replace(/\-\s+/g, '').replace(/\s+/g, ' ');
                                     }
-                                    if (incrementalTranslate) {
+                                    if (excerptMode) {
                                         setSourceText((old) => {
                                             return appendIncrementalText(old, newText);
                                         });
@@ -160,7 +161,7 @@ export default function SourceArea(props) {
 
             setWindowType('[SELECTION_TRANSLATE]');
             let newText = deleteNewline ? text.replace(/\-\s+/g, '').replace(/\s+/g, ' ') : text.trim();
-            if (incrementalTranslate) {
+            if (excerptMode) {
                 setSourceText((old) => {
                     return appendIncrementalText(old, newText);
                 });
@@ -175,8 +176,8 @@ export default function SourceArea(props) {
             appendIncrementalText,
             deleteNewline,
             detect_language,
+            excerptMode,
             hideWindow,
-            incrementalTranslate,
             pluginList,
             recognizeLanguage,
             recognizeServiceList,
@@ -249,7 +250,6 @@ export default function SourceArea(props) {
         if (
             hasHydratedInitialTextRef.current ||
             deleteNewline === null ||
-            incrementalTranslate === null ||
             recognizeLanguage === null ||
             recognizeServiceList === null
         ) {
@@ -262,7 +262,7 @@ export default function SourceArea(props) {
                 handleNewTextRef.current?.(v);
             }
         });
-    }, [deleteNewline, incrementalTranslate, recognizeLanguage, recognizeServiceList]);
+    }, [deleteNewline, excerptMode, recognizeLanguage, recognizeServiceList]);
 
     useEffect(() => {
         if (!textAreaRef.current) return;
@@ -451,6 +451,19 @@ export default function SourceArea(props) {
                                 }}
                             >
                                 <MdSmartButton className='text-[15px]' />
+                            </Button>
+                        </Tooltip>
+                        <Tooltip content={t('config.translate.incremental_translate')}>
+                            <Button
+                                isIconOnly
+                                variant='light'
+                                size='sm'
+                                className={excerptMode ? ACTIVE_TOOL_ICON_BUTTON_CLASS : TOOL_ICON_BUTTON_CLASS}
+                                onPress={() => {
+                                    setExcerptMode(!excerptMode);
+                                }}
+                            >
+                                <MdOutlineNoteAdd className='text-[15px]' />
                             </Button>
                         </Tooltip>
                         <Tooltip content={t('common.clear')}>

@@ -43,18 +43,18 @@ export default function Config() {
             <div className='flex flex-1 min-h-0'>
                 <Card
                     shadow='none'
-                    className='bg-content1 w-[230px] h-full rounded-none border-r-1 border-default-100 shrink-0'
+                    className='bg-content1 w-[202px] h-full rounded-none border-r-1 border-default-100 shrink-0'
                 >
-                    <div className='py-[10px]'>
-                        <div className='px-[8px] pt-[2px] pb-[12px]'>
-                            <div className='flex flex-col items-center gap-[6px]'>
+                    <div className='py-[8px]'>
+                        <div className='px-[6px] pt-[3px] pb-[10px]'>
+                            <div className='flex flex-col items-center gap-[4px]'>
                                 <img
                                     alt='Immersive Input'
                                     src='icon.svg'
-                                    className='h-[52px] w-[52px]'
+                                    className='h-[44px] w-[44px]'
                                     draggable={false}
                                 />
-                                <span className='text-[13px] font-semibold text-default-600 tracking-wide select-none'>
+                                <span className='text-[12px] font-semibold text-default-600 tracking-wide select-none'>
                                     Immersive Input
                                 </span>
                             </div>

@@ -43,12 +43,44 @@ export const AI_PROVIDER_IDS = {
     CLAUDE: 'claude',
     GEMINI: 'gemini',
 };
+export const AI_PROVIDER_PRIORITY = [
+    AI_PROVIDER_IDS.OPENAI,
+    AI_PROVIDER_IDS.CLAUDE,
+    AI_PROVIDER_IDS.GEMINI,
+    AI_PROVIDER_IDS.COMPATIBLE,
+];
 export const AI_PROVIDER_OPTIONS = [
     { key: AI_PROVIDER_IDS.COMPATIBLE, label: AI_API_PROVIDER_TITLE },
     { key: AI_PROVIDER_IDS.OPENAI, label: 'OpenAI' },
     { key: AI_PROVIDER_IDS.CLAUDE, label: 'Claude' },
     { key: AI_PROVIDER_IDS.GEMINI, label: 'Gemini' },
 ];
+export const AI_PROVIDER_PRESETS = {
+    [AI_PROVIDER_IDS.COMPATIBLE]: {
+        key: AI_PROVIDER_IDS.COMPATIBLE,
+        label: AI_API_PROVIDER_TITLE,
+        apiUrl: AI_API_DEFAULT_URL,
+        model: AI_API_DEFAULT_MODEL,
+    },
+    [AI_PROVIDER_IDS.OPENAI]: {
+        key: AI_PROVIDER_IDS.OPENAI,
+        label: 'OpenAI',
+        apiUrl: AI_API_DEFAULT_URL,
+        model: AI_API_DEFAULT_MODEL,
+    },
+    [AI_PROVIDER_IDS.CLAUDE]: {
+        key: AI_PROVIDER_IDS.CLAUDE,
+        label: 'Claude',
+        apiUrl: 'https://api.anthropic.com/v1/chat/completions',
+        model: 'claude-sonnet-4-6',
+    },
+    [AI_PROVIDER_IDS.GEMINI]: {
+        key: AI_PROVIDER_IDS.GEMINI,
+        label: 'Gemini',
+        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        model: 'gemini-2.5-flash',
+    },
+};
 
 const AI_API_CONFIG_KEYS = [INSTANCE_NAME_CONFIG_KEY, 'provider', 'apiUrl', 'apiKey', 'model', 'temperature', 'enable'];
 const BUILTIN_TTS_CONFIG_KEYS = [
@@ -100,6 +132,21 @@ export function createDefaultAiApiConfig(overrides = {}) {
         enable: true,
         ...pickConfigKeys(overrides, AI_API_CONFIG_KEYS),
     };
+}
+
+export function getAiProviderPreset(providerId) {
+    const normalizedProviderId = normalizeAiProviderId(providerId) ?? AI_PROVIDER_IDS.COMPATIBLE;
+    return AI_PROVIDER_PRESETS[normalizedProviderId] ?? AI_PROVIDER_PRESETS[AI_PROVIDER_IDS.COMPATIBLE];
+}
+
+export function createAiApiConfigForProvider(providerId, overrides = {}) {
+    const providerPreset = getAiProviderPreset(providerId);
+    return createDefaultAiApiConfig({
+        provider: providerPreset.key,
+        apiUrl: providerPreset.apiUrl,
+        model: providerPreset.model,
+        ...pickConfigKeys(overrides, AI_API_CONFIG_KEYS),
+    });
 }
 
 export function createDefaultBuiltInTtsConfig(overrides = {}) {

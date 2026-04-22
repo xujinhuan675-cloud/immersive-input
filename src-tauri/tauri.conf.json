@@ -71,7 +71,10 @@
             "longDescription": "Immersive Input - AI-powered text enhancement tool",
             "shortDescription": "Immersive Input",
             "externalBin": [],
-            "resources": [],
+            "resources": [
+                "resources/*",
+                "resources/rapid/**"
+            ],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",

@@ -108,7 +108,7 @@
                 "source_target": "原文+译文",
                 "disable": "禁用",
                 "history_disable": "禁用历史记录",
-                "incremental_translate": "增量翻译",
+                "incremental_translate": "摘录翻译",
                 "dynamic_translate": "动态翻译",
                 "delete_newline": "自动删除换行",
                 "remember_language": "记住目标语言",
@@ -393,8 +393,8 @@
                 "billing_daily_quota_hint_no_reset": "每日重置"
             },
             "ai": {
-                "label": "AI能力",
-                "title": "AI能力",
+                "label": "AI",
+                "title": "AI",
             "api_tip": "API 配置已移至『服务 → AI 服务』标签页",
                 "pref_title": "个人写作偏好",
                 "pref_desc": "这段文字会附加到每次 AI 润色的 System Prompt，让 AI 更贴合你的表达风格。",
@@ -772,6 +772,16 @@
                 "caiyun": {
                     "title": "彩云小译",
                     "token": "Token"
+                },
+                "libretranslate": {
+                    "title": "LibreTranslate",
+                    "url": "实例 URL",
+                    "api_key": "API Key"
+                },
+                "azure": {
+                    "title": "Azure Translator",
+                    "region": "区域",
+                    "api_key": "API Key"
                 }
             },
             "recognize": {
@@ -842,6 +852,42 @@
                     "title": "火山 OCR (多语言)",
                     "appid": "App ID",
                     "secret": "Secret"
+                },
+                "doc2x": {
+                    "title": "Doc2x",
+                    "token": "API Token",
+                    "math_format": "公式输出",
+                    "math_format_latex": "LaTeX",
+                    "math_format_obsidian": "Obsidian",
+                    "show_debug": "调试输出"
+                },
+                "microsoft_ocr": {
+                    "title": "Microsoft OCR",
+                    "subscription_key": "Subscription Key",
+                    "endpoint": "Endpoint"
+                },
+                "baimiao_ocr": {
+                    "title": "白描 OCR",
+                    "username": "手机号 / 邮箱",
+                    "password": "密码"
+                },
+                "qwen_ocr": {
+                    "title": "千问 OCR",
+                    "api_key": "DashScope API Key",
+                    "region": "区域",
+                    "region_cn": "中国大陆（北京）",
+                    "region_us": "美国（弗吉尼亚）",
+                    "region_intl": "国际站（新加坡）",
+                    "mode": "OCR 模式",
+                    "mode_auto": "自动",
+                    "mode_text_recognition": "文本识别",
+                    "mode_advanced_recognition": "高精识别",
+                    "mode_multi_lan": "多语言识别",
+                    "model": "模型",
+                    "custom_prompt": "自定义 Prompt"
+                },
+                "rapid_ocr": {
+                    "title": "Rapid OCR"
                 },
                 "qrcode": {
                     "title": "二维码识别"
@@ -996,11 +1042,11 @@
             "close": "✕"
         },
         "float_toolbar": {
-            "apply_result": "??",
-            "apply_result_title": "????",
-            "apply_formula": "??",
-            "apply_formula_title": "????",
-            "calc_error": "????"
+            "apply_result": "结果",
+            "apply_result_title": "应用结果",
+            "apply_formula": "公式",
+            "apply_formula_title": "应用公式",
+            "calc_error": "无法计算"
         }
     }
 }

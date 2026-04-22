@@ -6,6 +6,7 @@ use crate::config::get;
 use crate::config::set;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
+use crate::TranslateExcerptModeWrapper;
 use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
@@ -50,6 +51,24 @@ fn get_window_monitor(window: &Window) -> Monitor {
         .or_else(|| get_daemon_window().primary_monitor().ok().flatten())
         .expect("No monitor found for window")
 }
+
+#[cfg(target_os = "windows")]
+fn apply_default_window_icon(window: &Window) {
+    if let Ok(icon_image) = image::load_from_memory(include_bytes!("../icons/128x128.png")) {
+        let rgba = icon_image.into_rgba8();
+        let (width, height) = rgba.dimensions();
+        window
+            .set_icon(tauri::Icon::Rgba {
+                rgba: rgba.into_raw(),
+                width,
+                height,
+            })
+            .unwrap_or_default();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_default_window_icon(_window: &Window) {}
 
 // Get monitor where the mouse is currently located
 fn get_current_monitor(x: i32, y: i32) -> Monitor {
@@ -165,6 +184,7 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
     match app_handle.get_window(label) {
         Some(v) => {
             info!("Window existence: {}", label);
+            apply_default_window_icon(&v);
             v.set_focus().unwrap();
             (v, true)
         }
@@ -192,6 +212,7 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
                 builder = builder.transparent(true).decorations(false);
             }
             let window = builder.build().unwrap();
+            apply_default_window_icon(&window);
 
             if label != "screenshot" {
                 #[cfg(not(target_os = "linux"))]
@@ -209,6 +230,7 @@ pub fn config_window() {
 
     // 如果窗口已存在，直接激活
     if let Some(w) = app_handle.get_window("config") {
+        apply_default_window_icon(&w);
         w.show().unwrap_or_default();
         w.set_focus().unwrap_or_default();
         return;
@@ -239,6 +261,7 @@ pub fn config_window() {
     }
 
     let window = builder.build().unwrap();
+    apply_default_window_icon(&window);
 
     #[cfg(not(target_os = "linux"))]
     set_shadow(&window, true).unwrap_or_default();
@@ -309,6 +332,34 @@ fn translate_window() -> Window {
     window
 }
 
+fn is_translate_excerpt_mode_enabled() -> bool {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<TranslateExcerptModeWrapper> = app_handle.state();
+    let enabled = *state.0.lock().unwrap();
+    enabled
+}
+
+fn append_to_existing_translate_window_if_excerpt(text: &str) -> bool {
+    if text.trim().is_empty() || !is_translate_excerpt_mode_enabled() {
+        return false;
+    }
+
+    let app_handle = APP.get().unwrap();
+    if let Some(window) = app_handle.get_window("translate") {
+        window.emit("new_text", text.to_string()).unwrap_or_default();
+        return true;
+    }
+
+    false
+}
+
+#[tauri::command]
+pub fn set_translate_excerpt_mode(enabled: bool) {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<TranslateExcerptModeWrapper> = app_handle.state();
+    *state.0.lock().unwrap() = enabled;
+}
+
 // Save the currently focused window handle
 pub fn save_foreground_window() {
     #[cfg(target_os = "windows")]
@@ -334,6 +385,10 @@ pub fn selection_translate() {
         // Write into State
         let state: tauri::State<StringWrapper> = app_handle.state();
         state.0.lock().unwrap().replace_range(.., &text);
+
+        if append_to_existing_translate_window_if_excerpt(&text) {
+            return;
+        }
     }
     // Check config: show floating toolbar or go directly to translate window
     crate::config::reload();
@@ -355,6 +410,11 @@ pub fn direct_translate_selection(text: String) {
     let app_handle = APP.get().unwrap();
     let state: tauri::State<StringWrapper> = app_handle.state();
     state.0.lock().unwrap().replace_range(.., &text);
+
+    if append_to_existing_translate_window_if_excerpt(&text) {
+        return;
+    }
+
     let window = translate_window();
     window.emit("new_text", text).unwrap();
 }
@@ -377,6 +437,11 @@ pub fn text_translate(text: String) {
     // Clear State
     let state: tauri::State<StringWrapper> = app_handle.state();
     state.0.lock().unwrap().replace_range(.., &text);
+
+    if append_to_existing_translate_window_if_excerpt(&text) {
+        return;
+    }
+
     let window = translate_window();
     window.emit("new_text", text).unwrap();
 }
@@ -753,6 +818,9 @@ pub fn open_translate_from_toolbar() {
         drop(guard);
         s
     };
+    if append_to_existing_translate_window_if_excerpt(&text) {
+        return;
+    }
     // Window creation via build() deadlocks on the WebView2 IPC thread.
     // Read text first (needs AppHandle state lock), then spawn a new thread
     // for window creation — same pattern as float_toolbar_window().
@@ -859,6 +927,7 @@ pub fn login_window() {
     let app_handle = APP.get().unwrap();
     info!("login_window called");
     if let Some(w) = app_handle.get_window("login") {
+        apply_default_window_icon(&w);
         w.show().unwrap_or_default();
         w.set_focus().unwrap_or_default();
         return;
@@ -889,6 +958,7 @@ pub fn login_window() {
     }
 
     let window = builder.build().unwrap();
+    apply_default_window_icon(&window);
 
     #[cfg(not(target_os = "linux"))]
     set_shadow(&window, true).unwrap_or_default();

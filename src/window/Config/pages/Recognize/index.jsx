@@ -17,8 +17,11 @@ export default function Recognize() {
     const [closeOnBlur, setCloseOnBlur] = useConfig('recognize_close_on_blur', false);
     const { t } = useTranslation();
     return (
-        <Card className='mb-[10px]'>
+        <Card>
             <CardBody>
+                <h2 className='mb-[10px] text-[16px] font-bold'>
+                    {t('config.recognize.label')}
+                </h2>
                 <div className='config-item'>
                     <h3 className='my-auto mx-0'>{t('config.recognize.language')}</h3>
                     {recognizeLanguage !== null && (

@@ -1,4 +1,4 @@
-import { Button } from '@nextui-org/react';
+import { Button, Switch } from '@nextui-org/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuPencilLine, LuTrash2 } from 'react-icons/lu';
@@ -18,6 +18,8 @@ export default function ServiceItem(props) {
     const {
         serviceInstanceKey,
         pluginList,
+        activeServiceInstanceKey,
+        activateServiceInstance,
         deleteServiceInstance,
         setCurrentConfigKey,
         onConfigOpen,
@@ -66,6 +68,15 @@ export default function ServiceItem(props) {
             description={isBuiltin ? null : t('common.plugin')}
             actions={
                 <>
+                    <Switch
+                        size='sm'
+                        isSelected={serviceInstanceKey === activeServiceInstanceKey}
+                        onValueChange={(value) => {
+                            if (value) {
+                                activateServiceInstance(serviceInstanceKey);
+                            }
+                        }}
+                    />
                     <Button
                         isIconOnly
                         size='sm'

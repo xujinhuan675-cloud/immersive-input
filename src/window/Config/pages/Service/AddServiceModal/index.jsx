@@ -60,7 +60,9 @@ export default function AddServiceModal(props) {
     const [installing, setInstalling] = useState(false);
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
-    const pluginEntries = Object.entries(pluginList ?? {});
+    const pluginEntries = Object.entries(pluginList ?? {}).sort((left, right) =>
+        String(left[1]?.display ?? left[0]).localeCompare(String(right[1]?.display ?? right[0]))
+    );
     const hasPluginSupport = Boolean(pluginType);
 
     const handleInstallPlugin = async () => {

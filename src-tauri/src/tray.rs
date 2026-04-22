@@ -21,6 +21,13 @@ use tauri::{AppHandle, Manager};
 #[tauri::command]
 pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_mode: String) {
     let tray_handle = app_handle.tray_handle();
+    let text_select_behavior = match get("text_select_behavior") {
+        Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
+        None => {
+            set("text_select_behavior", "toolbar");
+            "toolbar".to_string()
+        }
+    };
 
     if language.is_empty() {
         language = match get("app_language") {
@@ -42,8 +49,8 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
     }
 
     info!(
-        "Update tray with language: {}, copy mode: {}",
-        language, copy_mode
+        "Update tray with language: {}, copy mode: {}, text select behavior: {}",
+        language, copy_mode, text_select_behavior
     );
     tray_handle
         .set_menu(match language.as_str() {
@@ -101,6 +108,22 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
             .unwrap(),
         _ => {}
     }
+
+    match text_select_behavior.as_str() {
+        "direct_translate" => tray_handle
+            .get_item("text_select_behavior_direct")
+            .set_selected(true)
+            .unwrap(),
+        "disabled" => tray_handle
+            .get_item("text_select_behavior_disabled")
+            .set_selected(true)
+            .unwrap(),
+        "toolbar" => tray_handle
+            .get_item("text_select_behavior_toolbar")
+            .set_selected(true)
+            .unwrap(),
+        _ => {}
+    }
 }
 
 pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
@@ -114,6 +137,11 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "copy_target" => on_auto_copy_click(app, "target"),
             "copy_source_target" => on_auto_copy_click(app, "source_target"),
             "copy_disable" => on_auto_copy_click(app, "disable"),
+            "text_select_behavior_toolbar" => on_text_select_behavior_click(app, "toolbar"),
+            "text_select_behavior_direct" => {
+                on_text_select_behavior_click(app, "direct_translate")
+            }
+            "text_select_behavior_disabled" => on_text_select_behavior_click(app, "disabled"),
             "ocr_recognize" => on_ocr_recognize_click(),
             "ocr_translate" => on_ocr_translate_click(),
             "light_ai" => selection_light_ai(),
@@ -183,6 +211,13 @@ fn on_auto_copy_click(app: &AppHandle, mode: &str) {
     set("translate_auto_copy", mode);
     app.emit_all("translate_auto_copy_changed", mode).unwrap();
     update_tray(app.app_handle(), "".to_string(), mode.to_string());
+}
+fn on_text_select_behavior_click(app: &AppHandle, mode: &str) {
+    info!("Set text select behavior to: {}", mode);
+    set("text_select_behavior", mode);
+    app.emit_all("text_select_behavior_changed", mode)
+        .unwrap_or_default();
+    update_tray(app.app_handle(), "".to_string(), "".to_string());
 }
 fn on_ocr_recognize_click() {
     ocr_recognize();
@@ -279,6 +314,10 @@ struct TrayMenuLabels<'a> {
     copy_target: &'a str,
     copy_source_target: &'a str,
     copy_disable: &'a str,
+    text_selection: &'a str,
+    text_selection_toolbar: &'a str,
+    text_selection_direct: &'a str,
+    text_selection_disabled: &'a str,
     more: &'a str,
     config: &'a str,
     check_update: &'a str,
@@ -303,6 +342,12 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
     let copy_target = CustomMenuItem::new("copy_target", labels.copy_target);
     let copy_source_target = CustomMenuItem::new("copy_source_target", labels.copy_source_target);
     let copy_disable = CustomMenuItem::new("copy_disable", labels.copy_disable);
+    let text_select_behavior_toolbar =
+        CustomMenuItem::new("text_select_behavior_toolbar", labels.text_selection_toolbar);
+    let text_select_behavior_direct =
+        CustomMenuItem::new("text_select_behavior_direct", labels.text_selection_direct);
+    let text_select_behavior_disabled =
+        CustomMenuItem::new("text_select_behavior_disabled", labels.text_selection_disabled);
 
     let ocr_recognize = CustomMenuItem::new("ocr_recognize", labels.ocr_recognize);
     let ocr_translate = CustomMenuItem::new("ocr_translate", labels.ocr_translate);
@@ -313,7 +358,13 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
         .add_item(chat)
         .add_item(phrases)
         .add_item(vault)
-        .add_item(config)
+        .add_submenu(SystemTraySubmenu::new(
+            labels.text_selection,
+            SystemTrayMenu::new()
+                .add_item(text_select_behavior_toolbar)
+                .add_item(text_select_behavior_direct)
+                .add_item(text_select_behavior_disabled),
+        ))
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_submenu(SystemTraySubmenu::new(
             labels.recognition_tools,
@@ -335,6 +386,7 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
                         .add_item(copy_disable),
                 )),
         ))
+        .add_item(config)
         .add_submenu(SystemTraySubmenu::new(
             labels.more,
             SystemTrayMenu::new()
@@ -362,6 +414,10 @@ fn tray_menu_en_refined() -> tauri::SystemTrayMenu {
         copy_target: "Target",
         copy_source_target: "Source+Target",
         copy_disable: "Disable",
+        text_selection: "Text Selection Behavior",
+        text_selection_toolbar: "Show Toolbar",
+        text_selection_direct: "Direct Translate",
+        text_selection_disabled: "Disabled",
         more: "More",
         config: "Config",
         check_update: "Check Update",
@@ -387,6 +443,10 @@ fn tray_menu_zh_cn_refined() -> tauri::SystemTrayMenu {
         copy_target: "\u{8BD1}\u{6587}",
         copy_source_target: "\u{539F}\u{6587}+\u{8BD1}\u{6587}",
         copy_disable: "\u{5173}\u{95ED}",
+        text_selection: "\u{5212}\u{8BCD}\u{884C}\u{4E3A}",
+        text_selection_toolbar: "\u{663E}\u{793A}\u{5DE5}\u{5177}\u{680F}",
+        text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8BD1}",
+        text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8BBE}\u{7F6E}",
         check_update: "\u{68C0}\u{67E5}\u{66F4}\u{65B0}",
@@ -412,6 +472,10 @@ fn tray_menu_zh_tw_refined() -> tauri::SystemTrayMenu {
         copy_target: "\u{8B6F}\u{6587}",
         copy_source_target: "\u{539F}\u{6587}+\u{8B6F}\u{6587}",
         copy_disable: "\u{95DC}\u{9589}",
+        text_selection: "\u{5283}\u{8A5E}\u{884C}\u{70BA}",
+        text_selection_toolbar: "\u{986F}\u{793A}\u{5DE5}\u{5177}\u{5217}",
+        text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8B6F}",
+        text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8A2D}\u{5B9A}",
         check_update: "\u{6AA2}\u{67E5}\u{66F4}\u{65B0}",

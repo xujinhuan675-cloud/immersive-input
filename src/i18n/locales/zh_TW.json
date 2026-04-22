@@ -103,7 +103,7 @@
                 "source_target": "原文+譯文",
                 "disable": "停用",
                 "history_disable": "停用歷史記錄",
-                "incremental_translate": "增量翻譯",
+                "incremental_translate": "摘錄翻譯",
                 "dynamic_translate": "動態翻譯",
                 "delete_newline": "自動刪除換行",
                 "remember_language": "記住目標語言",
@@ -466,11 +466,11 @@
             "delete_space": "刪除空格"
         },
         "float_toolbar": {
-            "apply_result": "??",
-            "apply_result_title": "????",
-            "apply_formula": "??",
-            "apply_formula_title": "????",
-            "calc_error": "????"
+            "apply_result": "結果",
+            "apply_result_title": "套用結果",
+            "apply_formula": "公式",
+            "apply_formula_title": "套用公式",
+            "calc_error": "無法計算"
         }
     }
 }

@@ -14,7 +14,6 @@ export const targetLanguageAtom = atom();
 export default function LanguageArea() {
     const [translateSourceLanguage] = useConfig('translate_source_language', 'auto');
     const [translateTargetLanguage, setTranslateTargetLanguage] = useConfig('translate_target_language', 'zh_cn');
-    const [translateSecondLanguage] = useConfig('translate_second_language', 'en');
 
     const [sourceLanguage, setSourceLanguage] = useAtom(sourceLanguageAtom);
     const [targetLanguage, setTargetLanguage] = useAtom(targetLanguageAtom);
@@ -81,19 +80,14 @@ export default function LanguageArea() {
                                 const oldSourceLanguage = sourceLanguage;
                                 setSourceLanguage(targetLanguage);
                                 setTargetLanguage(oldSourceLanguage);
-                            } else {
-                                if (detectLanguage !== '') {
-                                    if (targetLanguage === translateTargetLanguage) {
-                                        setTargetLanguage(detectLanguage);
-                                    } else {
-                                        setTargetLanguage(translateTargetLanguage);
-                                    }
+                                return;
+                            }
+
+                            if (detectLanguage !== '') {
+                                if (targetLanguage === translateTargetLanguage) {
+                                    setTargetLanguage(detectLanguage);
                                 } else {
-                                    if (targetLanguage === translateSecondLanguage) {
-                                        setTargetLanguage(translateTargetLanguage);
-                                    } else {
-                                        setTargetLanguage(translateSecondLanguage);
-                                    }
+                                    setTargetLanguage(translateTargetLanguage);
                                 }
                             }
                         }}

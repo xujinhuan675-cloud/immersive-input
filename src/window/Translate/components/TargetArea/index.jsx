@@ -80,7 +80,6 @@ export default function TargetArea(props) {
     const { index, name, translateServiceInstanceList, pluginList, serviceInstanceConfigMap, ...drag } = props;
 
     const [currentTranslateServiceInstanceKey, setCurrentTranslateServiceInstanceKey] = useState(name);
-    const [translateSecondLanguage] = useConfig('translate_second_language', 'en');
     const [autoCopy] = useConfig('translate_auto_copy', 'disable');
     const [clipboardMonitor] = useConfig('clipboard_monitor', false);
     const [historyDisable] = useConfig('history_disable', false);
@@ -232,15 +231,10 @@ export default function TargetArea(props) {
         if (whetherPluginService(currentTranslateServiceInstanceKey)) {
             const pluginInfo = pluginList['translate'][translateServiceName];
             if (sourceLanguage in pluginInfo.language && targetLanguage in pluginInfo.language) {
-                let newTargetLanguage = targetLanguage;
-                if (sourceLanguage === 'auto' && targetLanguage === detectLanguage) {
-                    newTargetLanguage = translateSecondLanguage;
-                }
-
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
                 instanceConfig['enable'] = 'true';
                 let [func, utils] = await invoke_plugin('translate', translateServiceName);
-                func(sourceText.trim(), pluginInfo.language[sourceLanguage], pluginInfo.language[newTargetLanguage], {
+                func(sourceText.trim(), pluginInfo.language[sourceLanguage], pluginInfo.language[targetLanguage], {
                     config: instanceConfig,
                     detect: detectLanguage,
                     setResult: (value) => {
@@ -261,7 +255,7 @@ export default function TargetArea(props) {
                             addToHistory(
                                 sourceText.trim(),
                                 detectLanguage,
-                                newTargetLanguage,
+                                targetLanguage,
                                 translateServiceName,
                                 nextResult
                             );
@@ -307,14 +301,9 @@ export default function TargetArea(props) {
         } else {
             const LanguageEnum = builtinServices[translateServiceName].Language;
             if (sourceLanguage in LanguageEnum && targetLanguage in LanguageEnum) {
-                let newTargetLanguage = targetLanguage;
-                if (sourceLanguage === 'auto' && targetLanguage === detectLanguage) {
-                    newTargetLanguage = translateSecondLanguage;
-                }
-
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
                 builtinServices[translateServiceName]
-                    .translate(sourceText.trim(), LanguageEnum[sourceLanguage], LanguageEnum[newTargetLanguage], {
+                    .translate(sourceText.trim(), LanguageEnum[sourceLanguage], LanguageEnum[targetLanguage], {
                         config: instanceConfig,
                         detect: detectLanguage,
                         setResult: (value) => {
@@ -335,7 +324,7 @@ export default function TargetArea(props) {
                                 addToHistory(
                                     sourceText.trim(),
                                     detectLanguage,
-                                    newTargetLanguage,
+                                    targetLanguage,
                                     translateServiceName,
                                     nextResult
                                 );

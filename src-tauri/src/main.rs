@@ -12,6 +12,7 @@ mod lang_detect;
 mod mouse_hook;
 mod phrase_inline;
 mod phrases;
+mod rapid_ocr;
 mod screenshot;
 mod selection_capture;
 mod server;
@@ -32,6 +33,7 @@ use lang_detect::*;
 use log::{info, Level, LevelFilter};
 use once_cell::sync::OnceCell;
 use phrases::*;
+use rapid_ocr::*;
 use screenshot::screenshot;
 use server::*;
 use std::env;
@@ -46,6 +48,7 @@ use vault::*;
 use window::config_window;
 use window::open_chat_window;
 use window::open_explain_window;
+use window::set_translate_excerpt_mode;
 use window::open_login_window;
 use window::open_translate_from_toolbar;
 use window::updater_window;
@@ -57,6 +60,7 @@ pub static APP: OnceCell<tauri::AppHandle> = OnceCell::new();
 pub struct StringWrapper(pub Mutex<String>);
 // Previous foreground window handle (raw isize, Windows HWND)
 pub struct PrevForegroundWindow(pub Mutex<isize>);
+pub struct TranslateExcerptModeWrapper(pub Mutex<bool>);
 
 fn configure_runtime_log_env() {
     let override_value = env::var("IMMERSIVE_INPUT_RUST_LOG").ok();
@@ -159,6 +163,7 @@ fn main() {
             config_window();
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
+            app.manage(TranslateExcerptModeWrapper(Mutex::new(false)));
             app.manage(VaultModeWrapper(Mutex::new(String::new())));
             // Update Tray Menu
             update_tray(app.app_handle(), "".to_string(), "".to_string());
@@ -176,11 +181,7 @@ fn main() {
             }
             // Check Update
             check_update(app.handle());
-            if let Some(engine) = get("translate_detect_engine") {
-                if engine.as_str().unwrap() == "local" {
-                    init_lang_detect();
-                }
-            }
+            init_lang_detect();
             let clipboard_monitor = match get("clipboard_monitor") {
                 Some(v) => v.as_bool().unwrap(),
                 None => {
@@ -203,6 +204,7 @@ fn main() {
             get_base64,
             copy_img,
             system_ocr,
+            rapid_ocr,
             run_binary,
             register_shortcut_by_frontend,
             update_tray,
@@ -227,6 +229,7 @@ fn main() {
             open_vault_quick_add,
             open_vault_quick_fill,
             get_vault_mode,
+            set_translate_excerpt_mode,
             save_prev_window,
             open_login_window
         ])

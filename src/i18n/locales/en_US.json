@@ -108,7 +108,7 @@
                 "source_target": "Source+Target",
                 "disable": "Disable",
                 "history_disable": "Disable History",
-                "incremental_translate": "Incremental Translation",
+                "incremental_translate": "Excerpt Translation",
                 "dynamic_translate": "Dynamic Translation",
                 "delete_newline": "Delete Newline",
                 "remember_language": "Remember Target Language",
@@ -772,6 +772,16 @@
                 "caiyun": {
                     "title": "Caiyun",
                     "token": "Token"
+                },
+                "libretranslate": {
+                    "title": "LibreTranslate",
+                    "url": "Instance URL",
+                    "api_key": "API Key"
+                },
+                "azure": {
+                    "title": "Azure Translator",
+                    "region": "Region",
+                    "api_key": "API Key"
                 }
             },
             "recognize": {
@@ -842,6 +852,42 @@
                     "title": "VolcEngine OCR (Multi Language)",
                     "appid": "App ID",
                     "secret": "Secret"
+                },
+                "doc2x": {
+                    "title": "Doc2x",
+                    "token": "API Token",
+                    "math_format": "Math Output",
+                    "math_format_latex": "LaTeX",
+                    "math_format_obsidian": "Obsidian",
+                    "show_debug": "Debug Output"
+                },
+                "microsoft_ocr": {
+                    "title": "Microsoft OCR",
+                    "subscription_key": "Subscription Key",
+                    "endpoint": "Endpoint"
+                },
+                "baimiao_ocr": {
+                    "title": "Baimiao OCR",
+                    "username": "Phone / Email",
+                    "password": "Password"
+                },
+                "qwen_ocr": {
+                    "title": "Qwen OCR",
+                    "api_key": "DashScope API Key",
+                    "region": "Region",
+                    "region_cn": "China (Beijing)",
+                    "region_us": "US (Virginia)",
+                    "region_intl": "International (Singapore)",
+                    "mode": "OCR Mode",
+                    "mode_auto": "Auto",
+                    "mode_text_recognition": "Text Recognition",
+                    "mode_advanced_recognition": "Advanced Recognition",
+                    "mode_multi_lan": "Multi Language",
+                    "model": "Model",
+                    "custom_prompt": "Custom Prompt"
+                },
+                "rapid_ocr": {
+                    "title": "Rapid OCR"
                 },
                 "qrcode": {
                     "title": "QR Code"

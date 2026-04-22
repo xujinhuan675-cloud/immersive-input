@@ -19,6 +19,8 @@ import * as _geminipro from './geminipro';
 import * as _ollama from './ollama';
 import * as _ecdict from './ecdict';
 import * as _lingva from './lingva';
+import * as _libretranslate from './libretranslate';
+import * as _azure from './azure';
 
 export const deepl = _deepl;
 export const bing = _bing;
@@ -41,3 +43,5 @@ export const geminipro = _geminipro;
 export const ollama = _ollama;
 export const ecdict = _ecdict;
 export const lingva = _lingva;
+export const libretranslate = _libretranslate;
+export const azure = _azure;

@@ -6,6 +6,7 @@ import { useConfig } from '../../../../hooks/useConfig';
 import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
 import { useTranslation } from 'react-i18next';
 import TextSelection from '../TextSelection';
+import AIConfig from '../Service/AIConfig';
 
 function SettingSection({ title, description, action, children, bordered = false }) {
     return (
@@ -88,7 +89,7 @@ export default function AIFeatures() {
                 }}
             >
                 <Tab key='ai_features' title={t('config.ai.label')}>
-                    <div className='mx-auto w-full max-w-[880px] px-1 pb-2'>
+                    <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
                         <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
                             <CardBody className='p-0'>
                                 <SettingSection title={globalPreferenceTitle} description={globalPreferenceDesc}>
@@ -150,6 +151,7 @@ export default function AIFeatures() {
                                 </SettingSection>
                             </CardBody>
                         </Card>
+                        <AIConfig />
                     </div>
                 </Tab>
 

@@ -5,6 +5,7 @@ import {
     Switch,
     Tooltip,
 } from '@nextui-org/react';
+import { invoke } from '@tauri-apps/api';
 import React from 'react';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { useTranslation } from 'react-i18next';
@@ -110,7 +111,10 @@ export default function TextSelection() {
                                 label={t(`config.text_selection.${behaviorLabelKey}`)}
                                 ariaLabel='text selection behavior'
                                 selectedKey={behavior}
-                                onAction={(key) => setBehavior(key)}
+                                onAction={(key) => {
+                                    setBehavior(key);
+                                    invoke('update_tray', { language: '', copyMode: '' }).catch(() => {});
+                                }}
                             >
                                 <DropdownItem key='toolbar'>
                                     {t('config.text_selection.behavior_toolbar')}

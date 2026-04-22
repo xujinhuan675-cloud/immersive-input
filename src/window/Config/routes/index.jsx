@@ -2,7 +2,6 @@ import { Navigate } from 'react-router-dom';
 
 import TranslatePage from '../pages/TranslatePage';
 import General from '../pages/GeneralPage';
-import Service from '../pages/Service';
 import History from '../pages/History';
 import Hotkey from '../pages/Hotkey';
 import AIFeatures from '../pages/AIFeatures';
@@ -27,7 +26,7 @@ const routes = [
     },
     {
         path: '/service',
-        element: <Service />,
+        element: <Navigate to='/translate' replace />,
     },
     {
         path: '/history',

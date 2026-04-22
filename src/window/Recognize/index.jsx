@@ -20,6 +20,7 @@ import ImageArea from './ImageArea';
 import TextArea from './TextArea';
 
 export const pluginListAtom = atom();
+const RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY = 'recognize_active_service_instance_key';
 
 let blurTimeout = null;
 
@@ -59,7 +60,17 @@ export default function Recognize() {
     const [closeOnBlur] = useConfig('recognize_close_on_blur', false);
     const [pined, setPined] = useState(false);
     const [serviceInstanceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
+    const [activeServiceInstanceKey, setActiveServiceInstanceKey] = useConfig(
+        RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY,
+        null
+    );
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
+    const effectiveServiceInstanceList =
+        Array.isArray(serviceInstanceList) && serviceInstanceList.length > 0
+            ? activeServiceInstanceKey && serviceInstanceList.includes(activeServiceInstanceKey)
+                ? [activeServiceInstanceKey]
+                : [serviceInstanceList[0]]
+            : [];
 
     const loadPluginList = async () => {
         let temp = {};
@@ -85,16 +96,24 @@ export default function Recognize() {
     };
     const loadServiceInstanceConfigMap = async () => {
         const config = {};
-        for (const serviceInstanceKey of serviceInstanceList) {
+        for (const serviceInstanceKey of effectiveServiceInstanceList) {
             config[serviceInstanceKey] = (await store.get(serviceInstanceKey)) ?? {};
         }
         setServiceInstanceConfigMap({ ...config });
     };
     useEffect(() => {
-        if (serviceInstanceList !== null) {
+        if (effectiveServiceInstanceList.length > 0) {
             loadServiceInstanceConfigMap();
         }
-    }, [serviceInstanceList]);
+    }, [serviceInstanceList, activeServiceInstanceKey]);
+
+    useEffect(() => {
+        if (Array.isArray(serviceInstanceList) && serviceInstanceList.length > 0) {
+            if (!activeServiceInstanceKey || !serviceInstanceList.includes(activeServiceInstanceKey)) {
+                setActiveServiceInstanceKey(serviceInstanceList[0], true);
+            }
+        }
+    }, [serviceInstanceList, activeServiceInstanceKey]);
 
     useEffect(() => {
         loadPluginList();
@@ -141,7 +160,7 @@ export default function Recognize() {
                 </div>
                 <div className='h-[50px]'>
                     <ControlArea
-                        serviceInstanceList={serviceInstanceList}
+                        serviceInstanceList={effectiveServiceInstanceList}
                         serviceInstanceConfigMap={serviceInstanceConfigMap}
                     />
                 </div>

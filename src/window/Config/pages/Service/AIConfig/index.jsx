@@ -1,19 +1,23 @@
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Card, Spacer, Button, useDisclosure } from '@nextui-org/react';
-import toast, { Toaster } from 'react-hot-toast';
+import { Card, CardBody, Spacer, Button, useDisclosure } from '@nextui-org/react';
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
-import { LuBrainCircuit, LuPencilLine, LuVolume2 } from 'react-icons/lu';
+import { LuPencilLine, LuVolume2 } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 
+import AiProviderIcon from '../../../../../components/AiProviderIcon';
 import SortableConfigRow from '../../../../../components/SortableConfigRow';
 import { useToastStyle } from '../../../../../hooks';
-import { osType } from '../../../../../utils/env';
 import { useConfig, deleteKey } from '../../../../../hooks';
 import {
     AI_API_SERVICE_LIST_KEY,
+    AI_PROVIDER_PRESETS,
+    AI_PROVIDER_PRIORITY,
+    createAiApiConfigForProvider,
     createAiApiInstanceKey,
     ensureAiApiConfigMigration,
 } from '../../../../../utils/aiConfig';
+import { store } from '../../../../../utils/store';
 import AddServiceModal from '../AddServiceModal';
 import ServiceItem from './ServiceItem';
 import ConfigModal from './ConfigModal';
@@ -113,28 +117,33 @@ export default function AIConfig() {
         setCurrentConfigKey(instanceKey);
     };
 
-    const builtinServiceItems = [
-        {
-            key: 'compatible_ai_service',
-            label: t('ai_config.provider_title', { defaultValue: 'OpenAI Compatible API' }),
-            icon: <LuBrainCircuit className='text-[18px]' />,
-            onSelect: () => {
+    const builtinServiceItems = AI_PROVIDER_PRIORITY.map((providerId) => {
+        const preset = AI_PROVIDER_PRESETS[providerId];
+
+        return {
+            key: `ai_provider_${providerId}`,
+            label: t(`ai_config.providers.${providerId}`, {
+                defaultValue: preset.label,
+            }),
+            icon: <AiProviderIcon providerId={providerId} className='text-[18px]' />,
+            onSelect: async () => {
                 const instanceKey = createAiApiInstanceKey();
+                await store.load();
+                await store.set(instanceKey, createAiApiConfigForProvider(providerId));
+                await store.save();
                 setCurrentConfigKey(instanceKey);
                 onConfigOpen();
             },
-        },
-    ];
+        };
+    });
 
     return (
         <>
-            <Toaster />
-            <Card
-                className={`${
-                    osType === 'Linux' ? 'h-[calc(100vh-140px)]' : 'h-[calc(100vh-120px)]'
-                } overflow-y-auto p-5 flex justify-between`}
-            >
-                <div className='flex h-full min-h-0 flex-col'>
+            <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
+                <CardBody className='p-4'>
+                    <h2 className='mb-4 text-[16px] font-bold'>
+                        {t('ai_config.title', { defaultValue: 'AI Services' })}
+                    </h2>
                     <DragDropContext onDragEnd={onDragEnd}>
                         <Droppable
                             droppableId='ai-api-droppable'
@@ -142,7 +151,7 @@ export default function AIConfig() {
                         >
                             {(provided) => (
                                 <div
-                                    className='overflow-y-auto h-full'
+                                    className='max-h-[420px] overflow-y-auto pr-1'
                                     ref={provided.innerRef}
                                     {...provided.droppableProps}
                                 >
@@ -176,19 +185,13 @@ export default function AIConfig() {
                             )}
                         </Droppable>
                     </DragDropContext>
-
                     <Spacer y={2} />
-
                     <div className='flex'>
-                        <Button
-                            fullWidth
-                            variant='flat'
-                            onPress={onAddOpen}
-                        >
+                        <Button fullWidth variant='flat' onPress={onAddOpen}>
                             {t('config.service.add_service')}
                         </Button>
                     </div>
-                </div>
+                </CardBody>
             </Card>
             <AddServiceModal
                 isOpen={isAddOpen}

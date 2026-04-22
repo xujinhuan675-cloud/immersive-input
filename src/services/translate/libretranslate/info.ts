@@ -1,0 +1,33 @@
+export const info = {
+    name: 'libretranslate',
+    icon: 'logo/libretranslate.png',
+};
+
+export enum Language {
+    auto = 'auto',
+    zh_cn = 'zh',
+    zh_tw = 'zt',
+    en = 'en',
+    ja = 'ja',
+    ko = 'ko',
+    fr = 'fr',
+    es = 'es',
+    ru = 'ru',
+    de = 'de',
+    it = 'it',
+    tr = 'tr',
+    pt_pt = 'pt',
+    pt_br = 'pt',
+    vi = 'vi',
+    id = 'id',
+    th = 'th',
+    ms = 'ms',
+    ar = 'ar',
+    hi = 'hi',
+    fa = 'fa',
+    nb_no = 'nb',
+    nn_no = 'nb',
+    nl = 'nl',
+    pl = 'pl',
+    uk = 'uk',
+}

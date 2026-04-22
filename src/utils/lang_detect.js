@@ -1,6 +1,5 @@
 import { fetch, Body } from '@tauri-apps/api/http';
 import { invoke } from '@tauri-apps/api';
-import { store } from './store';
 import { v4 as uuidv4 } from 'uuid';
 
 // https://fanyi-api.baidu.com/product/113
@@ -311,24 +310,8 @@ async function local_detect(text) {
 }
 
 export default async function detect(text) {
-    let langDetectEngine = (await store.get('translate_detect_engine')) ?? 'baidu';
-
-    switch (langDetectEngine) {
-        case 'baidu':
-            return await baidu_detect(text);
-        case 'google':
-            return await google_detect(text);
-        case 'local':
-            return await local_detect(text);
-        case 'tencent':
-            return await tencent_detect(text);
-        case 'niutrans':
-            return await niutrans_detect(text);
-        case 'yandex':
-            return await yandex_detect(text);
-        case 'bing':
-            return await bing_detect(text);
-        default:
-            return await local_detect(text);
-    }
+    // Keep the external detector implementations in this module for future
+    // fallback/dispatch strategies, but the product currently standardizes on
+    // the local detector and does not expose engine choice in the UI.
+    return await local_detect(text);
 }

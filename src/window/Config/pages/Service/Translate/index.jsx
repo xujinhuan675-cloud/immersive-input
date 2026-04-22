@@ -1,35 +1,64 @@
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Card, Spacer, Button, useDisclosure } from '@nextui-org/react';
+import { Card, CardBody, Spacer, Button, useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { useToastStyle } from '../../../../../hooks';
-import { osType } from '../../../../../utils/env';
 import { useConfig, deleteKey } from '../../../../../hooks';
 import { getServiceName } from '../../../../../utils/service_instance';
 import * as builtinServices from '../../../../../services/translate';
 import AddServiceModal from '../AddServiceModal';
+import {
+    TRANSLATE_DEFAULT_VISIBLE,
+    TRANSLATE_LEGACY_DEFAULT,
+    TRANSLATE_SERVICE_PRIORITY,
+    migrateServiceInstanceList,
+    sortBuiltinServiceItems,
+} from '../servicePriority';
 import ServiceItem from './ServiceItem';
 import ConfigModal from './ConfigModal';
+
+const TRANSLATE_SERVICE_CATALOG_VERSION_KEY = 'translate_service_catalog_version';
 
 export default function Translate(props) {
     const { pluginList } = props;
     const { isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange } = useDisclosure();
     const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
     const [currentConfigKey, setCurrentConfigKey] = useState('deepl');
-    // now it's service instance list
-    const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig('translate_service_list', [
-        'deepl',
-        'bing',
-        'lingva',
-        'yandex',
-        'google',
-        'ecdict',
-    ]);
+    const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig(
+        'translate_service_list',
+        TRANSLATE_DEFAULT_VISIBLE
+    );
+    const [catalogVersion, setCatalogVersion] = useConfig(TRANSLATE_SERVICE_CATALOG_VERSION_KEY, 0);
 
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
+
+    useEffect(() => {
+        if (translateServiceInstanceList === null || catalogVersion === null) {
+            return;
+        }
+
+        if (catalogVersion >= 1) {
+            return;
+        }
+
+        const nextList = migrateServiceInstanceList(translateServiceInstanceList, {
+            priorityList: TRANSLATE_SERVICE_PRIORITY,
+            recommendedList: TRANSLATE_DEFAULT_VISIBLE,
+            legacyDefaultList: TRANSLATE_LEGACY_DEFAULT,
+        });
+
+        const currentListJson = JSON.stringify(translateServiceInstanceList);
+        const nextListJson = JSON.stringify(nextList);
+
+        if (currentListJson !== nextListJson) {
+            setTranslateServiceInstanceList(nextList, true);
+        }
+
+        setCatalogVersion(1, true);
+    }, [translateServiceInstanceList, catalogVersion]);
 
     const reorder = (list, startIndex, endIndex) => {
         const result = Array.from(list);
@@ -77,71 +106,76 @@ export default function Translate(props) {
         setTranslateServiceInstanceList(nextList);
         return true;
     };
-    const builtinServiceItems = Object.keys(builtinServices).map((serviceKey) => ({
-        key: serviceKey,
-        label: t(`services.translate.${builtinServices[serviceKey].info.name}.title`),
-        icon: builtinServices[serviceKey].info.icon,
-    }));
+    const builtinServiceItems = sortBuiltinServiceItems(
+        Object.keys(builtinServices).map((serviceKey) => ({
+            key: serviceKey,
+            label: t(`services.translate.${builtinServices[serviceKey].info.name}.title`),
+            icon: builtinServices[serviceKey].info.icon,
+        })),
+        TRANSLATE_SERVICE_PRIORITY
+    );
 
     return (
         <>
             <Toaster />
-            <Card
-                className={`${
-                    osType === 'Linux' ? 'h-[calc(100vh-140px)]' : 'h-[calc(100vh-120px)]'
-                } overflow-y-auto p-5 flex justify-between`}
-            >
-                <DragDropContext onDragEnd={onDragEnd}>
-                    <Droppable
-                        droppableId='droppable'
-                        direction='vertical'
-                    >
-                        {(provided) => (
-                            <div
-                                className='overflow-y-auto h-full'
-                                ref={provided.innerRef}
-                                {...provided.droppableProps}
-                            >
-                                {translateServiceInstanceList !== null &&
-                                    translateServiceInstanceList.map((x, i) => {
-                                        return (
-                                            <Draggable
-                                                key={x}
-                                                draggableId={x}
-                                                index={i}
-                                            >
-                                                {(provided) => {
-                                                    return (
-                                                        <div
-                                                            ref={provided.innerRef}
-                                                            {...provided.draggableProps}
-                                                        >
-                                                            <ServiceItem
-                                                                {...provided.dragHandleProps}
-                                                                key={x}
-                                                                serviceInstanceKey={x}
-                                                                pluginList={pluginList}
-                                                                deleteServiceInstance={deleteServiceInstance}
-                                                                setCurrentConfigKey={setCurrentConfigKey}
-                                                                onConfigOpen={onConfigOpen}
-                                                            />
-                                                            <Spacer y={2} />
-                                                        </div>
-                                                    );
-                                                }}
-                                            </Draggable>
-                                        );
-                                    })}
-                            </div>
-                        )}
-                    </Droppable>
-                </DragDropContext>
-                <Spacer y={2} />
-                <div className='flex'>
-                    <Button fullWidth variant='flat' onPress={onAddOpen}>
-                        {t('config.service.add_service')}
-                    </Button>
-                </div>
+            <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
+                <CardBody className='p-4'>
+                    <h2 className='mb-4 text-[16px] font-bold'>
+                        {t('config.service.label')}
+                    </h2>
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable
+                            droppableId='droppable'
+                            direction='vertical'
+                        >
+                            {(provided) => (
+                                <div
+                                    className='max-h-[420px] overflow-y-auto pr-1'
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                >
+                                    {translateServiceInstanceList !== null &&
+                                        translateServiceInstanceList.map((x, i) => {
+                                            return (
+                                                <Draggable
+                                                    key={x}
+                                                    draggableId={x}
+                                                    index={i}
+                                                >
+                                                    {(provided) => {
+                                                        return (
+                                                            <div
+                                                                ref={provided.innerRef}
+                                                                {...provided.draggableProps}
+                                                            >
+                                                                <ServiceItem
+                                                                    {...provided.dragHandleProps}
+                                                                    key={x}
+                                                                    serviceInstanceKey={x}
+                                                                    pluginList={pluginList}
+                                                                    deleteServiceInstance={deleteServiceInstance}
+                                                                    setCurrentConfigKey={setCurrentConfigKey}
+                                                                    onConfigOpen={onConfigOpen}
+                                                                />
+                                                                <Spacer y={2} />
+                                                            </div>
+                                                        );
+                                                    }}
+                                                </Draggable>
+                                            );
+                                        })}
+                                    {provided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                    <Spacer y={2} />
+                    <div className='flex'>
+                        <Button fullWidth variant='flat' onPress={onAddOpen}>
+                            {t('config.service.add_service')}
+                        </Button>
+                    </div>
+                </CardBody>
             </Card>
             <AddServiceModal
                 isOpen={isAddOpen}

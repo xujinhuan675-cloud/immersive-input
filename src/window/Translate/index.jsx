@@ -1,9 +1,10 @@
 import { readDir, BaseDirectory, readTextFile, exists } from '@tauri-apps/api/fs';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
+import { invoke } from '@tauri-apps/api';
 import { appWindow } from '@tauri-apps/api/window';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import { HiTranslate } from 'react-icons/hi';
@@ -93,9 +94,13 @@ export default function Translate() {
     const [closeOnBlur] = useConfig('translate_close_on_blur', false);
     const [alwaysOnTop] = useConfig('translate_always_on_top', false);
     const [hideLanguage] = useConfig('hide_language', false);
+    const [excerptTranslationDefault] = useConfig('incremental_translate', false);
     const [pined, setPined] = useState(false);
+    const [excerptMode, setExcerptMode] = useState(false);
     const [pluginList, setPluginList] = useState(null);
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
+    const hasHydratedExcerptMode = useRef(false);
+    const isWindowFixed = pined || excerptMode;
     const reorder = (list, startIndex, endIndex) => {
         const result = Array.from(list);
         const [removed] = result.splice(startIndex, 1);
@@ -114,12 +119,14 @@ export default function Translate() {
             return;
         }
 
-        if (closeOnBlur) {
+        if (excerptMode) {
+            unlistenBlur();
+        } else if (closeOnBlur) {
             ensureBlurListener();
         } else {
             unlistenBlur();
         }
-    }, [closeOnBlur]);
+    }, [closeOnBlur, excerptMode]);
     // 是否默认置顶
     useEffect(() => {
         if (alwaysOnTop === null) {
@@ -132,11 +139,30 @@ export default function Translate() {
             setPined(true);
         } else if (!pined) {
             appWindow.setAlwaysOnTop(false);
-            if (closeOnBlur) {
+            if (closeOnBlur && !excerptMode) {
                 ensureBlurListener();
             }
         }
-    }, [alwaysOnTop, closeOnBlur, pined]);
+    }, [alwaysOnTop, closeOnBlur, excerptMode, pined]);
+
+    useEffect(() => {
+        if (excerptTranslationDefault === null || hasHydratedExcerptMode.current) {
+            return;
+        }
+
+        setExcerptMode(Boolean(excerptTranslationDefault));
+        hasHydratedExcerptMode.current = true;
+    }, [excerptTranslationDefault]);
+
+    useEffect(() => {
+        invoke('set_translate_excerpt_mode', { enabled: excerptMode }).catch(() => {});
+    }, [excerptMode]);
+
+    useEffect(() => {
+        return () => {
+            invoke('set_translate_excerpt_mode', { enabled: false }).catch(() => {});
+        };
+    }, []);
     const loadPluginList = async () => {
         const serviceTypeList = ['translate', 'recognize'];
         let temp = {};
@@ -205,10 +231,10 @@ export default function Translate() {
                     right={
                         <div className='flex items-center gap-1.5'>
                             <WindowHeaderPinButton
-                                active={pined}
+                                active={isWindowFixed}
                                 onClick={() => {
                                     if (pined) {
-                                        if (closeOnBlur) {
+                                        if (closeOnBlur && !excerptMode) {
                                             ensureBlurListener();
                                         }
                                         appWindow.setAlwaysOnTop(false);
@@ -230,6 +256,8 @@ export default function Translate() {
                                 <SourceArea
                                     pluginList={pluginList}
                                     serviceInstanceConfigMap={serviceInstanceConfigMap}
+                                    excerptMode={excerptMode}
+                                    setExcerptMode={setExcerptMode}
                                 />
                             )}
                         </div>

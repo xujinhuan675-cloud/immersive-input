@@ -9,9 +9,10 @@ import { useToastStyle } from '../../../../../../hooks';
 import {
     AI_API_DEFAULT_MODEL,
     AI_API_DEFAULT_URL,
-    AI_PROVIDER_OPTIONS,
     createDefaultAiApiConfig,
-    inferAiProviderId,
+    getAiProviderId,
+    getAiProviderPreset,
+    getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../../utils/service_instance';
@@ -56,27 +57,6 @@ function ConfigSection({ title, description, children }) {
     );
 }
 
-function SelectField({ label, value, onChange, options }) {
-    return (
-        <div className='config-item'>
-            <div className='my-auto text-[length:--nextui-font-size-medium]'>{label}</div>
-            <div className='w-full max-w-[55%]'>
-                <select
-                    value={value}
-                    className='w-full rounded-[14px] border border-default-200 bg-default-50 px-3 py-2 text-sm outline-none transition-colors hover:border-default-300 focus:border-primary'
-                    onChange={(event) => onChange(event.target.value)}
-                >
-                    {options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
-                </select>
-            </div>
-        </div>
-    );
-}
-
 function AIApiConfigForm(props) {
     const { instanceKey, updateServiceInstanceList, onClose } = props;
     const { t } = useTranslation();
@@ -101,6 +81,15 @@ function AIApiConfigForm(props) {
             setAiConfig(mergedConfig);
         }
     }
+
+    const mergedConfig = aiConfig !== null ? getMergedAiApiConfig(aiConfig) : null;
+    const providerId = mergedConfig ? getAiProviderId(mergedConfig) : null;
+    const providerPreset = providerId ? getAiProviderPreset(providerId) : null;
+    const providerTitle = providerId
+        ? t(`ai_config.providers.${providerId}`, {
+              defaultValue: getAiProviderTitle(providerId),
+          })
+        : '';
 
     const updateConfig = (patch) => {
         setAiConfig({
@@ -184,26 +173,17 @@ function AIApiConfigForm(props) {
                         />
                     </div>
 
-                    <SelectField
-                        label={t('ai_config.provider', { defaultValue: 'Provider' })}
-                        value={aiConfig.provider || inferAiProviderId(aiConfig)}
-                        onChange={(value) => updateConfig({ provider: value })}
-                        options={AI_PROVIDER_OPTIONS.map((option) => ({
-                            value: option.key,
-                            label: t(`ai_config.providers.${option.key}`, {
-                                defaultValue: option.label,
-                            }),
-                        }))}
-                    />
-
                     <div className='config-item'>
                         <Input
                             label='API URL'
                             labelPlacement='outside-left'
-                            placeholder={AI_API_DEFAULT_URL}
+                            placeholder={providerPreset?.apiUrl || AI_API_DEFAULT_URL}
                             value={aiConfig.apiUrl ?? ''}
                             variant='bordered'
-                            description={t('ai_config.url_desc')}
+                            description={t('ai_config.url_desc', {
+                                provider: providerTitle,
+                                defaultValue: 'Compatible with OpenAI API format.',
+                            })}
                             classNames={{
                                 base: 'justify-between',
                                 label: 'text-[length:--nextui-font-size-medium]',
@@ -238,7 +218,7 @@ function AIApiConfigForm(props) {
                         <Input
                             label={t('ai_config.model_label')}
                             labelPlacement='outside-left'
-                            placeholder={AI_API_DEFAULT_MODEL}
+                            placeholder={providerPreset?.model || AI_API_DEFAULT_MODEL}
                             value={aiConfig.model ?? ''}
                             variant='bordered'
                             description={t('ai_config.model_desc')}
