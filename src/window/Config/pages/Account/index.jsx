@@ -11,7 +11,6 @@ import {
     ModalBody,
     ModalContent,
     ModalHeader,
-    Skeleton,
 } from '@nextui-org/react';
 import { MdLogout } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
@@ -246,13 +245,56 @@ const PLAN_CTA_TONE_STYLES = Object.freeze({
     primary: 'bg-default-900 text-white hover:bg-default-800',
     secondary: 'bg-default-900 text-white hover:bg-default-800',
 });
+const ACCOUNT_VIEW_CACHE_STORAGE_KEY = 'immersive-input:account-view-cache:v1';
+
+function readPersistedAccountViewCache() {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.sessionStorage.getItem(ACCOUNT_VIEW_CACHE_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return {
+            paymentConfig: parsed?.paymentConfig || null,
+            billingProfilesByUserId: new Map(
+                Array.isArray(parsed?.billingProfilesByUserId) ? parsed.billingProfilesByUserId : []
+            ),
+            billingCatalogsByKey: new Map(
+                Array.isArray(parsed?.billingCatalogsByKey) ? parsed.billingCatalogsByKey : []
+            ),
+            lastBillingCatalogKey: String(parsed?.lastBillingCatalogKey || '').trim(),
+            lastSelectedPaymentProvider: String(parsed?.lastSelectedPaymentProvider || '').trim(),
+        };
+    } catch {
+        return null;
+    }
+}
+
+const persistedAccountViewCache = readPersistedAccountViewCache();
 const ACCOUNT_VIEW_CACHE = {
-    paymentConfig: null,
-    billingProfilesByUserId: new Map(),
-    billingCatalogsByKey: new Map(),
-    lastBillingCatalogKey: '',
-    lastSelectedPaymentProvider: '',
+    paymentConfig: persistedAccountViewCache?.paymentConfig || null,
+    billingProfilesByUserId: persistedAccountViewCache?.billingProfilesByUserId || new Map(),
+    billingCatalogsByKey: persistedAccountViewCache?.billingCatalogsByKey || new Map(),
+    lastBillingCatalogKey: persistedAccountViewCache?.lastBillingCatalogKey || '',
+    lastSelectedPaymentProvider: persistedAccountViewCache?.lastSelectedPaymentProvider || '',
 };
+
+function persistAccountViewCache() {
+    if (typeof window === 'undefined') return;
+    try {
+        window.sessionStorage.setItem(
+            ACCOUNT_VIEW_CACHE_STORAGE_KEY,
+            JSON.stringify({
+                paymentConfig: ACCOUNT_VIEW_CACHE.paymentConfig,
+                billingProfilesByUserId: Array.from(ACCOUNT_VIEW_CACHE.billingProfilesByUserId.entries()),
+                billingCatalogsByKey: Array.from(ACCOUNT_VIEW_CACHE.billingCatalogsByKey.entries()),
+                lastBillingCatalogKey: ACCOUNT_VIEW_CACHE.lastBillingCatalogKey,
+                lastSelectedPaymentProvider: ACCOUNT_VIEW_CACHE.lastSelectedPaymentProvider,
+            })
+        );
+    } catch {
+        // ignore storage failures and fall back to in-memory cache only
+    }
+}
 
 function areDataEqual(currentValue, nextValue) {
     if (currentValue === nextValue) return true;
@@ -340,12 +382,29 @@ function getPlanYearlySavings(plan, allPlans) {
     return percent > 0 ? percent : null;
 }
 
+const SubtleRefreshingValue = React.memo(function SubtleRefreshingValue({
+    refreshing,
+    className = '',
+    children,
+}) {
+    return (
+        <div className={`inline-flex items-center gap-2 ${className}`}>
+            <div className={`transition-opacity duration-200 ${refreshing ? 'opacity-70' : 'opacity-100'}`}>
+                {children}
+            </div>
+        </div>
+    );
+});
+
 const AccountBillingPanel = React.memo(function AccountBillingPanel({
     viewModel,
     loading,
+    refreshing,
     onPrepareRechargeOrder,
     onCopyInviteLink,
 }) {
+    const valueRefreshing = refreshing || (loading && !viewModel.ready);
+
     return (
         <Card
             shadow='none'
@@ -369,118 +428,103 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                     </Button>
                 </div>
 
-                {viewModel.ready ? (
-                    <>
-                        <div className='mt-4 grid grid-cols-2 gap-3'>
-                            <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
-                                <p className='text-[11px] font-medium text-default-500'>
-                                    {viewModel.dailyQuotaLabel}
-                                </p>
-                                <div className='mt-1.5 flex flex-wrap items-center gap-2'>
+                <>
+                    <div className='mt-4 grid grid-cols-2 gap-3'>
+                        <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
+                            <p className='text-[11px] font-medium text-default-500'>
+                                {viewModel.dailyQuotaLabel}
+                            </p>
+                            <div className='mt-1.5 flex flex-wrap items-center gap-2'>
+                                <SubtleRefreshingValue refreshing={valueRefreshing}>
                                     <span className='text-2xl font-semibold tracking-tight text-default-900'>
                                         {viewModel.usageDisplay}
                                     </span>
-                                    {viewModel.showUnlimitedBadge ? (
-                                        <div className='inline-flex rounded-full border border-default-200 bg-white px-2.5 py-1 text-[11px] text-default-600'>
-                                            {viewModel.unlimitedLabel}
-                                        </div>
-                                    ) : null}
-                                </div>
+                                </SubtleRefreshingValue>
+                                {viewModel.showUnlimitedBadge ? (
+                                    <div className='inline-flex rounded-full border border-default-200 bg-white px-2.5 py-1 text-[11px] text-default-600'>
+                                        {viewModel.unlimitedLabel}
+                                    </div>
+                                ) : null}
                             </div>
+                        </div>
 
-                            <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
-                                <p className='text-[11px] font-medium text-default-500'>
-                                    {viewModel.creditsLabel}
-                                </p>
-                                <p className='mt-1.5 text-2xl font-semibold tracking-tight text-default-900'>
+                        <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
+                            <p className='text-[11px] font-medium text-default-500'>
+                                {viewModel.creditsLabel}
+                            </p>
+                            <SubtleRefreshingValue
+                                refreshing={valueRefreshing}
+                                className='mt-1.5'
+                            >
+                                <p className='text-2xl font-semibold tracking-tight text-default-900'>
                                     {viewModel.creditsDisplay}
                                 </p>
-                            </div>
+                            </SubtleRefreshingValue>
+                        </div>
+                    </div>
+
+                    <div className='mt-4 rounded-xl border border-default-200 bg-default-50/40 p-4'>
+                        <div className='flex flex-wrap items-center gap-2.5'>
+                            <span className='text-xs font-medium text-default-500'>
+                                {viewModel.inviteCodeLabel}
+                            </span>
+                            <span className='min-w-0 flex-1 truncate font-mono text-sm font-semibold tracking-[0.16em] text-default-800'>
+                                {viewModel.inviteCodeDisplay}
+                            </span>
+                            <button
+                                type='button'
+                                disabled={viewModel.inviteShareDisabled}
+                                className='inline-flex h-8 items-center justify-center rounded-lg border border-default-200 bg-white px-3 text-xs font-medium text-default-600 transition hover:border-default-300 hover:text-default-800 disabled:cursor-not-allowed disabled:opacity-50'
+                                title={viewModel.inviteShareLabel}
+                                onClick={onCopyInviteLink}
+                            >
+                                {viewModel.inviteShareLabel}
+                            </button>
                         </div>
 
-                        <div className='mt-4 rounded-xl border border-default-200 bg-default-50/40 p-4'>
-                            <div className='flex flex-wrap items-center gap-2.5'>
-                                <span className='text-xs font-medium text-default-500'>
-                                    {viewModel.inviteCodeLabel}
-                                </span>
-                                <span className='min-w-0 flex-1 truncate font-mono text-sm font-semibold tracking-[0.16em] text-default-800'>
-                                    {viewModel.inviteCodeDisplay}
-                                </span>
-                                <button
-                                    type='button'
-                                    disabled={viewModel.inviteShareDisabled}
-                                    className='inline-flex h-8 items-center justify-center rounded-lg border border-default-200 bg-white px-3 text-xs font-medium text-default-600 transition hover:border-default-300 hover:text-default-800 disabled:cursor-not-allowed disabled:opacity-50'
-                                    title={viewModel.inviteShareLabel}
-                                    onClick={onCopyInviteLink}
+                        <div className='mt-3 grid gap-2 sm:grid-cols-3'>
+                            <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
+                                <p className='text-[11px] text-default-500'>
+                                    {viewModel.invitedCountLabel}
+                                </p>
+                                <SubtleRefreshingValue
+                                    refreshing={valueRefreshing}
+                                    className='mt-1'
                                 >
-                                    {viewModel.inviteShareLabel}
-                                </button>
-                            </div>
-
-                            <div className='mt-3 grid gap-2 sm:grid-cols-3'>
-                                <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
-                                    <p className='text-[11px] text-default-500'>
-                                        {viewModel.invitedCountLabel}
-                                    </p>
-                                    <p className='mt-1 text-sm font-semibold text-default-800'>
+                                    <p className='text-sm font-semibold text-default-800'>
                                         {viewModel.invitedCount}
                                     </p>
-                                </div>
-                                <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
-                                    <p className='text-[11px] text-default-500'>
-                                        {viewModel.pendingCountLabel}
-                                    </p>
-                                    <p className='mt-1 text-sm font-semibold text-default-800'>
+                                </SubtleRefreshingValue>
+                            </div>
+                            <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
+                                <p className='text-[11px] text-default-500'>
+                                    {viewModel.pendingCountLabel}
+                                </p>
+                                <SubtleRefreshingValue
+                                    refreshing={valueRefreshing}
+                                    className='mt-1'
+                                >
+                                    <p className='text-sm font-semibold text-default-800'>
                                         {viewModel.pendingCount}
                                     </p>
-                                </div>
-                                <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
-                                    <p className='text-[11px] text-default-500'>
-                                        {viewModel.rewardedCreditsLabel}
-                                    </p>
-                                    <p className='mt-1 text-sm font-semibold text-default-800'>
+                                </SubtleRefreshingValue>
+                            </div>
+                            <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
+                                <p className='text-[11px] text-default-500'>
+                                    {viewModel.rewardedCreditsLabel}
+                                </p>
+                                <SubtleRefreshingValue
+                                    refreshing={valueRefreshing}
+                                    className='mt-1'
+                                >
+                                    <p className='text-sm font-semibold text-default-800'>
                                         {viewModel.rewardedCredits}
                                     </p>
-                                </div>
+                                </SubtleRefreshingValue>
                             </div>
                         </div>
-                    </>
-                ) : loading ? (
-                    <>
-                        <div className='mt-4 grid grid-cols-2 gap-3'>
-                            <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
-                                <Skeleton className='h-3 w-16 rounded-lg' />
-                                <Skeleton className='mt-3 h-8 w-24 rounded-lg' />
-                            </div>
-                            <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
-                                <Skeleton className='h-3 w-16 rounded-lg' />
-                                <Skeleton className='mt-3 h-8 w-16 rounded-lg' />
-                            </div>
-                        </div>
-
-                        <div className='mt-4 rounded-xl border border-default-200 bg-default-50/40 p-4'>
-                            <div className='flex flex-wrap items-center gap-2.5'>
-                                <Skeleton className='h-3 w-14 rounded-lg' />
-                                <Skeleton className='h-4 min-w-[160px] flex-1 rounded-lg' />
-                                <Skeleton className='h-8 w-20 rounded-lg' />
-                            </div>
-
-                            <div className='mt-3 grid gap-2 sm:grid-cols-3'>
-                                {Array.from({ length: 3 }).map((_, index) => (
-                                    <div
-                                        key={index}
-                                        className='rounded-lg border border-default-200 bg-white px-3 py-2.5'
-                                    >
-                                        <Skeleton className='h-3 w-12 rounded-lg' />
-                                        <Skeleton className='mt-2 h-5 w-10 rounded-lg' />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <p className='mt-3 text-xs text-default-500'>{viewModel.notReadyText}</p>
-                )}
+                    </div>
+                </>
             </CardBody>
         </Card>
     );
@@ -525,6 +569,7 @@ const SubscriptionPlanCurrentBadge = React.memo(function SubscriptionPlanCurrent
 
 const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBody({
     viewModel,
+    refreshing,
     onSelectCycle,
     onPrepareSubscription,
 }) {
@@ -532,14 +577,16 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
         <>
             <div className='mt-3 flex items-start justify-between gap-3'>
                 <div className='min-w-0 flex-1'>
-                    <p className='text-2xl font-semibold tracking-tight text-default-900'>
-                        {viewModel.priceLabel}
-                        {viewModel.priceUnitLabel ? (
-                            <span className='ml-1 text-sm font-normal text-default-400'>
-                                {viewModel.priceUnitLabel}
-                            </span>
-                        ) : null}
-                    </p>
+                    <SubtleRefreshingValue refreshing={refreshing}>
+                        <p className='text-2xl font-semibold tracking-tight text-default-900'>
+                            {viewModel.priceLabel}
+                            {viewModel.priceUnitLabel ? (
+                                <span className='ml-1 text-sm font-normal text-default-400'>
+                                    {viewModel.priceUnitLabel}
+                                </span>
+                                ) : null}
+                        </p>
+                    </SubtleRefreshingValue>
                     <p className='mt-1 line-clamp-2 text-sm leading-6 text-default-500'>
                         {viewModel.description}
                     </p>
@@ -579,21 +626,32 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
                             ) : null}
                         </div>
                     </div>
-                ) : null}
+                ) : (
+                    <div className='min-h-[64px] shrink-0' />
+                )}
             </div>
 
             <div className='mt-2 rounded-xl border border-default-200 bg-default-50/70 px-3 py-3'>
                 <p className='text-[11px] font-medium text-default-500'>{viewModel.dailyQuotaLabel}</p>
-                <p className='mt-1 text-xl font-semibold tracking-tight text-default-900'>
-                    {viewModel.dailyQuotaValue}
-                </p>
+                <SubtleRefreshingValue
+                    refreshing={refreshing}
+                    className='mt-1'
+                >
+                    <p className='text-xl font-semibold tracking-tight text-default-900'>
+                        {viewModel.dailyQuotaValue}
+                    </p>
+                </SubtleRefreshingValue>
             </div>
 
             <div className='mt-4 min-h-[24px] text-xs leading-6 text-default-600'>
-                <div className='flex items-start gap-2'>
-                    <span className={`mt-[8px] h-1.5 w-1.5 rounded-full ${viewModel.accentClass}`} />
-                    <span>{viewModel.primaryFeatureLabel}</span>
-                </div>
+                {viewModel.primaryFeatureLabel ? (
+                    <div className='flex items-start gap-2'>
+                        <span className={`mt-[8px] h-1.5 w-1.5 rounded-full ${viewModel.accentClass}`} />
+                        <span>{viewModel.primaryFeatureLabel}</span>
+                    </div>
+                ) : (
+                    <span className='text-default-300'>-</span>
+                )}
             </div>
 
             <div className='mt-4 w-full'>
@@ -613,7 +671,13 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
 });
 
 const SubscriptionPlanCard = React.memo(
-    function SubscriptionPlanCard({ viewModel, isCurrentPlan, onSelectCycle, onPrepareSubscription }) {
+    function SubscriptionPlanCard({
+        viewModel,
+        isCurrentPlan,
+        refreshing,
+        onSelectCycle,
+        onPrepareSubscription,
+    }) {
         return (
             <div
                 className={`relative flex h-full min-h-[272px] overflow-hidden rounded-2xl border bg-white p-4 transition-colors duration-150 hover:border-default-300 ${
@@ -631,6 +695,7 @@ const SubscriptionPlanCard = React.memo(
 
                     <SubscriptionPlanStaticBody
                         viewModel={viewModel}
+                        refreshing={refreshing}
                         onSelectCycle={onSelectCycle}
                         onPrepareSubscription={onPrepareSubscription}
                     />
@@ -641,6 +706,7 @@ const SubscriptionPlanCard = React.memo(
     (prevProps, nextProps) =>
         prevProps.viewModel === nextProps.viewModel &&
         prevProps.isCurrentPlan === nextProps.isCurrentPlan &&
+        prevProps.refreshing === nextProps.refreshing &&
         prevProps.onSelectCycle === nextProps.onSelectCycle &&
         prevProps.onPrepareSubscription === nextProps.onPrepareSubscription
 );
@@ -650,6 +716,7 @@ const AccountSubscriptionPlansPanel = React.memo(function AccountSubscriptionPla
     subtitle,
     emptyText,
     loading,
+    refreshing,
     pricingRegion,
     regionOptions,
     planViewModels,
@@ -699,36 +766,10 @@ const AccountSubscriptionPlansPanel = React.memo(function AccountSubscriptionPla
                                 key={viewModel.key}
                                 viewModel={viewModel}
                                 isCurrentPlan={currentBillingTierKey === viewModel.tier}
+                                refreshing={refreshing || (loading && viewModel.isPlaceholder)}
                                 onSelectCycle={onSelectCycle}
                                 onPrepareSubscription={onPrepareSubscription}
                             />
-                        ))}
-                    </div>
-                ) : loading ? (
-                    <div className='grid items-stretch gap-3 xl:grid-cols-3'>
-                        {Array.from({ length: 3 }).map((_, index) => (
-                            <div
-                                key={index}
-                                className='relative flex h-full min-h-[272px] overflow-hidden rounded-2xl border border-default-200 bg-white p-4'
-                            >
-                                <div className='w-full'>
-                                    <div className='flex items-center gap-2'>
-                                        <Skeleton className='h-7 w-16 rounded-full' />
-                                        {index === 1 ? <Skeleton className='h-6 w-16 rounded-full' /> : null}
-                                    </div>
-                                    <div className='mt-3'>
-                                        <Skeleton className='h-8 w-24 rounded-lg' />
-                                        <Skeleton className='mt-2 h-4 w-4/5 rounded-lg' />
-                                        <Skeleton className='mt-2 h-3 w-2/5 rounded-lg' />
-                                    </div>
-                                    <div className='mt-2 rounded-xl border border-default-200 bg-default-50/70 px-3 py-3'>
-                                        <Skeleton className='h-3 w-16 rounded-lg' />
-                                        <Skeleton className='mt-2 h-7 w-20 rounded-lg' />
-                                    </div>
-                                    <Skeleton className='mt-4 h-4 w-4/5 rounded-lg' />
-                                    <Skeleton className='mt-4 h-10 w-full rounded-xl' />
-                                </div>
-                            </div>
                         ))}
                     </div>
                 ) : (
@@ -756,12 +797,14 @@ export default function Account() {
         const cacheKey = String(initialUser?.id || '').trim();
         return Boolean(cacheKey) && !ACCOUNT_VIEW_CACHE.billingProfilesByUserId.has(cacheKey);
     });
+    const [billingProfileRefreshing, setBillingProfileRefreshing] = useState(false);
     const [billingCatalogLoading, setBillingCatalogLoading] = useState(() => {
         const initialUser = getCurrentUser().user || null;
         const cachedCatalog =
             ACCOUNT_VIEW_CACHE.billingCatalogsByKey.get(ACCOUNT_VIEW_CACHE.lastBillingCatalogKey) || null;
         return Boolean(initialUser?.id) && !cachedCatalog;
     });
+    const [billingCatalogRefreshing, setBillingCatalogRefreshing] = useState(false);
     const [selectedPlanCycles, setSelectedPlanCycles] = useState({});
     const [pricingRegion, setPricingRegion] = useState('global');
     const [rechargeAmount, setRechargeAmount] = useState('29');
@@ -819,6 +862,7 @@ export default function Account() {
     function updateSelectedPaymentProvider(nextValue) {
         const normalizedValue = String(nextValue || '').trim();
         ACCOUNT_VIEW_CACHE.lastSelectedPaymentProvider = normalizedValue;
+        persistAccountViewCache();
         setSelectedPaymentProvider((currentValue) =>
             currentValue === normalizedValue ? currentValue : normalizedValue
         );
@@ -879,7 +923,9 @@ export default function Account() {
             setBillingProfile(null);
             setBillingCatalog(null);
             setBillingProfileLoading(false);
+            setBillingProfileRefreshing(false);
             setBillingCatalogLoading(false);
+            setBillingCatalogRefreshing(false);
             setLatestOrder(null);
             updateSelectedPaymentProvider('');
             return;
@@ -894,8 +940,10 @@ export default function Account() {
         if (cachedProfile) {
             updateStateIfChanged(setBillingProfile, cachedProfile);
             setBillingProfileLoading(false);
+            setBillingProfileRefreshing(false);
         } else {
             setBillingProfileLoading(true);
+            setBillingProfileRefreshing(false);
         }
         loadBillingProfile(userInfo.id, { silent: true });
     }, [userInfo?.id]);
@@ -928,9 +976,11 @@ export default function Account() {
         if (cachedCatalog) {
             updateStateIfChanged(setBillingCatalog, cachedCatalog);
             setBillingCatalogLoading(false);
+            setBillingCatalogRefreshing(false);
             return;
         }
         setBillingCatalogLoading(true);
+        setBillingCatalogRefreshing(false);
         loadBillingCatalog({
             silent: true,
             paymentProvider: resolvedCatalogPaymentProvider,
@@ -1089,6 +1139,7 @@ export default function Account() {
         try {
             const data = await getPaymentGatewayConfig();
             ACCOUNT_VIEW_CACHE.paymentConfig = data || null;
+            persistAccountViewCache();
             updateStateIfChanged(setPaymentConfig, ACCOUNT_VIEW_CACHE.paymentConfig);
             return ACCOUNT_VIEW_CACHE.paymentConfig;
         } catch (error) {
@@ -1105,15 +1156,26 @@ export default function Account() {
     ) {
         if (!userId) {
             setBillingProfileLoading(false);
+            setBillingProfileRefreshing(false);
             return null;
         }
-        setBillingProfileLoading(true);
         const profileCacheKey = String(userId).trim();
+        const cachedProfile = profileCacheKey
+            ? ACCOUNT_VIEW_CACHE.billingProfilesByUserId.get(profileCacheKey) || null
+            : null;
+        const hasExistingProfile =
+            Boolean(cachedProfile) ||
+            (String(userInfo?.id || '').trim() === profileCacheKey && Boolean(billingProfile));
+        if (hasExistingProfile) {
+            setBillingProfileRefreshing(true);
+        } else {
+            setBillingProfileLoading(true);
+        }
         if (!force && profileCacheKey) {
-            const cachedProfile = ACCOUNT_VIEW_CACHE.billingProfilesByUserId.get(profileCacheKey) || null;
             if (cachedProfile) {
                 updateStateIfChanged(setBillingProfile, cachedProfile);
                 setBillingProfileLoading(false);
+                setBillingProfileRefreshing(false);
                 return cachedProfile;
             }
         }
@@ -1122,6 +1184,7 @@ export default function Account() {
             const nextProfile = data?.profile || null;
             if (profileCacheKey) {
                 ACCOUNT_VIEW_CACHE.billingProfilesByUserId.set(profileCacheKey, nextProfile);
+                persistAccountViewCache();
             }
             updateStateIfChanged(setBillingProfile, nextProfile);
             return nextProfile;
@@ -1132,6 +1195,7 @@ export default function Account() {
             return null;
         } finally {
             setBillingProfileLoading(false);
+            setBillingProfileRefreshing(false);
         }
     }
 
@@ -1143,9 +1207,9 @@ export default function Account() {
     } = {}) {
         if (!userInfo?.id) {
             setBillingCatalogLoading(false);
+            setBillingCatalogRefreshing(false);
             return null;
         }
-        setBillingCatalogLoading(true);
         try {
             const resolvedPaymentProvider =
                 paymentProvider ??
@@ -1156,12 +1220,21 @@ export default function Account() {
                 );
             const resolvedCacheKey =
                 cacheKey || getBillingCatalogCacheKey(pricingRegion, resolvedPaymentProvider);
+            const cachedCatalog =
+                ACCOUNT_VIEW_CACHE.billingCatalogsByKey.get(resolvedCacheKey) || null;
+            const hasExistingCatalog =
+                Boolean(cachedCatalog) ||
+                (resolvedCacheKey === billingCatalogCacheKey && Boolean(billingCatalog));
+            if (hasExistingCatalog) {
+                setBillingCatalogRefreshing(true);
+            } else {
+                setBillingCatalogLoading(true);
+            }
             if (!force) {
-                const cachedCatalog =
-                    ACCOUNT_VIEW_CACHE.billingCatalogsByKey.get(resolvedCacheKey) || null;
                 if (cachedCatalog) {
                     updateStateIfChanged(setBillingCatalog, cachedCatalog);
                     setBillingCatalogLoading(false);
+                    setBillingCatalogRefreshing(false);
                     return cachedCatalog;
                 }
             }
@@ -1169,6 +1242,7 @@ export default function Account() {
             const nextCatalog = data?.catalog || null;
             ACCOUNT_VIEW_CACHE.billingCatalogsByKey.set(resolvedCacheKey, nextCatalog);
             ACCOUNT_VIEW_CACHE.lastBillingCatalogKey = resolvedCacheKey;
+            persistAccountViewCache();
             updateStateIfChanged(setBillingCatalog, nextCatalog);
             return nextCatalog;
         } catch (error) {
@@ -1178,6 +1252,7 @@ export default function Account() {
             return null;
         } finally {
             setBillingCatalogLoading(false);
+            setBillingCatalogRefreshing(false);
         }
     }
 
@@ -1827,37 +1902,56 @@ export default function Account() {
             billingCatalog?.freeTier?.dailyQuota,
         ]
     );
-    const subscriptionPlanCards = useMemo(
-        () =>
-            subscriptionPlans.length > 0
-                ? PLAN_DISPLAY_ORDER.map((tierKey) => {
-                      if (tierKey === 'free') {
-                          return {
-                              tierKey,
-                              plan: comparisonFreePlan,
-                              availableCycles: [],
-                          };
-                      }
+    const subscriptionPlanCards = useMemo(() => {
+        if (subscriptionPlans.length > 0) {
+            return PLAN_DISPLAY_ORDER.map((tierKey) => {
+                if (tierKey === 'free') {
+                    return {
+                        tierKey,
+                        plan: comparisonFreePlan,
+                        availableCycles: [],
+                    };
+                }
 
-                      const tierPlans = subscriptionPlans.filter((plan) => plan?.tier === tierKey);
-                      if (tierPlans.length === 0) return null;
-                      const tierCycles = getAvailableBillingCycles(tierPlans);
-                      const selectedCycle = tierCycles.includes(selectedPlanCycles[tierKey])
-                          ? selectedPlanCycles[tierKey]
-                          : tierCycles[0];
-                      const selectedPlan =
-                          tierPlans.find((plan) => plan?.billingCycle === selectedCycle) ||
-                          tierPlans[0];
+                const tierPlans = subscriptionPlans.filter((plan) => plan?.tier === tierKey);
+                if (tierPlans.length === 0) return null;
+                const tierCycles = getAvailableBillingCycles(tierPlans);
+                const selectedCycle = tierCycles.includes(selectedPlanCycles[tierKey])
+                    ? selectedPlanCycles[tierKey]
+                    : tierCycles[0];
+                const selectedPlan =
+                    tierPlans.find((plan) => plan?.billingCycle === selectedCycle) || tierPlans[0];
 
-                      return {
-                          tierKey,
-                          plan: selectedPlan,
-                          availableCycles: tierCycles,
-                      };
-                  }).filter(Boolean)
-                : [],
-        [comparisonFreePlan, selectedPlanCycles, subscriptionPlans]
-    );
+                return {
+                    tierKey,
+                    plan: selectedPlan,
+                    availableCycles: tierCycles,
+                };
+            }).filter(Boolean);
+        }
+
+        return PLAN_DISPLAY_ORDER.map((tierKey) => ({
+            tierKey,
+            plan: {
+                productCode: `membership_${tierKey}_placeholder`,
+                tier: tierKey,
+                billingCycle: 'month',
+                durationDays: tierKey === 'free' ? 30 : null,
+                amount: tierKey === 'free' ? 0 : null,
+                currency: billingCatalog?.currency || 'CNY',
+                dailyQuota: tierKey === 'free' ? comparisonFreePlan.dailyQuota : null,
+                allowCreditFallback: tierKey === 'free' ? comparisonFreePlan.allowCreditFallback : null,
+                isIncludedPlan: tierKey === 'free',
+                isPlaceholder: true,
+            },
+            availableCycles: [],
+        }));
+    }, [
+        billingCatalog?.currency,
+        comparisonFreePlan,
+        selectedPlanCycles,
+        subscriptionPlans,
+    ]);
     const billingPanelViewModel = useMemo(
         () => ({
             title: t('config.account.billing_title'),
@@ -1866,11 +1960,11 @@ export default function Account() {
             ready: Boolean(billingProfile),
             hasReadyPaymentProvider,
             dailyQuotaLabel: t('config.account.billing_daily_quota'),
-            usageDisplay: billingUsageDisplay,
-            showUnlimitedBadge: Number.isFinite(billingQuotaValue) && billingQuotaValue < 0,
+            usageDisplay: billingProfile ? billingUsageDisplay : '-/-',
+            showUnlimitedBadge: Boolean(billingProfile) && Number.isFinite(billingQuotaValue) && billingQuotaValue < 0,
             unlimitedLabel: t('config.account.billing_unlimited'),
             creditsLabel: t('config.account.billing_credits'),
-            creditsDisplay: billingCreditsDisplay,
+            creditsDisplay: billingProfile ? billingCreditsDisplay : t('config.account.billing_none'),
             subscriptionExpiresLabel: t('config.account.billing_subscription_expires'),
             expiryDisplay: billingExpiryDisplay,
             quotaResetLabel: t('config.account.billing_quota_reset_at'),
@@ -1880,11 +1974,13 @@ export default function Account() {
             inviteShareLabel: t('config.account.invite_share'),
             inviteShareDisabled: !inviteLink,
             invitedCountLabel: t('config.account.invite_invited_count'),
-            invitedCount: inviteStats.invitedCount,
+            invitedCount: billingProfile ? inviteStats.invitedCount : t('config.account.billing_none'),
             pendingCountLabel: t('config.account.invite_pending_count'),
-            pendingCount: inviteStats.pendingCount,
+            pendingCount: billingProfile ? inviteStats.pendingCount : t('config.account.billing_none'),
             rewardedCreditsLabel: t('config.account.invite_rewarded_credits'),
-            rewardedCredits: inviteStats.rewardedCredits,
+            rewardedCredits: billingProfile
+                ? inviteStats.rewardedCredits
+                : t('config.account.billing_none'),
             notReadyText: t('config.account.billing_not_ready'),
         }),
         [
@@ -1917,6 +2013,7 @@ export default function Account() {
                 const planTierConfig = TIER_KEYS[plan.tier] ?? TIER_KEYS.free;
                 const planCardStyle = PLAN_CARD_STYLES[plan.tier] || PLAN_CARD_STYLES.basic;
                 const isFreePlan = plan.tier === 'free' || plan.isIncludedPlan;
+                const isPlaceholder = Boolean(plan.isPlaceholder);
                 const isRecommendedPlan = plan.tier === 'pro';
                 const yearlySavings = getPlanYearlySavings(plan, subscriptionPlans);
                 const monthlyAverage =
@@ -1925,17 +2022,22 @@ export default function Account() {
                         : null;
                 const durationLabel = isFreePlan
                     ? t('config.account.subscription_free_feature')
-                    : t('config.account.subscription_duration_value', {
-                          value: plan.durationDays,
-                      });
+                    : Number.isFinite(Number(plan.durationDays))
+                      ? t('config.account.subscription_duration_value', {
+                            value: plan.durationDays,
+                        })
+                      : '';
                 const fallbackLabel = plan.allowCreditFallback
                     ? t('config.account.subscription_credit_fallback')
                     : '';
+                const hasNumericPrice = Number.isFinite(Number(plan.amount));
+                const hasNumericQuota = Number.isFinite(Number(plan.dailyQuota));
 
                 return {
                     key: `${plan.tier}_${plan.billingCycle}`,
                     tier: plan.tier,
                     plan,
+                    isPlaceholder,
                     billingCycle: plan.billingCycle,
                     availableCycles: availableCycles.map((cycle) => ({
                         value: cycle,
@@ -1951,8 +2053,10 @@ export default function Account() {
                     currentPlanLabel: t('config.account.subscription_current_plan'),
                     priceLabel: isFreePlan
                         ? t('config.account.subscription_price_free')
-                        : formatMoney(plan.amount, plan.currency),
-                    priceUnitLabel: isFreePlan
+                        : hasNumericPrice
+                          ? formatMoney(plan.amount, plan.currency)
+                          : t('config.account.billing_none'),
+                    priceUnitLabel: isFreePlan || !hasNumericPrice
                         ? ''
                         : `/${t(`config.account.subscription_unit_${plan.billingCycle}`)}`,
                     description: t(`config.account.subscription_tier_${plan.tier}_desc`),
@@ -1967,11 +2071,13 @@ export default function Account() {
                           })
                         : '',
                     dailyQuotaLabel: t('config.account.billing_daily_quota'),
-                    dailyQuotaValue: formatBillingQuota(plan.dailyQuota),
+                    dailyQuotaValue: hasNumericQuota
+                        ? formatBillingQuota(plan.dailyQuota)
+                        : t('config.account.billing_none'),
                     primaryFeatureLabel:
                         durationLabel && fallbackLabel
                             ? `${durationLabel} · ${fallbackLabel}`
-                            : durationLabel || fallbackLabel,
+                            : durationLabel || fallbackLabel || '',
                     isFreePlan,
                     ctaLabel: isFreePlan
                         ? t('config.account.subscription_free_action')
@@ -1980,7 +2086,7 @@ export default function Account() {
                         PLAN_CTA_TONE_STYLES[
                             isFreePlan ? 'neutral' : 'primary'
                         ] || PLAN_CTA_TONE_STYLES.primary,
-                    ctaDisabled: isFreePlan || !hasReadyPaymentProvider,
+                    ctaDisabled: isFreePlan || isPlaceholder || !hasReadyPaymentProvider,
                 };
             }),
         [hasReadyPaymentProvider, subscriptionPlanCards, subscriptionPlans, t]
@@ -2063,6 +2169,7 @@ export default function Account() {
                     <AccountBillingPanel
                         viewModel={billingPanelViewModel}
                         loading={billingProfileLoading}
+                        refreshing={billingProfileRefreshing}
                         onPrepareRechargeOrder={handlePrepareRechargeOrderStable}
                         onCopyInviteLink={handleCopyInviteLinkStable}
                     />
@@ -2075,6 +2182,7 @@ export default function Account() {
                     subtitle=''
                     emptyText={t('config.account.subscription_not_ready')}
                     loading={billingCatalogLoading}
+                    refreshing={billingCatalogRefreshing}
                     pricingRegion={pricingRegion}
                     regionOptions={billingRegionOptions}
                     planViewModels={subscriptionPlanViewModels}
