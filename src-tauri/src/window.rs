@@ -11,7 +11,7 @@ use crate::TranslateExcerptModeWrapper;
 use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
-use log::{info, warn};
+use log::{debug, info, warn};
 use once_cell::sync::Lazy;
 #[cfg(target_os = "windows")]
 use once_cell::sync::OnceCell;
@@ -26,7 +26,7 @@ use window_shadows::set_shadow;
 #[cfg(target_os = "windows")]
 use windows::Win32::{
     Foundation::{HINSTANCE, LPARAM, WPARAM},
-    UI::WindowsAndMessaging::{CreateIcon, HICON, ICON_BIG, ICON_SMALL, SendMessageW, WM_SETICON},
+    UI::WindowsAndMessaging::{CreateIcon, SendMessageW, HICON, ICON_BIG, ICON_SMALL, WM_SETICON},
 };
 
 // Get daemon window instance
@@ -249,7 +249,7 @@ pub fn restore_foreground_window() {
 
 // Get monitor where the mouse is currently located
 fn get_current_monitor(x: i32, y: i32) -> Monitor {
-    info!("Mouse position: {}, {}", x, y);
+    debug!("Mouse position: {}, {}", x, y);
     let daemon_window = get_daemon_window();
     let monitors = daemon_window.available_monitors().unwrap();
 
@@ -262,7 +262,7 @@ fn get_current_monitor(x: i32, y: i32) -> Monitor {
             && y >= position.y
             && y <= (position.y + size.height as i32)
         {
-            info!("Current Monitor: {:?}", m);
+            debug!("Current Monitor: {:?}", m);
             return m;
         }
     }
@@ -330,13 +330,8 @@ fn apply_saved_window_size_with_min(
     min_width: i64,
     min_height: i64,
 ) -> (i64, i64) {
-    let (width, height) = get_saved_window_size_with_min(
-        label,
-        default_width,
-        default_height,
-        min_width,
-        min_height,
-    );
+    let (width, height) =
+        get_saved_window_size_with_min(label, default_width, default_height, min_width, min_height);
     window
         .set_size(tauri::LogicalSize::new(width as f64, height as f64))
         .unwrap_or_default();
@@ -360,13 +355,13 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
     let app_handle = APP.get().unwrap();
     match app_handle.get_window(label) {
         Some(v) => {
-            info!("Window existence: {}", label);
+            debug!("Window existence: {}", label);
             apply_default_window_icon(&v);
             v.set_focus().unwrap();
             (v, true)
         }
         None => {
-            info!("Window not existence, Creating new window: {}", label);
+            debug!("Window not existence, Creating new window: {}", label);
             let mut builder = tauri::WindowBuilder::new(
                 app_handle,
                 label,
@@ -532,7 +527,9 @@ fn append_to_existing_translate_window_if_excerpt(text: &str) -> bool {
 
     let app_handle = APP.get().unwrap();
     if let Some(window) = app_handle.get_window("translate") {
-        window.emit("new_text", text.to_string()).unwrap_or_default();
+        window
+            .emit("new_text", text.to_string())
+            .unwrap_or_default();
         return true;
     }
 
@@ -899,22 +896,22 @@ pub fn hide_input_ai_handle_window() {
 // LightAI Window
 // ─────────────────────────────────────────────
 pub fn selection_light_ai() {
-    info!("selection_light_ai called");
+    debug!("selection_light_ai called");
     set_light_ai_opened_from_input_handle(false);
     set_light_ai_target("selection");
     // Save foreground window before we open any popup
     save_foreground_window();
     // Get Selected Text
     let text = crate::selection_capture::get_text(None);
-    info!("Got text from selection: {:?}", text);
+    debug!("Got text from selection: {:?}", text);
     if !text.trim().is_empty() {
         let app_handle = APP.get().unwrap();
         // Write into State
         let state: tauri::State<StringWrapper> = app_handle.state();
         state.0.lock().unwrap().replace_range(.., &text);
-        info!("Text saved to state");
+        debug!("Text saved to state");
     } else {
-        info!("No text selected or text is empty");
+        debug!("No text selected or text is empty");
     }
     // Open light AI window
     light_ai_window();
@@ -1147,7 +1144,8 @@ pub fn phrases_inline_window() {
     use mouse_position::mouse_position::{Mouse, Position};
     const QUICK_W: f64 = 372.0;
     const QUICK_H: f64 = 96.0;
-    let quick_width = (get_saved_window_dimension("phrases_inline", "width", QUICK_W as i64) as f64).max(QUICK_W);
+    let quick_width =
+        (get_saved_window_dimension("phrases_inline", "width", QUICK_W as i64) as f64).max(QUICK_W);
     let mouse_pos = match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => Position { x, y },
         Mouse::Error => Position { x: 0, y: 0 },

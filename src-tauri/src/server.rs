@@ -1,6 +1,6 @@
 use crate::config::set;
 use crate::window::*;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::thread;
 use tauri::api::notification;
 use tiny_http::{Request, Response, Server};
@@ -53,7 +53,7 @@ fn bind_server() -> Result<(u16, Server), String> {
 }
 
 fn http_handle(request: Request) {
-    info!("Handle {} request", request.url());
+    debug!("Handle {} request", request.url());
     match request.url() {
         "/" => handle_translate(request),
         "/config" => handle_config(request),

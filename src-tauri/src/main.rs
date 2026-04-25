@@ -50,9 +50,9 @@ use vault::*;
 use window::config_window;
 use window::open_chat_window;
 use window::open_explain_window;
-use window::set_translate_excerpt_mode;
 use window::open_login_window;
 use window::open_translate_from_toolbar;
+use window::set_translate_excerpt_mode;
 use window::updater_window;
 
 // Global AppHandle
@@ -93,6 +93,28 @@ fn configure_runtime_log_env() {
     env::set_var("RUST_LOG", rust_log);
 }
 
+fn stdout_log_enabled() -> bool {
+    env::var("IMMERSIVE_INPUT_STDOUT_LOG")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn build_log_targets() -> Vec<LogTarget> {
+    let mut targets = vec![LogTarget::LogDir];
+
+    // Keep `tauri dev` quiet by default. Opt in when terminal-side Rust logs are needed.
+    if stdout_log_enabled() {
+        targets.push(LogTarget::Stdout);
+    }
+
+    targets
+}
+
 #[cfg(target_os = "windows")]
 fn configure_windows_app_id(app_id: &str) {
     use windows::core::HSTRING;
@@ -128,7 +150,7 @@ fn main() {
         // }))
         .plugin(
             tauri_plugin_log::Builder::default()
-                .targets([LogTarget::LogDir, LogTarget::Stdout])
+                .targets(build_log_targets())
                 .level(LevelFilter::Info)
                 .level_for("hyper", LevelFilter::Warn)
                 .level_for("hyper_util", LevelFilter::Warn)
