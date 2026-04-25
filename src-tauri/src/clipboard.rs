@@ -1,5 +1,5 @@
 use crate::config::get;
-use crate::window::{light_ai_window, text_translate};
+use crate::window::{light_ai_window, set_light_ai_target, text_translate};
 use crate::StringWrapper;
 use std::sync::Mutex;
 use tauri::{ClipboardManager, Manager};
@@ -31,6 +31,7 @@ pub fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
                                             let str_state: tauri::State<StringWrapper> =
                                                 handle.state();
                                             str_state.0.lock().unwrap().replace_range(.., &clean);
+                                            set_light_ai_target("selection");
                                             light_ai_window();
                                         }
                                     } else {

@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes';
 
 import Screenshot from './window/Screenshot';
 import FloatToolbar from './window/FloatToolbar';
+import InputAiHandle from './window/InputAiHandle';
 import LightAI from './window/LightAI';
 import Explain from './window/Explain';
 import Chat from './window/Chat';
@@ -32,6 +33,7 @@ const authRequiredWindows = ['config', 'translate', 'light_ai', 'explain', 'chat
 const windowMap = {
     translate: <Translate />,
     float_toolbar: <FloatToolbar />,
+    input_ai_handle: <InputAiHandle />,
     light_ai: <LightAI />,
     explain: <Explain />,
     chat: <Chat />,

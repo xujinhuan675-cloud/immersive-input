@@ -1,12 +1,12 @@
-import { Toaster } from 'react-hot-toast';
-import { Button, Card, CardBody, Tab, Tabs, Textarea } from '@nextui-org/react';
+import { Card, CardBody, Switch, Tab, Tabs, Textarea } from '@nextui-org/react';
 import React, { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 import { useConfig } from '../../../../hooks/useConfig';
 import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
-import { useTranslation } from 'react-i18next';
-import TextSelection from '../TextSelection';
 import AIConfig from '../Service/AIConfig';
+import TextSelection from '../TextSelection';
 
 function SettingSection({ title, description, action, children, bordered = false }) {
     return (
@@ -20,13 +20,14 @@ function SettingSection({ title, description, action, children, bordered = false
                 </div>
                 {action ? <div className='shrink-0'>{action}</div> : null}
             </div>
-            <div className='mt-3'>{children}</div>
+            {children ? <div className='mt-3'>{children}</div> : null}
         </section>
     );
 }
 
 export default function AIFeatures() {
     const { t, i18n } = useTranslation();
+    const [inputAiHandleEnabled, setInputAiHandleEnabled] = useConfig('input_ai_handle_enabled', true);
     const [userPref, setUserPref] = useConfig('ai_user_preference', '');
     const [promptStrict, setPromptStrict] = useConfig('ai_prompt_strict', '');
     const [promptStructured, setPromptStructured] = useConfig('ai_prompt_structured', '');
@@ -34,25 +35,27 @@ export default function AIFeatures() {
     const [showPromptEditor, setShowPromptEditor] = useState(false);
 
     const isChineseUI = i18n.language?.startsWith('zh');
-    const globalPreferenceTitle = isChineseUI ? '\u5168\u5c40\u8f93\u51fa\u504f\u597d' : 'Global Output Preferences';
+    const inputHandleTitle = isChineseUI
+        ? '\u8f93\u5165\u6846 AI \u53e5\u67c4'
+        : 'Input AI Handle';
+    const inputHandleDescription = isChineseUI
+        ? '\u5728\u8f93\u5165\u6846\u5185\u6309 Shift+Enter \u65f6\u663e\u793a AI \u53e5\u67c4\u3002'
+        : 'Show the AI handle when you press Shift+Enter in an input field.';
+    const globalPreferenceTitle = isChineseUI
+        ? '\u5168\u5c40\u8f93\u51fa\u504f\u597d'
+        : 'Global Output Preferences';
     const globalPreferenceDesc = isChineseUI
-        ? '\u5bf9\u6240\u6709\u6da6\u8272\u7ed3\u679c\u7edf\u4e00\u751f\u6548\uff0c\u7528\u4e8e\u7ea6\u675f\u957f\u671f\u56fa\u5b9a\u7684\u8bed\u6c14\u3001\u7bc7\u5e45\u548c\u63aa\u8f9e\u4e60\u60ef\u3002'
-        : 'Applies to every polish result and defines your long-term tone, length, and wording preferences.';
+        ? '\u7edf\u4e00\u6da6\u8272\u8f93\u51fa\u98ce\u683c\u3002'
+        : 'Apply a consistent polish style.';
     const globalPreferencePlaceholder = isChineseUI
-        ? '\u4f8b\u5982\uff1a\u7b80\u6d01\u3001\u514b\u5236\uff0c\u5c11\u7528\u611f\u53f9\u53f7\uff0c\u4f18\u5148\u77ed\u53e5\uff0c\u907f\u514d\u8425\u9500\u8154\u3002'
-        : 'For example: concise, restrained, fewer exclamation marks, shorter sentences, avoid marketing tone.';
-    const advancedTitle = isChineseUI ? '\u9ad8\u7ea7\u98ce\u683c\u89c4\u5219' : 'Advanced Style Rules';
+        ? '\u4f8b\u5982\uff1a\u7b80\u6d01\u3001\u514b\u5236\u3001\u77ed\u53e5\u3002'
+        : 'For example: concise, restrained, shorter sentences.';
+    const advancedTitle = isChineseUI
+        ? '\u9ad8\u7ea7\u98ce\u683c\u89c4\u5219'
+        : 'Advanced Style Rules';
     const advancedDescription = isChineseUI
-        ? '\u53ea\u5728\u4f60\u9700\u8981\u8986\u76d6\u5185\u7f6e\u6da6\u8272\u903b\u8f91\u65f6\u518d\u7f16\u8f91\u3002\u4e0d\u586b\u5199\u65f6\uff0c\u4f1a\u7ee7\u7eed\u4f7f\u7528\u9ed8\u8ba4 prompt\u3002'
-        : 'Edit these only when you want to override the built-in polish logic. Leaving them empty keeps the defaults.';
-    const collapsedHint = isChineseUI
-        ? '\u5f53\u524d\u4f7f\u7528\u5185\u7f6e\u9ed8\u8ba4\u98ce\u683c\u89c4\u5219\u3002'
-        : 'The built-in style rules are active right now.';
-    const advancedToggleLabel = showPromptEditor
-        ? t('config.ai.prompt_editor_hide')
-        : isChineseUI
-          ? '\u7f16\u8f91\u9ad8\u7ea7\u9879'
-          : 'Edit Advanced';
+        ? '\u4ec5\u5728\u9700\u8981\u8986\u76d6\u9ed8\u8ba4\u89c4\u5219\u65f6\u7f16\u8f91\u3002'
+        : 'Edit only to override the defaults.';
     const styleOptions = [
         {
             key: 'strict',
@@ -92,7 +95,22 @@ export default function AIFeatures() {
                     <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
                         <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
                             <CardBody className='p-0'>
-                                <SettingSection title={globalPreferenceTitle} description={globalPreferenceDesc}>
+                                <SettingSection
+                                    title={inputHandleTitle}
+                                    description={inputHandleDescription}
+                                    action={
+                                        <Switch
+                                            size='sm'
+                                            isSelected={inputAiHandleEnabled ?? true}
+                                            onValueChange={setInputAiHandleEnabled}
+                                        />
+                                    }
+                                />
+
+                                <SettingSection
+                                    title={globalPreferenceTitle}
+                                    description={globalPreferenceDesc}
+                                >
                                     <Textarea
                                         placeholder={globalPreferencePlaceholder}
                                         value={userPref ?? ''}
@@ -109,15 +127,11 @@ export default function AIFeatures() {
                                     title={advancedTitle}
                                     description={advancedDescription}
                                     action={
-                                        <Button
+                                        <Switch
                                             size='sm'
-                                            variant='light'
-                                            radius='full'
-                                            className='px-3 text-default-600'
-                                            onPress={() => setShowPromptEditor((value) => !value)}
-                                        >
-                                            {advancedToggleLabel}
-                                        </Button>
+                                            isSelected={showPromptEditor}
+                                            onValueChange={setShowPromptEditor}
+                                        />
                                     }
                                 >
                                     {showPromptEditor ? (
@@ -143,11 +157,7 @@ export default function AIFeatures() {
                                                 </div>
                                             ))}
                                         </div>
-                                    ) : (
-                                        <div className='rounded-[14px] border border-dashed border-default-200/80 bg-default-50/40 px-3 py-3 text-sm text-default-500'>
-                                            {collapsedHint}
-                                        </div>
-                                    )}
+                                    ) : null}
                                 </SettingSection>
                             </CardBody>
                         </Card>

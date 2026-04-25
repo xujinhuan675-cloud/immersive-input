@@ -194,6 +194,65 @@ pub fn write_clipboard(text: String) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn restore_previous_window(state: &tauri::State<PrevForegroundWindow>) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
+    let prev_hwnd = *state.0.lock().unwrap();
+    if prev_hwnd != 0 {
+        unsafe {
+            let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(80));
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn send_windows_key_chord(keys: &[windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY]) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+    };
+
+    let no_scan: u16 = 0;
+    let no_flags = KEYBD_EVENT_FLAGS(0);
+    let mut inputs = Vec::with_capacity(keys.len() * 2);
+
+    for key in keys {
+        inputs.push(INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: *key,
+                    wScan: no_scan,
+                    dwFlags: no_flags,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        });
+    }
+
+    for key in keys.iter().rev() {
+        inputs.push(INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: *key,
+                    wScan: no_scan,
+                    dwFlags: KEYEVENTF_KEYUP,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        });
+    }
+
+    unsafe {
+        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
 /// Write text to clipboard, restore previous window focus, then simulate Ctrl+V
 #[tauri::command]
 pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
@@ -208,79 +267,39 @@ pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> 
     // 2. On Windows: restore foreground window and simulate Ctrl+V
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-            KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_V};
 
-        let prev_hwnd = *state.0.lock().unwrap();
-        if prev_hwnd != 0 {
-            // Cast stored isize back to *mut c_void for HWND
-            unsafe {
-                let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
-            }
-            std::thread::sleep(std::time::Duration::from_millis(80));
-        }
-
-        // wScan expects u16, not VIRTUAL_KEY; wFlags is KEYBD_EVENT_FLAGS
-        let no_scan: u16 = 0;
-        let no_flags = KEYBD_EVENT_FLAGS(0);
-        let inputs = [
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_CONTROL,
-                        wScan: no_scan,
-                        dwFlags: no_flags,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_V,
-                        wScan: no_scan,
-                        dwFlags: no_flags,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_V,
-                        wScan: no_scan,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_KEYBOARD,
-                Anonymous: INPUT_0 {
-                    ki: KEYBDINPUT {
-                        wVk: VK_CONTROL,
-                        wScan: no_scan,
-                        dwFlags: KEYEVENTF_KEYUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
-        unsafe {
-            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-        }
+        restore_previous_window(&state);
+        send_windows_key_chord(&[VK_CONTROL, VK_V]);
     }
+    Ok(())
+}
+
+/// Replace the entire contents of the previous focused input.
+#[tauri::command]
+pub fn replace_input_text(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
+    {
+        use arboard::Clipboard;
+        let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
+        cb.set_text(&text).map_err(|e| e.to_string())?;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(80));
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_CONTROL, VK_V};
+
+        restore_previous_window(&state);
+        send_windows_key_chord(&[VK_CONTROL, VK_A]);
+        std::thread::sleep(std::time::Duration::from_millis(60));
+        send_windows_key_chord(&[VK_CONTROL, VK_V]);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        paste_result(text, state)?;
+    }
+
     Ok(())
 }
 

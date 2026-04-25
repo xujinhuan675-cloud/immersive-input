@@ -1,9 +1,8 @@
-import { appWindow } from '@tauri-apps/api/window';
-import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/tauri';
+import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HiDotsHorizontal, HiSparkles } from 'react-icons/hi';
-import { LuCheck } from 'react-icons/lu';
+import { HiSparkles } from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -19,208 +18,289 @@ import {
     TrayWindowSurface,
 } from '../../components/TrayWindow';
 import { useConfig } from '../../hooks/useConfig';
-import { lightAiStream, STYLE_KEYS, STYLE_NAMES } from '../../services/light_ai/openai';
+import {
+    STYLE_KEYS,
+    STYLE_NAMES,
+    lightAiStream,
+    translateTextStream,
+} from '../../services/light_ai/openai';
+import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
+import { formatText } from '../../utils/formatter';
+import detect from '../../utils/lang_detect';
+import { languageList, normalizeLanguageKey } from '../../utils/language';
 
-const LIGHT_AI_TITLE = 'AI 润色';
-const GENERATE_LABEL = '生成';
-const REGENERATE_LABEL = '重新生成';
-const STOP_LABEL = '停止';
-const WAITING_PLACEHOLDER = '请提供需要润色改写的原文内容（可直接粘贴在此处）。';
-const EMPTY_STYLE_PLACEHOLDER = '请先选择至少一种润色风格。';
-
-const QUICK_TEMPLATES = [
-    { label: '缩写', prompt: '请在保留核心信息的前提下尽量精简压缩。' },
-    { label: '扩写', prompt: '请适度扩写原文，补充细节和语气，让表达更完整。' },
-    { label: '纠错', prompt: '请纠正语法、措辞和标点问题，保持原意。' },
-    { label: '正式', prompt: '请改写成更正式、专业的表达。' },
-    { label: '口语', prompt: '请改写成更轻松自然的口语表达。' },
-    { label: '英文', prompt: '请将以上内容翻译成自然的英文表达。' },
+const TAB_OPTIONS = [
+    { key: 'translate', label: '翻译' },
+    { key: 'style', label: '润色' },
+    { key: 'fix', label: '修正' },
 ];
 
+const STYLE_LABELS_ZH = {
+    strict: '正式',
+    structured: '结构化',
+    natural: '自然',
+};
+
+const LANGUAGE_LABELS_ZH = {
+    auto: '自动检测',
+    zh_cn: '简体中文',
+    zh_tw: '繁体中文',
+    mn_mo: '蒙古文',
+    en: '英语',
+    ja: '日语',
+    ko: '韩语',
+    fr: '法语',
+    es: '西班牙语',
+    ru: '俄语',
+    de: '德语',
+    it: '意大利语',
+    tr: '土耳其语',
+    pt_pt: '葡萄牙语',
+    pt_br: '巴西葡萄牙语',
+    vi: '越南语',
+    id: '印尼语',
+    th: '泰语',
+    ms: '马来语',
+    ar: '阿拉伯语',
+    hi: '印地语',
+    km: '高棉语',
+    mn_cy: '西里尔蒙古语',
+    nb_no: '挪威语',
+    nn_no: '新挪威语',
+    fa: '波斯语',
+    sv: '瑞典语',
+    pl: '波兰语',
+    nl: '荷兰语',
+    uk: '乌克兰语',
+    he: '希伯来语',
+};
+
 const styles = {
-    sectionLabel: {
-        fontSize: '11px',
-        fontWeight: 600,
-        letterSpacing: '0.08em',
-        color: '#94a3b8',
-        textTransform: 'uppercase',
+    topSection: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        padding: '10px 12px 8px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.74)',
+        background: 'rgba(255, 255, 255, 0.96)',
     },
-    sourceBox: {
-        padding: '10px 12px',
-        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
-        background: 'rgba(248, 250, 252, 0.82)',
-        lineHeight: 1.6,
+    tabRow: {
+        display: 'inline-flex',
+        flexWrap: 'wrap',
+        alignSelf: 'flex-start',
+        gap: '4px',
+        padding: '4px',
+        borderRadius: '14px',
+        border: '1px solid rgba(226, 232, 240, 0.92)',
+        background: '#f8fafc',
+    },
+    tabButton: (active) => ({
+        minWidth: '72px',
+        height: '34px',
+        padding: '0 14px',
+        border: 'none',
+        borderRadius: '10px',
+        background: active ? '#ffffff' : 'transparent',
+        color: active ? '#0f172a' : '#64748b',
+        boxShadow: active ? '0 1px 2px rgba(15, 23, 42, 0.08)' : 'none',
+        cursor: 'pointer',
         fontSize: '13px',
-        color: '#334155',
-    },
-    templateBar: {
+        fontWeight: 600,
+        lineHeight: 1,
+        transition: 'background 140ms ease, color 140ms ease, box-shadow 140ms ease',
+        whiteSpace: 'nowrap',
+    }),
+    topMetaRow: {
         display: 'flex',
         flexWrap: 'wrap',
         gap: '6px',
-        padding: '10px 12px',
-        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
-        background: 'rgba(255, 255, 255, 0.74)',
+        alignItems: 'center',
     },
-    chip: {
-        padding: '4px 10px',
-        borderRadius: '999px',
-        border: '1px solid rgba(226, 232, 240, 0.9)',
-        background: 'rgba(248, 250, 252, 0.9)',
+    selectWrap: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '0 10px',
+        height: '32px',
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.92)',
+        background: '#ffffff',
         color: '#475569',
         fontSize: '12px',
-        cursor: 'pointer',
+        boxSizing: 'border-box',
+        maxWidth: '100%',
     },
-    versionsArea: {
+    selectLabel: {
+        color: '#64748b',
+        fontSize: '12px',
+        fontWeight: 500,
+        whiteSpace: 'nowrap',
+    },
+    nativeSelect: {
+        border: 'none',
+        outline: 'none',
+        background: 'transparent',
+        color: '#0f172a',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: APP_FONT_FAMILY_VAR,
+        minWidth: '72px',
+    },
+    styleRow: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '6px',
+    },
+    styleChip: (active) => ({
+        height: '32px',
+        padding: '0 12px',
+        borderRadius: '999px',
+        border: active
+            ? '1px solid rgba(147, 197, 253, 0.95)'
+            : '1px solid rgba(226, 232, 240, 0.92)',
+        background: active ? 'rgba(239, 246, 255, 0.96)' : '#ffffff',
+        color: active ? '#1d4ed8' : '#475569',
+        cursor: 'pointer',
+        fontSize: '12px',
+        fontWeight: 600,
+        lineHeight: 1,
+        transition: 'border-color 140ms ease, background 140ms ease, color 140ms ease',
+        whiteSpace: 'nowrap',
+    }),
+    pane: {
         flex: 1,
+        minHeight: 0,
         overflow: 'auto',
-        padding: '12px',
+        padding: '10px 12px 12px',
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
     },
-    versionCard: {
-        border: '1px solid rgba(226, 232, 240, 0.9)',
+    card: {
         borderRadius: '14px',
-        background: 'rgba(255, 255, 255, 0.9)',
+        border: '1px solid rgba(226, 232, 240, 0.92)',
+        background: '#ffffff',
+        boxShadow: '0 10px 28px -26px rgba(15, 23, 42, 0.22)',
         overflow: 'hidden',
-        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.35)',
     },
-    versionHeader: {
+    cardHeader: {
+        padding: '12px 14px 9px',
+        borderBottom: '1px solid rgba(241, 245, 249, 0.96)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '10px',
-        padding: '9px 12px',
-        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
-        background: 'rgba(248, 250, 252, 0.84)',
-    },
-    versionTitle: {
-        display: 'flex',
-        alignItems: 'center',
+        flexWrap: 'wrap',
         gap: '8px',
-        minWidth: 0,
         fontSize: '12px',
         fontWeight: 600,
-        color: '#334155',
+        color: '#111827',
     },
-    versionBody: {
-        padding: '12px',
-        minHeight: '88px',
-        fontSize: '13px',
-        lineHeight: 1.7,
+    cardMeta: {
+        fontSize: '12px',
+        fontWeight: 600,
+        color: '#2563eb',
+    },
+    cardBody: {
+        minHeight: '118px',
+        padding: '14px',
         color: '#0f172a',
+        lineHeight: 1.75,
+        fontSize: '13px',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         fontFamily: APP_FONT_FAMILY_VAR,
     },
-    versionError: {
-        padding: '12px',
-        fontSize: '13px',
-        lineHeight: 1.7,
-        color: '#dc2626',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: APP_FONT_FAMILY_VAR,
+    emptyText: {
+        color: '#94a3b8',
     },
-    emptyState: {
-        padding: '18px 16px',
-        border: '1px dashed rgba(203, 213, 225, 0.95)',
-        borderRadius: '14px',
-        background: 'rgba(248, 250, 252, 0.7)',
-        color: '#64748b',
-        fontSize: '13px',
-        lineHeight: 1.7,
-    },
-    actionRow: {
-        display: 'flex',
-        gap: '6px',
-        flexShrink: 0,
-    },
-    cardButton: (primary = false) => ({
-        height: '28px',
-        padding: '0 10px',
-        borderRadius: '8px',
-        border: primary ? '1px solid rgba(15, 23, 42, 0.84)' : '1px solid rgba(226, 232, 240, 0.9)',
-        background: primary ? '#0f172a' : 'rgba(255, 255, 255, 0.88)',
-        color: primary ? '#ffffff' : '#475569',
-        fontSize: '12px',
-        fontWeight: 600,
-        cursor: 'pointer',
-    }),
     footer: {
         display: 'flex',
-        gap: '10px',
-        padding: '12px',
-        borderTop: '1px solid rgba(226, 232, 240, 0.78)',
+        flexWrap: 'wrap',
+        gap: '8px',
+        padding: '10px 12px 12px',
+        borderTop: '1px solid rgba(241, 245, 249, 0.96)',
         background: 'rgba(248, 250, 252, 0.76)',
         alignItems: 'center',
     },
     promptInput: {
-        flex: 1,
-        height: '56px',
-        borderRadius: '14px',
-        border: '1px solid rgba(203, 213, 225, 0.9)',
-        background: 'rgba(255, 255, 255, 0.92)',
-        padding: '0 16px',
+        flex: '1 1 220px',
+        minWidth: 0,
+        height: '40px',
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.96)',
+        background: '#ffffff',
+        padding: '0 12px',
         outline: 'none',
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#0f172a',
         fontFamily: APP_FONT_FAMILY_VAR,
         boxSizing: 'border-box',
     },
-    footerMenuWrap: {
-        position: 'relative',
-        flexShrink: 0,
+    actionGroup: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginLeft: 'auto',
+        justifyContent: 'flex-end',
     },
-    footerIconButton: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '56px',
-        height: '56px',
-        borderRadius: '14px',
-        border: '1px solid rgba(203, 213, 225, 0.9)',
-        background: 'rgba(255, 255, 255, 0.92)',
+    secondaryButton: (disabled) => ({
+        height: '40px',
+        minWidth: '70px',
+        padding: '0 14px',
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.96)',
+        background: '#ffffff',
         color: '#475569',
-        cursor: 'pointer',
-    },
-    footerMenu: {
-        position: 'absolute',
-        right: 0,
-        bottom: 'calc(100% + 8px)',
-        minWidth: '186px',
-        padding: '6px',
-        borderRadius: '14px',
-        border: '1px solid rgba(226, 232, 240, 0.92)',
-        background: 'rgba(255, 255, 255, 0.98)',
-        boxShadow: '0 16px 36px -24px rgba(15, 23, 42, 0.35)',
-        zIndex: 10,
-    },
-    footerMenuTitle: {
-        padding: '6px 10px 8px',
         fontSize: '12px',
         fontWeight: 600,
-        color: '#94a3b8',
-    },
-    footerMenuItem: (selected) => ({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        minHeight: '36px',
-        padding: '0 10px',
-        border: 'none',
-        borderRadius: '10px',
-        background: selected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-        color: selected ? '#1d4ed8' : '#334155',
-        fontSize: '13px',
-        fontWeight: 600,
-        cursor: 'pointer',
-        textAlign: 'left',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.46 : 1,
+        whiteSpace: 'nowrap',
+        lineHeight: 1,
+        textAlign: 'center',
+        boxShadow: 'none',
     }),
+    primaryButton: (disabled) => ({
+        ...TRAY_WINDOW_PRIMARY_BUTTON_STYLE,
+        height: '40px',
+        minWidth: '92px',
+        padding: '0 18px',
+        borderRadius: '10px',
+        fontSize: '12px',
+        fontWeight: 600,
+        lineHeight: 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.46 : 1,
+        boxShadow: '0 8px 18px -16px rgba(15, 23, 42, 0.35)',
+    }),
+};
+
+const headerStyle = {
+    ...TRAY_WINDOW_HEADER_STYLE,
+    minHeight: '42px',
+    padding: '4px 10px',
+    background: 'rgba(255, 255, 255, 0.96)',
+};
+
+const headerTitleStyle = {
+    ...TRAY_WINDOW_TITLE_STYLE,
+    gap: '5px',
+};
+
+const headerTitleTextStyle = {
+    ...TRAY_WINDOW_TITLE_TEXT_STYLE,
+    fontSize: '13px',
+    fontWeight: 700,
+};
+
+const surfaceStyle = {
+    borderRadius: '14px',
+    border: '1px solid rgba(226, 232, 240, 0.9)',
+    background: '#ffffff',
+    boxShadow: '0 16px 36px -32px rgba(15, 23, 42, 0.24)',
 };
 
 function useApiConfig() {
@@ -237,7 +317,6 @@ function useApiConfig() {
         }
 
         void loadConfig();
-
         return () => {
             mounted = false;
         };
@@ -246,406 +325,466 @@ function useApiConfig() {
     return config;
 }
 
-function normalizeSelectedStyles(value, preferredStyle = STYLE_KEYS[0]) {
-    const fallbackStyle = STYLE_KEYS.includes(preferredStyle) ? preferredStyle : STYLE_KEYS[0];
-
-    if (Array.isArray(value)) {
-        const normalized = STYLE_KEYS.filter((styleKey) => value.includes(styleKey));
-        return normalized.length > 0 ? normalized : [fallbackStyle];
-    }
-
-    if (typeof value === 'string' && STYLE_KEYS.includes(value)) {
-        return [value];
-    }
-
-    return [fallbackStyle];
+function getLanguageLabelZh(key) {
+    const normalizedKey = normalizeLanguageKey(key || 'auto') || 'auto';
+    return LANGUAGE_LABELS_ZH[normalizedKey] ?? normalizedKey;
 }
 
 export default function LightAI() {
     const apiConfig = useApiConfig();
-    const [selectedStyles, setSelectedStyles] = useConfig('light_ai_selected_styles', []);
-    const [legacySelectedStyle, setLegacySelectedStyle] = useConfig('light_ai_selected_style', STYLE_KEYS[0]);
+    const [activeTab, setActiveTab] = useState('style');
     const [sourceText, setSourceText] = useState('');
-    const [extraPrompt, setExtraPrompt] = useState('');
-    const [versions, setVersions] = useState({});
-    const [errors, setErrors] = useState({});
-    const [loading, setLoading] = useState(false);
-    const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
-    const [menuOpen, setMenuOpen] = useState(false);
-    const abortRefs = useRef({});
-    const inputRef = useRef(null);
-    const menuRef = useRef(null);
-    const menuButtonRef = useRef(null);
-
-    const stylesReady = selectedStyles !== null && legacySelectedStyle !== null;
-    const activeStyleKeys = useMemo(
-        () => normalizeSelectedStyles(selectedStyles, legacySelectedStyle),
-        [legacySelectedStyle, selectedStyles]
+    const [targetMode, setTargetMode] = useState('selection');
+    const [selectedStyle, setSelectedStyle] = useConfig(
+        'light_ai_selected_style',
+        STYLE_KEYS[0]
     );
-    const activeStyleKeySignature = activeStyleKeys.join('|');
+    const [, setSelectedStyles] = useConfig('light_ai_selected_styles', [
+        STYLE_KEYS[0],
+    ]);
+    const [targetLanguage, setTargetLanguage] = useConfig(
+        'translate_target_language',
+        'en'
+    );
+    const [sourceLanguage, setSourceLanguage] = useState('auto');
+    const [extraPrompt, setExtraPrompt] = useState('');
+    const [styleResult, setStyleResult] = useState('');
+    const [translateResult, setTranslateResult] = useState('');
+    const [fixResult, setFixResult] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const abortRef = useRef(null);
+    const resolvedSelectedStyle = STYLE_KEYS.includes(selectedStyle)
+        ? selectedStyle
+        : STYLE_KEYS[0];
+    const resolvedTargetLanguage = targetLanguage || 'en';
 
-    const loadText = useCallback(async () => {
+    const currentResult = useMemo(() => {
+        if (activeTab === 'translate') return translateResult;
+        if (activeTab === 'fix') return fixResult;
+        return styleResult;
+    }, [activeTab, fixResult, styleResult, translateResult]);
+
+    const currentLanguageLabel = useMemo(
+        () => getLanguageLabelZh(sourceLanguage),
+        [sourceLanguage]
+    );
+    const targetLanguageLabel = useMemo(
+        () => getLanguageLabelZh(resolvedTargetLanguage),
+        [resolvedTargetLanguage]
+    );
+
+    const loadInitialContext = useCallback(async () => {
         try {
-            const text = await invoke('get_text');
-            if (text) {
-                setSourceText(text);
-            }
-        } catch (error) {
-            console.error('get_text error:', error);
+            const [text, nextTargetMode] = await Promise.all([
+                invoke('get_text'),
+                invoke('get_light_ai_target'),
+            ]);
+            setSourceText(text || '');
+            setTargetMode(nextTargetMode || 'selection');
+        } catch (nextError) {
+            console.error('loadInitialContext error:', nextError);
         }
     }, []);
 
     useEffect(() => {
-        void loadText();
+        void loadInitialContext();
         const unlisten = listen('new_text', (event) => {
-            if (event.payload) {
-                setSourceText(event.payload);
-            }
+            setSourceText(event.payload || '');
         });
 
         return () => {
             void unlisten.then((fn) => fn());
         };
-    }, [loadText]);
+    }, [loadInitialContext]);
 
     useEffect(() => {
-        if (!menuOpen) return undefined;
+        let cancelled = false;
 
-        const handlePointerDown = (event) => {
-            const target = event.target;
-            if (menuRef.current?.contains(target) || menuButtonRef.current?.contains(target)) {
+        async function detectLanguage() {
+            if (!sourceText.trim()) {
+                setSourceLanguage('auto');
                 return;
             }
-            setMenuOpen(false);
-        };
 
-        document.addEventListener('pointerdown', handlePointerDown);
-        return () => {
-            document.removeEventListener('pointerdown', handlePointerDown);
-        };
-    }, [menuOpen]);
-
-    useEffect(() => {
-        if (!stylesReady) return;
-
-        const normalizedSelection = normalizeSelectedStyles(selectedStyles, legacySelectedStyle);
-        const selectionChanged =
-            !Array.isArray(selectedStyles) ||
-            normalizedSelection.length !== selectedStyles.length ||
-            normalizedSelection.some((styleKey, index) => styleKey !== selectedStyles[index]);
-
-        if (selectionChanged) {
-            setSelectedStyles(normalizedSelection);
-            return;
-        }
-
-        const nextPrimaryStyle = normalizedSelection[0];
-        if (nextPrimaryStyle && nextPrimaryStyle !== legacySelectedStyle) {
-            setLegacySelectedStyle(nextPrimaryStyle);
-        }
-    }, [
-        legacySelectedStyle,
-        selectedStyles,
-        setLegacySelectedStyle,
-        setSelectedStyles,
-        stylesReady,
-    ]);
-
-    const stopAll = useCallback(() => {
-        Object.values(abortRefs.current).forEach((controller) => {
             try {
-                controller?.abort();
-            } catch {}
-        });
-        abortRefs.current = {};
+                const nextLanguage = await detect(sourceText);
+                if (!cancelled) {
+                    setSourceLanguage(nextLanguage || 'auto');
+                }
+            } catch {
+                if (!cancelled) {
+                    setSourceLanguage('auto');
+                }
+            }
+        }
+
+        void detectLanguage();
+        return () => {
+            cancelled = true;
+        };
+    }, [sourceText]);
+
+    const stop = useCallback(() => {
+        try {
+            abortRef.current?.abort();
+        } catch {}
+        abortRef.current = null;
         setLoading(false);
     }, []);
 
-    const generate = useCallback(async () => {
-        if (!sourceText.trim() || !apiConfig || !stylesReady || activeStyleKeys.length === 0) return;
-
-        Object.values(abortRefs.current).forEach((controller) => {
-            try {
-                controller?.abort();
-            } catch {}
-        });
-        abortRefs.current = {};
-
-        setLoading(true);
-        setHasGeneratedOnce(true);
-        setVersions(Object.fromEntries(activeStyleKeys.map((styleKey) => [styleKey, ''])));
-        setErrors(Object.fromEntries(activeStyleKeys.map((styleKey) => [styleKey, ''])));
-
-        let finishedCount = 0;
-        const onFinish = () => {
-            finishedCount += 1;
-            if (finishedCount >= activeStyleKeys.length) {
-                abortRefs.current = {};
-                setLoading(false);
+    const runCurrentTab = useCallback(
+        async (overridePrompt = extraPrompt) => {
+            const text = sourceText.trim();
+            if (!text) {
+                setStyleResult('');
+                setTranslateResult('');
+                setFixResult('');
+                setError('');
+                return;
             }
-        };
 
-        activeStyleKeys.forEach((styleKey) => {
+            stop();
+            setError('');
+
+            if (activeTab === 'fix') {
+                setFixResult(formatText(sourceText));
+                return;
+            }
+
+            if (!apiConfig) {
+                setError('请先在配置里填写可用的 AI 接口。');
+                return;
+            }
+
             const controller = new AbortController();
-            abortRefs.current[styleKey] = controller;
+            abortRef.current = controller;
+            setLoading(true);
 
-            lightAiStream(
+            const onComplete = () => {
+                abortRef.current = null;
+                setLoading(false);
+            };
+
+            const onError = (nextError) => {
+                abortRef.current = null;
+                setLoading(false);
+                if (nextError) {
+                    setError(nextError);
+                }
+            };
+
+            if (activeTab === 'translate') {
+                setTranslateResult('');
+                await translateTextStream(
+                    sourceText,
+                    currentLanguageLabel,
+                    targetLanguageLabel,
+                    overridePrompt,
+                    apiConfig,
+                    (chunk) => {
+                        setTranslateResult((prev) => `${prev}${chunk}`);
+                    },
+                    onComplete,
+                    onError,
+                    controller.signal
+                );
+                return;
+            }
+
+            setStyleResult('');
+            await lightAiStream(
                 sourceText,
-                styleKey,
-                extraPrompt,
+                resolvedSelectedStyle,
+                overridePrompt,
                 apiConfig,
                 (chunk) => {
-                    setVersions((prev) => ({
-                        ...prev,
-                        [styleKey]: `${prev[styleKey] || ''}${chunk}`,
-                    }));
+                    setStyleResult((prev) => `${prev}${chunk}`);
                 },
-                () => {
-                    onFinish();
-                },
-                (nextError) => {
-                    if (!controller.signal.aborted && nextError) {
-                        setErrors((prev) => ({
-                            ...prev,
-                            [styleKey]: nextError,
-                        }));
-                    }
-                    onFinish();
-                },
+                onComplete,
+                onError,
                 controller.signal
             );
-        });
-    }, [activeStyleKeys, apiConfig, extraPrompt, sourceText, stylesReady]);
+        },
+        [
+            activeTab,
+            apiConfig,
+            currentLanguageLabel,
+            extraPrompt,
+            resolvedSelectedStyle,
+            sourceText,
+            stop,
+            targetLanguageLabel,
+        ]
+    );
 
     useEffect(() => {
-        if (sourceText && apiConfig && stylesReady && activeStyleKeys.length > 0) {
-            void generate();
-        }
+        if (!sourceText.trim()) return;
+        void runCurrentTab('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sourceText, apiConfig, stylesReady, activeStyleKeySignature]);
+    }, [
+        activeTab,
+        resolvedSelectedStyle,
+        sourceLanguage,
+        sourceText,
+        resolvedTargetLanguage,
+    ]);
 
     useEffect(() => {
-        if (!sourceText.trim()) {
-            setHasGeneratedOnce(false);
-        }
-    }, [sourceText]);
+        setSelectedStyles([resolvedSelectedStyle]);
+    }, [resolvedSelectedStyle, setSelectedStyles]);
 
-    const applyVersion = async (styleKey) => {
-        const text = versions[styleKey];
-        if (!text) return;
+    useEffect(() => {
+        return () => {
+            try {
+                abortRef.current?.abort();
+            } catch {}
+        };
+    }, []);
+
+    const handleCopy = async () => {
+        if (!currentResult) return;
+        await invoke('write_clipboard', { text: currentResult }).catch(() => {});
+    };
+
+    const handleDismiss = useCallback(async () => {
+        if (targetMode === 'focused_input') {
+            await invoke('collapse_light_ai_from_input_handle').catch((error) => {
+                console.error('collapse_light_ai_from_input_handle error:', error);
+            });
+            return;
+        }
+
+        await appWindow.close();
+    }, [targetMode]);
+
+    const handleApply = async () => {
+        if (!currentResult) return;
 
         try {
-            await saveHistory('lightai', sourceText, text, {
-                style: styleKey,
+            await saveHistory('lightai', sourceText, currentResult, {
+                mode: activeTab,
+                style: resolvedSelectedStyle,
+                targetLanguage: resolvedTargetLanguage,
                 extra: extraPrompt,
-                ...getAiHistoryServiceMeta(apiConfig),
+                applyTarget: targetMode,
+                ...getAiHistoryServiceMeta(apiConfig ?? {}),
             });
         } catch {}
 
         try {
-            await invoke('paste_result', { text });
-            await appWindow.close();
-        } catch (error) {
-            console.error('paste_result error:', error);
-        }
-    };
-
-    const copyVersion = async (styleKey) => {
-        const text = versions[styleKey];
-        if (!text) return;
-
-        try {
-            await invoke('write_clipboard', { text });
-        } catch (error) {
-            console.error('write_clipboard error:', error);
-        }
-    };
-
-    const toggleStyle = (styleKey) => {
-        let nextSelection;
-
-        if (activeStyleKeys.includes(styleKey)) {
-            if (activeStyleKeys.length === 1) {
-                return;
+            if (targetMode === 'focused_input') {
+                await invoke('replace_input_text', { text: currentResult });
+            } else {
+                await invoke('paste_result', { text: currentResult });
             }
-            nextSelection = activeStyleKeys.filter((value) => value !== styleKey);
-        } else {
-            nextSelection = STYLE_KEYS.filter(
-                (value) => activeStyleKeys.includes(value) || value === styleKey
-            );
+            await handleDismiss();
+        } catch (nextError) {
+            console.error('handleApply error:', nextError);
         }
-
-        setSelectedStyles(nextSelection);
-        setLegacySelectedStyle(nextSelection[0] ?? styleKey);
     };
 
-    const canGenerate = Boolean(sourceText.trim()) && stylesReady && activeStyleKeys.length > 0;
-    const mainButtonLabel = loading ? STOP_LABEL : hasGeneratedOnce ? REGENERATE_LABEL : GENERATE_LABEL;
+    const panelTitle =
+        activeTab === 'translate'
+            ? '翻译结果'
+            : activeTab === 'fix'
+              ? '修正结果'
+              : '润色结果';
+
+    const canRun = Boolean(sourceText.trim());
+    const canCopy = Boolean(currentResult);
+    const promptVisible = activeTab !== 'fix';
 
     return (
-        <TrayWindow>
+        <TrayWindow style={{ background: '#f6f8fb' }}>
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={headerStyle}
                 center={
                     <WindowHeaderTitle
-                        icon={<HiSparkles className='text-[15px] text-default-500' />}
-                        style={TRAY_WINDOW_TITLE_STYLE}
-                        textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
+                        icon={<HiSparkles className='text-[13px] text-default-500' />}
+                        style={headerTitleStyle}
+                        textStyle={headerTitleTextStyle}
                     >
-                        {LIGHT_AI_TITLE}
+                        AI 编辑器
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton />}
+                right={<WindowHeaderCloseButton onClick={() => void handleDismiss()} />}
             />
 
-            <TrayWindowBody>
-                <TrayWindowSurface>
-                    <div style={styles.sourceBox}>
-                        <div style={styles.sectionLabel}>源文本</div>
-                        <div style={{ marginTop: '4px' }}>
-                            {sourceText || <span style={{ color: '#94a3b8' }}>等待选中文本...</span>}
+            <TrayWindowBody style={{ padding: '10px 12px 12px' }}>
+                <TrayWindowSurface style={surfaceStyle}>
+                    <div style={styles.topSection}>
+                        <div style={styles.tabRow}>
+                            {TAB_OPTIONS.map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    type='button'
+                                    style={styles.tabButton(activeTab === tab.key)}
+                                    onClick={() => {
+                                        setActiveTab(tab.key);
+                                        setError('');
+                                    }}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
-                    </div>
 
-                    <div style={styles.templateBar}>
-                        {QUICK_TEMPLATES.map((template) => (
-                            <button
-                                key={template.label}
-                                type='button'
-                                style={styles.chip}
-                                onClick={() => {
-                                    setExtraPrompt(template.prompt);
-                                    inputRef.current?.focus();
-                                }}
-                            >
-                                {template.label}
-                            </button>
-                        ))}
-                    </div>
+                        {activeTab === 'translate' ? (
+                            <div style={styles.topMetaRow}>
+                                <div style={styles.selectWrap}>
+                                    <span style={styles.selectLabel}>源语言</span>
+                                    <span
+                                        style={{
+                                            color: '#0f172a',
+                                            fontWeight: 600,
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {currentLanguageLabel}
+                                    </span>
+                                </div>
+                                <div style={styles.selectWrap}>
+                                    <span style={styles.selectLabel}>目标语言</span>
+                                    <select
+                                        style={styles.nativeSelect}
+                                        value={resolvedTargetLanguage}
+                                        onChange={(event) => {
+                                            setTargetLanguage(event.target.value);
+                                        }}
+                                    >
+                                        {languageList.map((languageKey) => (
+                                            <option key={languageKey} value={languageKey}>
+                                                {getLanguageLabelZh(languageKey)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        ) : null}
 
-                    <div style={styles.versionsArea}>
-                        {activeStyleKeys.length === 0 ? (
-                            <div style={styles.emptyState}>{EMPTY_STYLE_PLACEHOLDER}</div>
-                        ) : (
-                            activeStyleKeys.map((styleKey, index) => {
-                                const value = versions[styleKey] || '';
-                                const nextError = errors[styleKey] || '';
-
-                                return (
-                                    <div key={styleKey} style={styles.versionCard}>
-                                        <div style={styles.versionHeader}>
-                                            <div style={styles.versionTitle}>
-                                                <span>{index + 1}.</span>
-                                                <span>{STYLE_NAMES[styleKey] ?? styleKey}</span>
-                                                {loading && !value ? (
-                                                    <span style={{ color: '#94a3b8', fontWeight: 400 }}>正在生成...</span>
-                                                ) : null}
-                                            </div>
-
-                                            <div style={styles.actionRow}>
-                                                <button
-                                                    type='button'
-                                                    style={styles.cardButton(false)}
-                                                    onClick={() => {
-                                                        void copyVersion(styleKey);
-                                                    }}
-                                                    disabled={!value}
-                                                >
-                                                    复制
-                                                </button>
-                                                <button
-                                                    type='button'
-                                                    style={styles.cardButton(true)}
-                                                    onClick={() => {
-                                                        void applyVersion(styleKey);
-                                                    }}
-                                                    disabled={!value}
-                                                >
-                                                    应用
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {nextError ? (
-                                            <div style={styles.versionError}>{nextError}</div>
-                                        ) : (
-                                            <div style={styles.versionBody}>
-                                                {value || (loading ? '正在生成...' : WAITING_PLACEHOLDER)}
-                                            </div>
+                        {activeTab === 'style' ? (
+                            <div style={styles.styleRow}>
+                                {STYLE_KEYS.map((styleKey) => (
+                                    <button
+                                        key={styleKey}
+                                        type='button'
+                                        style={styles.styleChip(
+                                            resolvedSelectedStyle === styleKey
                                         )}
-                                    </div>
-                                );
-                            })
-                        )}
+                                        onClick={() => {
+                                            setSelectedStyle(styleKey);
+                                        }}
+                                    >
+                                        {STYLE_LABELS_ZH[styleKey] ??
+                                            STYLE_NAMES[styleKey] ??
+                                            styleKey}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <div style={styles.pane}>
+                        <div style={styles.card}>
+                            <div style={styles.cardHeader}>
+                                <span>原文</span>
+                                <span style={styles.cardMeta}>
+                                    {targetMode === 'focused_input'
+                                        ? '整个输入框'
+                                        : '选中文本'}
+                                </span>
+                            </div>
+                            <div style={styles.cardBody}>
+                                {sourceText || (
+                                    <span style={styles.emptyText}>等待文本内容...</span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={styles.card}>
+                            <div style={styles.cardHeader}>
+                                <span>{panelTitle}</span>
+                                {activeTab === 'style' ? (
+                                    <span style={styles.cardMeta}>
+                                        {STYLE_LABELS_ZH[resolvedSelectedStyle] ??
+                                            STYLE_NAMES[resolvedSelectedStyle] ??
+                                            resolvedSelectedStyle}
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div style={styles.cardBody}>
+                                {error ? (
+                                    <span style={{ color: '#dc2626' }}>{error}</span>
+                                ) : currentResult ? (
+                                    currentResult
+                                ) : loading ? (
+                                    <span style={styles.emptyText}>生成中...</span>
+                                ) : (
+                                    <span style={styles.emptyText}>暂无结果。</span>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <div style={styles.footer}>
-                        <input
-                            ref={inputRef}
-                            style={styles.promptInput}
-                            placeholder='补充要求，回车重新生成'
-                            value={extraPrompt}
-                            onChange={(event) => setExtraPrompt(event.target.value)}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter' && !event.shiftKey) {
-                                    event.preventDefault();
-                                    if (!loading) {
-                                        void generate();
+                        {promptVisible ? (
+                            <input
+                                style={styles.promptInput}
+                                placeholder='可选补充要求'
+                                value={extraPrompt}
+                                onChange={(event) => setExtraPrompt(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' && !event.shiftKey) {
+                                        event.preventDefault();
+                                        if (loading) {
+                                            stop();
+                                        } else {
+                                            void runCurrentTab();
+                                        }
                                     }
-                                }
-                            }}
-                        />
+                                }}
+                            />
+                        ) : null}
 
-                        <div style={styles.footerMenuWrap}>
-                            {menuOpen ? (
-                                <div ref={menuRef} style={styles.footerMenu}>
-                                    <div style={styles.footerMenuTitle}>选择润色风格</div>
-                                    {STYLE_KEYS.map((styleKey) => {
-                                        const selected = activeStyleKeys.includes(styleKey);
-
-                                        return (
-                                            <button
-                                                key={styleKey}
-                                                type='button'
-                                                style={styles.footerMenuItem(selected)}
-                                                onClick={() => {
-                                                    toggleStyle(styleKey);
-                                                }}
-                                            >
-                                                <span>{STYLE_NAMES[styleKey] ?? styleKey}</span>
-                                                {selected ? <LuCheck className='text-[16px]' /> : <span />}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ) : null}
+                        <div style={styles.actionGroup}>
+                            <button
+                                type='button'
+                                style={styles.secondaryButton(!canRun)}
+                                onClick={() => {
+                                    if (loading) {
+                                        stop();
+                                    } else {
+                                        void runCurrentTab();
+                                    }
+                                }}
+                                disabled={!canRun}
+                            >
+                                {loading ? '停止' : '生成'}
+                            </button>
 
                             <button
-                                ref={menuButtonRef}
                                 type='button'
-                                title='更多风格'
-                                style={styles.footerIconButton}
-                                onClick={() => setMenuOpen((prev) => !prev)}
+                                style={styles.secondaryButton(!canCopy)}
+                                onClick={() => {
+                                    void handleCopy();
+                                }}
+                                disabled={!canCopy}
                             >
-                                <HiDotsHorizontal className='text-[20px]' />
+                                复制
+                            </button>
+
+                            <button
+                                type='button'
+                                style={styles.primaryButton(!canCopy)}
+                                onClick={() => {
+                                    void handleApply();
+                                }}
+                                disabled={!canCopy}
+                            >
+                                应用
                             </button>
                         </div>
-
-                        <button
-                            type='button'
-                            style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
-                            className='h-14 rounded-[14px] px-6 text-[13px] font-semibold'
-                            onClick={() => {
-                                if (loading) {
-                                    stopAll();
-                                } else {
-                                    void generate();
-                                }
-                            }}
-                            disabled={!loading && !canGenerate}
-                        >
-                            {mainButtonLabel}
-                        </button>
                     </div>
                 </TrayWindowSurface>
             </TrayWindowBody>

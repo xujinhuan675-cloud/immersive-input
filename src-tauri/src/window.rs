@@ -4,6 +4,7 @@ use std::fs;
 
 use crate::config::get;
 use crate::config::set;
+use crate::LightAiTargetWrapper;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::TranslateExcerptModeWrapper;
@@ -11,8 +12,11 @@ use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
 use log::{info, warn};
+use once_cell::sync::Lazy;
 #[cfg(target_os = "windows")]
 use once_cell::sync::OnceCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::Manager;
 use tauri::Monitor;
 use tauri::Window;
@@ -57,6 +61,12 @@ fn get_window_monitor(window: &Window) -> Monitor {
         .or_else(|| window.primary_monitor().ok().flatten())
         .or_else(|| get_daemon_window().primary_monitor().ok().flatten())
         .expect("No monitor found for window")
+}
+
+pub fn set_light_ai_target(target: &str) {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<LightAiTargetWrapper> = app_handle.state();
+    *state.0.lock().unwrap() = target.to_string();
 }
 
 #[cfg(target_os = "windows")]
@@ -146,6 +156,18 @@ fn apply_windows_window_icons(window: &Window) {
 #[cfg(not(target_os = "windows"))]
 fn apply_windows_window_icons(_window: &Window) {}
 
+#[derive(Clone, Copy)]
+struct PopupAnchorBounds {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+}
+
+static INPUT_AI_HANDLE_BOUNDS: Lazy<Mutex<Option<PopupAnchorBounds>>> =
+    Lazy::new(|| Mutex::new(None));
+static LIGHT_AI_OPENED_FROM_INPUT_HANDLE: AtomicBool = AtomicBool::new(false);
+
 fn apply_default_window_icon(window: &Window) {
     if let Some(icon) = default_window_icon() {
         window.set_icon(icon).unwrap_or_default();
@@ -168,6 +190,61 @@ fn show_app_window(window: &Window) {
     window.show().unwrap_or_default();
     ensure_window_shows_in_taskbar(window);
     apply_default_window_icon(window);
+}
+
+fn set_input_ai_handle_bounds(x: i32, y: i32, width: i32, height: i32) {
+    *INPUT_AI_HANDLE_BOUNDS.lock().unwrap() = Some(PopupAnchorBounds {
+        x,
+        y,
+        width,
+        height,
+    });
+}
+
+fn get_input_ai_handle_bounds() -> Option<PopupAnchorBounds> {
+    *INPUT_AI_HANDLE_BOUNDS.lock().unwrap()
+}
+
+pub fn set_light_ai_opened_from_input_handle(opened: bool) {
+    LIGHT_AI_OPENED_FROM_INPUT_HANDLE.store(opened, Ordering::SeqCst);
+}
+
+pub fn is_light_ai_opened_from_input_handle() -> bool {
+    LIGHT_AI_OPENED_FROM_INPUT_HANDLE.load(Ordering::SeqCst)
+}
+
+pub fn is_light_ai_window_visible() -> bool {
+    APP.get()
+        .and_then(|app_handle| app_handle.get_window("light_ai"))
+        .and_then(|window| window.is_visible().ok())
+        .unwrap_or(false)
+}
+
+pub fn hide_light_ai_window() {
+    if let Some(app_handle) = APP.get() {
+        if let Some(window) = app_handle.get_window("light_ai") {
+            window.hide().unwrap_or_default();
+        }
+    }
+    set_light_ai_opened_from_input_handle(false);
+}
+
+pub fn restore_foreground_window() {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+
+        let app_handle = APP.get().unwrap();
+        let state: tauri::State<PrevForegroundWindow> = app_handle.state();
+        let prev_hwnd = *state.0.lock().unwrap();
+        if prev_hwnd != 0 {
+            unsafe {
+                let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
+    }
 }
 
 // Get monitor where the mouse is currently located
@@ -473,11 +550,21 @@ pub fn set_translate_excerpt_mode(enabled: bool) {
 pub fn save_foreground_window() {
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, GetWindowThreadProcessId,
+        };
         let app_handle = APP.get().unwrap();
         let state: tauri::State<PrevForegroundWindow> = app_handle.state();
         unsafe {
             let hwnd = GetForegroundWindow();
+            if hwnd.0.is_null() {
+                return;
+            }
+            let mut process_id = 0u32;
+            let _ = GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+            if process_id == std::process::id() {
+                return;
+            }
             // HWND inner type is *mut c_void; cast to isize for storage
             *state.0.lock().unwrap() = hwnd.0 as isize;
         }
@@ -751,11 +838,70 @@ pub fn float_toolbar_window() {
     window.show().unwrap_or_default();
 }
 
+pub fn show_input_ai_handle_window(x: i32, y: i32) {
+    let Some(app_handle) = APP.get() else {
+        return;
+    };
+    set_input_ai_handle_bounds(x, y, 24, 24);
+
+    if let Some(window) = app_handle.get_window("input_ai_handle") {
+        window
+            .set_size(tauri::LogicalSize::new(24.0, 24.0))
+            .unwrap_or_default();
+        window
+            .set_position(tauri::PhysicalPosition::new(x, y))
+            .unwrap_or_default();
+        window.show().unwrap_or_default();
+        return;
+    }
+
+    let window = match tauri::WindowBuilder::new(
+        app_handle,
+        "input_ai_handle",
+        tauri::WindowUrl::App("index.html".into()),
+    )
+    .transparent(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(false)
+    .resizable(false)
+    .visible(false)
+    .inner_size(24.0, 24.0)
+    .additional_browser_args("--disable-web-security")
+    .build()
+    {
+        Ok(window) => window,
+        Err(error) => {
+            warn!("Failed to create input_ai_handle window: {:?}", error);
+            return;
+        }
+    };
+
+    window
+        .set_size(tauri::LogicalSize::new(24.0, 24.0))
+        .unwrap_or_default();
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
+    window.show().unwrap_or_default();
+}
+
+pub fn hide_input_ai_handle_window() {
+    if let Some(app_handle) = APP.get() {
+        if let Some(window) = app_handle.get_window("input_ai_handle") {
+            window.hide().unwrap_or_default();
+        }
+    }
+}
+
 // ─────────────────────────────────────────────
 // LightAI Window
 // ─────────────────────────────────────────────
 pub fn selection_light_ai() {
     info!("selection_light_ai called");
+    set_light_ai_opened_from_input_handle(false);
+    set_light_ai_target("selection");
     // Save foreground window before we open any popup
     save_foreground_window();
     // Get Selected Text
@@ -788,9 +934,11 @@ pub fn light_ai_window() {
         drop(guard);
         s
     };
-    let (window, exists) = build_window("light_ai", "AI Polish");
+    let (window, exists) = build_window("light_ai", "AI 编辑器");
     window.set_skip_taskbar(true).unwrap_or_default();
     if exists {
+        show_app_window(&window);
+        window.set_focus().unwrap_or_default();
         window.emit("new_text", text).unwrap_or_default();
         return;
     }
@@ -818,8 +966,59 @@ pub fn light_ai_window() {
     window
         .set_position(tauri::PhysicalPosition::new(x, y))
         .unwrap_or_default();
-    window.show().unwrap_or_default();
+    show_app_window(&window);
+    window.set_focus().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
+}
+
+fn reposition_light_ai_window_near_handle(window: &Window) {
+    let Some(anchor) = get_input_ai_handle_bounds() else {
+        return;
+    };
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+
+    let monitor = get_current_monitor(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+    let monitor_size = monitor.size();
+    let monitor_pos = monitor.position();
+    let popup_width = size.width as i32;
+    let popup_height = size.height as i32;
+    let monitor_left = monitor_pos.x + 8;
+    let monitor_top = monitor_pos.y + 8;
+    let monitor_right = monitor_pos.x + monitor_size.width as i32 - 8;
+    let monitor_bottom = monitor_pos.y + monitor_size.height as i32 - 8;
+
+    let mut x = anchor.x + anchor.width - popup_width;
+    let mut y = anchor.y - popup_height - 10;
+
+    if y < monitor_top {
+        y = anchor.y + anchor.height + 10;
+    }
+    if x < monitor_left {
+        x = monitor_left;
+    }
+    if x + popup_width > monitor_right {
+        x = (monitor_right - popup_width).max(monitor_left);
+    }
+    if y + popup_height > monitor_bottom {
+        y = (monitor_bottom - popup_height).max(monitor_top);
+    }
+
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .unwrap_or_default();
+}
+
+pub fn light_ai_window_from_input_handle() {
+    light_ai_window();
+
+    if let Some(app_handle) = APP.get() {
+        if let Some(window) = app_handle.get_window("light_ai") {
+            reposition_light_ai_window_near_handle(&window);
+            window.set_focus().unwrap_or_default();
+        }
+    }
 }
 
 // ─────────────────────────────
@@ -879,6 +1078,8 @@ pub fn explain_window() {
 #[tauri::command]
 #[allow(dead_code)]
 pub fn open_light_ai_window() {
+    set_light_ai_opened_from_input_handle(false);
+    set_light_ai_target("selection");
     // Window creation via build() deadlocks on the WebView2 IPC thread.
     // Spawning a separate thread mirrors float_toolbar_window() which works.
     std::thread::spawn(|| {

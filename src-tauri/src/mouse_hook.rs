@@ -168,10 +168,12 @@ fn handle_event(event: Event) {
         EventType::KeyPress(key) => {
             crate::selection_capture::handle_key_press(key);
             crate::doubletap_hook::handle_key_press(key);
+            crate::focused_input::handle_key_press(key);
         }
 
         EventType::KeyRelease(key) => {
             crate::selection_capture::handle_key_release(key);
+            crate::focused_input::handle_key_release(key);
         }
 
         _ => {}

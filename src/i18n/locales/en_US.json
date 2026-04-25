@@ -294,6 +294,7 @@
                 "invite_share_failed": "Failed to copy invite link",
                 "invite_invited_count": "Invited",
                 "invite_pending_count": "Pending",
+                "invite_pending_count_help": "To ensure fair use of platform resources, invite rewards are issued after the invited user completes a top-up of any amount.",
                 "invite_rewarded_credits": "Credits earned",
                 "billing_region_title": "Billing region",
                 "billing_region_hint": "Switch pricing and payment flow between regions.",

@@ -11,7 +11,9 @@ import {
     ModalBody,
     ModalContent,
     ModalHeader,
+    Tooltip,
 } from '@nextui-org/react';
+import { AiOutlineExclamationCircle } from 'react-icons/ai';
 import { MdLogout } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
@@ -497,8 +499,22 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                                 </SubtleRefreshingValue>
                             </div>
                             <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
-                                <p className='text-[11px] text-default-500'>
-                                    {viewModel.pendingCountLabel}
+                                <p className='flex items-center gap-1 text-[11px] text-default-500'>
+                                    <span>{viewModel.pendingCountLabel}</span>
+                                    <Tooltip
+                                        content={viewModel.pendingCountHelpText}
+                                        size='sm'
+                                        placement='top'
+                                        showArrow
+                                        classNames={{
+                                            content:
+                                                'max-w-[240px] rounded-lg border border-default-200 bg-white px-3 py-2 text-[12px] leading-5 text-default-700 shadow-lg',
+                                        }}
+                                    >
+                                        <span className='inline-flex cursor-help text-default-400 transition-colors hover:text-default-600'>
+                                            <AiOutlineExclamationCircle className='text-[13px]' />
+                                        </span>
+                                    </Tooltip>
                                 </p>
                                 <SubtleRefreshingValue
                                     refreshing={valueRefreshing}
@@ -1976,6 +1992,9 @@ export default function Account() {
             invitedCountLabel: t('config.account.invite_invited_count'),
             invitedCount: billingProfile ? inviteStats.invitedCount : t('config.account.billing_none'),
             pendingCountLabel: t('config.account.invite_pending_count'),
+            pendingCountHelpText: t('config.account.invite_pending_count_help', {
+                defaultValue: '为保障平台资源公平使用，邀请奖励将在受邀用户完成任意金额充值后发放。',
+            }),
             pendingCount: billingProfile ? inviteStats.pendingCount : t('config.account.billing_none'),
             rewardedCreditsLabel: t('config.account.invite_rewarded_credits'),
             rewardedCredits: billingProfile

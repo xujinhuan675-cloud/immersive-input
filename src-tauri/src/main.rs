@@ -7,6 +7,7 @@ mod cmd;
 mod config;
 mod doubletap_hook;
 mod error;
+mod focused_input;
 mod hotkey;
 mod lang_detect;
 mod mouse_hook;
@@ -28,6 +29,7 @@ use cmd::paste_result;
 use cmd::write_clipboard;
 use cmd::*;
 use config::*;
+use focused_input::*;
 use hotkey::*;
 use lang_detect::*;
 use log::{info, Level, LevelFilter};
@@ -61,6 +63,7 @@ pub struct StringWrapper(pub Mutex<String>);
 // Previous foreground window handle (raw isize, Windows HWND)
 pub struct PrevForegroundWindow(pub Mutex<isize>);
 pub struct TranslateExcerptModeWrapper(pub Mutex<bool>);
+pub struct LightAiTargetWrapper(pub Mutex<String>);
 
 fn configure_runtime_log_env() {
     let override_value = env::var("IMMERSIVE_INPUT_RUST_LOG").ok();
@@ -183,6 +186,10 @@ fn main() {
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
             app.manage(TranslateExcerptModeWrapper(Mutex::new(false)));
+            app.manage(LightAiTargetWrapper(Mutex::new("selection".to_string())));
+            app.manage(FocusedInputSnapshotWrapper(Mutex::new(
+                FocusedInputSnapshot::default(),
+            )));
             app.manage(VaultModeWrapper(Mutex::new(String::new())));
             // Update Tray Menu
             update_tray(app.app_handle(), "".to_string(), "".to_string());
@@ -214,6 +221,8 @@ fn main() {
             start_clipboard_monitor(app.handle());
             // Start global mouse hook for auto text-select toolbar
             mouse_hook::start_mouse_hook();
+            // Start Windows editable-input monitor for the floating AI handle
+            start_input_ai_handle_monitor();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -236,18 +245,22 @@ fn main() {
             font_list,
             aliyun,
             paste_result,
+            replace_input_text,
             write_clipboard,
             fill_autotab,
             phrase_inline::phrase_inline_fill,
             phrase_inline::phrase_inline_dismiss,
             open_explain_window,
             open_translate_from_toolbar,
+            open_light_ai_from_input_handle,
+            collapse_light_ai_from_input_handle,
             open_chat_window,
             open_phrases_window,
             open_vault_window,
             open_vault_quick_add,
             open_vault_quick_fill,
             get_vault_mode,
+            get_light_ai_target,
             set_translate_excerpt_mode,
             save_prev_window,
             open_login_window
