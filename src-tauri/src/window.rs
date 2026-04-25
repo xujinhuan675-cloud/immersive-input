@@ -1266,13 +1266,47 @@ pub fn vault_window() {
         w.set_focus().unwrap_or_default();
         return;
     }
-    let (window, _) = build_window("vault", "密码本");
+
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
+        app_handle,
+        "vault",
+        tauri::WindowUrl::App("index.html".into()),
+    ))
+    .title("Vault")
+    .inner_size(800.0, 600.0)
+    .additional_browser_args("--disable-web-security")
+    .focused(true)
+    .visible(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.decorations(false);
+    }
+
+    if let Some(icon) = default_window_icon() {
+        builder = builder.icon(icon).unwrap();
+    }
+
+    let window = builder.build().unwrap();
+    apply_default_window_icon(&window);
+
+    #[cfg(not(target_os = "linux"))]
+    set_shadow(&window, true).unwrap_or_default();
+
     window
         .set_min_size(Some(tauri::LogicalSize::new(600, 400)))
         .unwrap_or_default();
-    apply_saved_window_size(&window, "vault", 800, 600);
+    apply_saved_window_size_with_min(&window, "vault", 800, 600, 600, 400);
     window.center().unwrap_or_default();
     show_app_window(&window);
+    window.set_focus().unwrap_or_default();
+    return;
 }
 
 // ─────────────────────────────────────────────

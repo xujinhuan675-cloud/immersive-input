@@ -222,3 +222,243 @@ export async function getAllPhrases() {
     const db = await getDb();
     return db.select('SELECT * FROM phrases ORDER BY use_count DESC, modified_at DESC');
 }
+
+const PORTABLE_PHRASE_HEADERS = ['tag', 'title', 'content', 'use_count', 'created_at', 'modified_at'];
+const PORTABLE_PHRASE_HEADER_ALIASES = {
+    tag: ['tag', 'category', '分类', '标签'],
+    title: ['title', '标题'],
+    content: ['content', 'text', '内容'],
+    use_count: ['use_count', 'use count', 'usage_count', '使用次数'],
+    created_at: ['created_at', 'created at', '创建时间'],
+    modified_at: ['modified_at', 'modified at', '更新时间', '修改时间'],
+};
+
+function escapePortableCsvCell(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    const normalized = String(value).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (/[",\n]/.test(normalized)) {
+        return `"${normalized.replace(/"/g, '""')}"`;
+    }
+    return normalized;
+}
+
+function parsePortableCsv(text) {
+    const source = String(text ?? '')
+        .replace(/^\uFEFF/, '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
+
+    if (!source) {
+        return [];
+    }
+
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < source.length; i += 1) {
+        const char = source[i];
+
+        if (inQuotes) {
+            if (char === '"') {
+                if (source[i + 1] === '"') {
+                    cell += '"';
+                    i += 1;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                cell += char;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inQuotes = true;
+            continue;
+        }
+
+        if (char === ',') {
+            row.push(cell);
+            cell = '';
+            continue;
+        }
+
+        if (char === '\n') {
+            row.push(cell);
+            rows.push(row);
+            row = [];
+            cell = '';
+            continue;
+        }
+
+        cell += char;
+    }
+
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '') {
+        rows.push(row);
+    }
+
+    return rows.filter((nextRow) => nextRow.some((value) => value !== ''));
+}
+
+function normalizePortableHeader(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
+function findPortableHeaderIndex(headerMap, key) {
+    const aliases = PORTABLE_PHRASE_HEADER_ALIASES[key] ?? [key];
+    for (const alias of aliases) {
+        const index = headerMap.get(normalizePortableHeader(alias));
+        if (index !== undefined) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function readPortableCell(row, headerMap, key) {
+    const index = findPortableHeaderIndex(headerMap, key);
+    if (index < 0) {
+        return '';
+    }
+    return String(row[index] ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+function normalizePortableTagName(value) {
+    return String(value ?? '').trim();
+}
+
+function buildPortablePhraseKey({ tagName = '', title = '', content = '' }) {
+    return JSON.stringify([normalizePortableTagName(tagName), String(title), String(content)]);
+}
+
+function normalizePortableTimestamp(value, fallback) {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        return fallback;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)) {
+        return text;
+    }
+
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) {
+        return fallback;
+    }
+
+    return parsed.toISOString().replace('T', ' ').substring(0, 19);
+}
+
+function parsePortableUseCount(value) {
+    const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+export async function exportPhrasesPortableCsv() {
+    const [tags, phrases] = await Promise.all([getTags(), getAllPhrases()]);
+    const tagNameById = new Map(tags.map((tag) => [tag.id, tag.name ?? '']));
+
+    const headerLine = PORTABLE_PHRASE_HEADERS.map(escapePortableCsvCell).join(',');
+    const bodyLines = phrases.map((phrase) =>
+        [
+            phrase.tag_id === null || phrase.tag_id === undefined ? '' : tagNameById.get(phrase.tag_id) ?? '',
+            phrase.title ?? '',
+            phrase.content ?? '',
+            phrase.use_count ?? 0,
+            phrase.created_at ?? '',
+            phrase.modified_at ?? '',
+        ]
+            .map(escapePortableCsvCell)
+            .join(',')
+    );
+
+    return `\uFEFF${[headerLine, ...bodyLines].join('\r\n')}`;
+}
+
+export async function importPhrasesPortableCsv(text) {
+    const rows = parsePortableCsv(text);
+    if (rows.length === 0) {
+        return { imported: 0, skipped: 0 };
+    }
+
+    const headerMap = new Map(rows[0].map((value, index) => [normalizePortableHeader(value), index]));
+    if (findPortableHeaderIndex(headerMap, 'content') < 0) {
+        throw new Error('Missing content column');
+    }
+
+    const db = await getDb();
+    const [tags, phrases] = await Promise.all([getTags(), getAllPhrases()]);
+    const tagNameById = new Map(tags.map((tag) => [tag.id, normalizePortableTagName(tag.name)]));
+    const tagIdByName = new Map(tags.map((tag) => [normalizePortableTagName(tag.name), tag.id]));
+    const existingKeys = new Set(
+        phrases.map((phrase) =>
+            buildPortablePhraseKey({
+                tagName: tagNameById.get(phrase.tag_id) ?? '',
+                title: phrase.title ?? '',
+                content: phrase.content ?? '',
+            })
+        )
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const row of rows.slice(1)) {
+        const title = readPortableCell(row, headerMap, 'title');
+        const content = readPortableCell(row, headerMap, 'content');
+        const tagName = normalizePortableTagName(readPortableCell(row, headerMap, 'tag'));
+
+        if (!content.trim()) {
+            skipped += 1;
+            continue;
+        }
+
+        const duplicateKey = buildPortablePhraseKey({ tagName, title, content });
+        if (existingKeys.has(duplicateKey)) {
+            skipped += 1;
+            continue;
+        }
+
+        let tagId = null;
+        if (tagName) {
+            tagId = tagIdByName.get(tagName) ?? null;
+            if (tagId === null) {
+                tagId = await addTag({
+                    name: tagName,
+                    icon: String.fromCodePoint(0x1F4DD),
+                });
+                tagIdByName.set(tagName, tagId);
+                tagNameById.set(tagId, tagName);
+            }
+        }
+
+        const createdAtFallback = now();
+        const createdAt = normalizePortableTimestamp(
+            readPortableCell(row, headerMap, 'created_at'),
+            createdAtFallback
+        );
+        const modifiedAt = normalizePortableTimestamp(
+            readPortableCell(row, headerMap, 'modified_at'),
+            createdAt
+        );
+        const useCount = parsePortableUseCount(readPortableCell(row, headerMap, 'use_count'));
+        const pinyinIndex = buildPinyinIndex((title + ' ' + content).trim());
+
+        await db.execute(
+            'INSERT INTO phrases (tag_id, title, content, pinyin_idx, use_count, created_at, modified_at) VALUES (?,?,?,?,?,?,?)',
+            [tagId, title, content, pinyinIndex, useCount, createdAt, modifiedAt]
+        );
+
+        existingKeys.add(duplicateKey);
+        imported += 1;
+    }
+
+    return { imported, skipped };
+}

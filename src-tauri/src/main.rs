@@ -115,7 +115,10 @@ fn main() {
         .plugin(
             tauri_plugin_log::Builder::default()
                 .targets(build_log_targets())
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .level(build_log_level())
+                .level_for("focused_input", LevelFilter::Off)
+                .level_for("immersive_input::focused_input", LevelFilter::Off)
                 .level_for("hyper", LevelFilter::Warn)
                 .level_for("hyper_util", LevelFilter::Warn)
                 .level_for("h2", LevelFilter::Warn)
@@ -130,7 +133,6 @@ fn main() {
                 .level_for("tao", LevelFilter::Warn)
                 .level_for("wry", LevelFilter::Warn)
                 .level_for("tracing", LevelFilter::Warn)
-                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
         .plugin(tauri_plugin_autostart::init(
