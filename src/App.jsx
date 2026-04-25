@@ -47,6 +47,33 @@ const windowMap = {
     login: <Login />,
 };
 
+class WindowErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { error };
+    }
+
+    componentDidCatch(error) {
+        console.error(`[window] ${this.props.label} render failed`, error);
+    }
+
+    render() {
+        if (!this.state.error) {
+            return this.props.children;
+        }
+
+        return (
+            <div className='h-screen w-screen flex items-center justify-center bg-background p-6 text-danger text-sm text-center whitespace-pre-wrap'>
+                {String(this.state.error?.message || this.state.error || 'Window render failed')}
+            </div>
+        );
+    }
+}
+
 const WINDOW_SIZE_MEMORY = {
     config: { width: true, height: true, minWidth: 800, minHeight: 400 },
     translate: { width: true, height: true },
@@ -180,14 +207,20 @@ export default function App() {
         };
     }, []);
 
+    const windowContent = windowMap[appWindow.label] ? (
+        <WindowErrorBoundary label={appWindow.label}>
+            {windowMap[appWindow.label]}
+        </WindowErrorBoundary>
+    ) : null;
+
     return (
         <BrowserRouter>
             {authRequiredWindows.includes(appWindow.label) ? (
                 <AuthGuard showWelcome={appWindow.label === 'config'}>
-                    {windowMap[appWindow.label]}
+                    {windowContent}
                 </AuthGuard>
             ) : (
-                windowMap[appWindow.label]
+                windowContent
             )}
         </BrowserRouter>
     );

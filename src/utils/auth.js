@@ -35,6 +35,14 @@ const STORAGE_KEYS = {
     LANGUAGE_PREFERENCE: 'auth_language_preference',
 };
 
+function requireSupabaseClient() {
+    if (supabase) {
+        return supabase;
+    }
+
+    throw new Error('Authentication is not configured. Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
+}
+
 function buildStoredUser(user) {
     if (!user) return null;
     return {
@@ -114,7 +122,8 @@ function delay(ms = 800) {
  * return { user: data.user, token: data.session.access_token };
  */
 export async function loginWithPassword({ email, password, rememberMe = false }) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const client = requireSupabaseClient();
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
     const user = data.user;
     const token = data.session?.access_token;
@@ -146,6 +155,7 @@ export async function loginWithPassword({ email, password, rememberMe = false })
  * return { user: data.user, token: data.session?.access_token };
  */
 export async function registerWithEmail({ username, email, password, code, inviteCode = '' }) {
+    const client = requireSupabaseClient();
     await postJson('/api/auth/register', {
         username,
         email,
@@ -154,7 +164,7 @@ export async function registerWithEmail({ username, email, password, code, invit
         inviteCode,
     });
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
     const user = data.user;
     const token = data.session?.access_token;
@@ -225,8 +235,10 @@ export async function forgotPassword({ email }) {
  * await supabase.auth.signOut();
  */
 export async function logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw new Error(error.message);
+    if (supabase) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw new Error(error.message);
+    }
     clearStoredSession();
     // 注意：不删除记住的邮箱和密码，以便下次登录使用
 }
@@ -254,6 +266,9 @@ export function getCurrentUser() {
 
 export async function getAccessToken() {
     const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN) || '';
+    if (!supabase) {
+        return storedToken || null;
+    }
     try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;

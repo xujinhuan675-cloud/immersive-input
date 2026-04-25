@@ -29,6 +29,53 @@ use windows::Win32::{
     UI::WindowsAndMessaging::{CreateIcon, SendMessageW, HICON, ICON_BIG, ICON_SMALL, WM_SETICON},
 };
 
+#[cfg(all(
+    target_os = "windows",
+    debug_assertions,
+    not(feature = "custom-protocol")
+))]
+static DEV_WEBVIEW_DATA_DIR: Lazy<std::path::PathBuf> = Lazy::new(|| {
+    let session_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    let dir = std::env::temp_dir()
+        .join("immersive-input-webview2-dev")
+        .join(format!("session-{}-{}", std::process::id(), session_id));
+
+    if let Some(parent) = dir.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::create_dir_all(&dir);
+    debug!(
+        "[startup] using isolated WebView2 data directory for tauri dev: {:?}",
+        dir
+    );
+    dir
+});
+
+#[cfg(all(
+    target_os = "windows",
+    debug_assertions,
+    not(feature = "custom-protocol")
+))]
+fn with_dev_webview_data_directory<R: tauri::Runtime>(
+    builder: WindowBuilder<R>,
+) -> WindowBuilder<R> {
+    builder.data_directory(DEV_WEBVIEW_DATA_DIR.clone())
+}
+
+#[cfg(not(all(
+    target_os = "windows",
+    debug_assertions,
+    not(feature = "custom-protocol")
+)))]
+fn with_dev_webview_data_directory<R: tauri::Runtime>(
+    builder: WindowBuilder<R>,
+) -> WindowBuilder<R> {
+    builder
+}
+
 // Get daemon window instance
 fn get_daemon_window() -> Window {
     let app_handle = APP.get().unwrap();
@@ -36,11 +83,11 @@ fn get_daemon_window() -> Window {
         Some(v) => v,
         None => {
             warn!("Daemon window not found, create new daemon window!");
-            WindowBuilder::new(
+            with_dev_webview_data_directory(WindowBuilder::new(
                 app_handle,
                 "daemon",
                 tauri::WindowUrl::App("daemon.html".into()),
-            )
+            ))
             .title("Daemon")
             .additional_browser_args("--disable-web-security")
             .visible(false)
@@ -362,11 +409,11 @@ fn build_window(label: &str, title: &str) -> (Window, bool) {
         }
         None => {
             debug!("Window not existence, Creating new window: {}", label);
-            let mut builder = tauri::WindowBuilder::new(
+            let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
                 app_handle,
                 label,
                 tauri::WindowUrl::App("index.html".into()),
-            )
+            ))
             .position(position.x.into(), position.y.into())
             .additional_browser_args("--disable-web-security")
             .focused(true)
@@ -415,11 +462,11 @@ pub fn config_window() {
 
     // Config 窗口不使用透明：已移除透明效果功能。
     // WebView2 白色实底 + #app-loading 遮罩保证无白屏问题。
-    let mut builder = tauri::WindowBuilder::new(
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "config",
         tauri::WindowUrl::App("index.html".into()),
-    )
+    ))
     .additional_browser_args("--disable-web-security")
     .focused(true)
     .title("Config")
@@ -454,7 +501,7 @@ pub fn config_window() {
     window.center().unwrap();
     show_app_window(&window);
     debug!(
-        "[startup] config window shown at {}ms (no transparent flash)",
+        "[startup] config window shown at {}ms (loading overlay active)",
         t0.elapsed().as_millis()
     );
 }
@@ -790,11 +837,11 @@ pub fn float_toolbar_window() {
         w.emit("selection_text_updated", ()).unwrap_or_default();
         return;
     }
-    let window = match tauri::WindowBuilder::new(
+    let window = match with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "float_toolbar",
         tauri::WindowUrl::App("index.html".into()),
-    )
+    ))
     // transparent(true) + CSS box-shadow 实现悬浮卡片效果，圆角外区域透明显示后方内容
     .transparent(true)
     .decorations(false)
@@ -852,11 +899,11 @@ pub fn show_input_ai_handle_window(x: i32, y: i32) {
         return;
     }
 
-    let window = match tauri::WindowBuilder::new(
+    let window = match with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "input_ai_handle",
         tauri::WindowUrl::App("index.html".into()),
-    )
+    ))
     .transparent(true)
     .decorations(false)
     .always_on_top(true)
@@ -1241,11 +1288,11 @@ pub fn login_window() {
         return;
     }
     // 登录窗口直接用 WindowBuilder 构建，避免 build_window 的鼠标定位逻辑
-    let mut builder = tauri::WindowBuilder::new(
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "login",
         tauri::WindowUrl::App("index.html".into()),
-    )
+    ))
     .title("Immersive Input")
     .inner_size(500.0, 740.0)
     .resizable(false)

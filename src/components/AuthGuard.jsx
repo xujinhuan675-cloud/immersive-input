@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { appWindow } from '@tauri-apps/api/window';
 import { getCurrentUser } from '../utils/auth';
 import WindowControl from './WindowControl';
 import { osType } from '../utils/env';

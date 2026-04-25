@@ -13,7 +13,7 @@ import './style.css';
 export default function Config() {
     const page = useRoutes(routes);
 
-    // loading 递层由 main.jsx 的 requestAnimationFrame 负责移除，无需在组件内处理
+    // loading 递层由 main.jsx 的启动提交流程负责移除，无需在组件内处理
 
     return (
         <div

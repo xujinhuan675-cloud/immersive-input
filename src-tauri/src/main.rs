@@ -70,8 +70,9 @@ fn configure_runtime_log_env() {
     let rust_log = override_value.unwrap_or_else(|| {
         [
             "info",
-            "immersive_input=info",
-            "webview=info",
+            "immersive_input=trace",
+            "webview=trace",
+            "tauri_plugin_log=trace",
             "hyper=warn",
             "hyper_util=warn",
             "h2=warn",
@@ -93,26 +94,8 @@ fn configure_runtime_log_env() {
     env::set_var("RUST_LOG", rust_log);
 }
 
-fn stdout_log_enabled() -> bool {
-    env::var("IMMERSIVE_INPUT_STDOUT_LOG")
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
-}
-
 fn build_log_targets() -> Vec<LogTarget> {
-    let mut targets = vec![LogTarget::LogDir];
-
-    // Keep `tauri dev` quiet by default. Opt in when terminal-side Rust logs are needed.
-    if stdout_log_enabled() {
-        targets.push(LogTarget::Stdout);
-    }
-
-    targets
+    vec![LogTarget::LogDir, LogTarget::Stdout, LogTarget::Webview]
 }
 
 #[cfg(target_os = "windows")]
@@ -151,7 +134,7 @@ fn main() {
         .plugin(
             tauri_plugin_log::Builder::default()
                 .targets(build_log_targets())
-                .level(LevelFilter::Info)
+                .level(LevelFilter::Trace)
                 .level_for("hyper", LevelFilter::Warn)
                 .level_for("hyper_util", LevelFilter::Warn)
                 .level_for("h2", LevelFilter::Warn)
