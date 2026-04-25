@@ -5,7 +5,7 @@ use crate::window::{
     input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate,
 };
 use crate::APP;
-use log::{info, warn};
+use log::{debug, warn};
 use tauri::{AppHandle, GlobalShortcutManager};
 
 fn register<F>(app_handle: &AppHandle, name: &str, handler: F, key: &str) -> Result<(), String>
@@ -37,7 +37,7 @@ where
             .register(hotkey.as_str(), handler)
         {
             Ok(()) => {
-                info!("Registered global shortcut: {} for {}", hotkey, name);
+                debug!("Registered global shortcut: {} for {}", hotkey, name);
             }
             Err(e) => {
                 warn!("Failed to register global shortcut: {} {:?}", hotkey, e);

@@ -2,7 +2,7 @@ use crate::config::{get, reload};
 use crate::window::{direct_translate_selection, float_toolbar_window, save_foreground_window};
 use crate::StringWrapper;
 use crate::APP;
-use log::{info, warn};
+use log::{debug, warn};
 use rdev::{listen, Button, Event, EventType};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use tauri::Manager;
@@ -53,7 +53,7 @@ pub fn start_mouse_hook() {
             }
         })
         .expect("Failed to spawn mouse_hook thread");
-    info!("Mouse hook thread started");
+    debug!("Mouse hook thread started");
 }
 
 fn handle_event(event: Event) {
@@ -161,7 +161,7 @@ fn handle_event(event: Event) {
                 } else {
                     float_toolbar_window();
                 }
-                info!("Auto-select toolbar triggered ({}chars)", text_len);
+                debug!("Auto-select toolbar triggered ({}chars)", text_len);
             });
         }
 

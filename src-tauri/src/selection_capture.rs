@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::{debug, error};
 use once_cell::sync::Lazy;
 use rdev::Key;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -91,7 +91,7 @@ fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
 
     match get_text_by_automation() {
         Ok(text) if !text.is_empty() => return text,
-        Ok(_) => info!("get_text_by_automation is empty"),
+        Ok(_) => debug!("get_text_by_automation is empty"),
         Err(err) => error!("get_text_by_automation error: {}", err),
     }
 
@@ -100,20 +100,20 @@ fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
     }
 
     if copy_modifier_active() {
-        info!("Skipping internal clipboard fallback because copy modifier is held");
+        debug!("Skipping internal clipboard fallback because copy modifier is held");
         return String::new();
     }
 
     if has_user_copy_intent_since(user_copy_priority_marker) {
-        info!("Skipping internal clipboard fallback because user copy is still settling");
+        debug!("Skipping internal clipboard fallback because user copy is still settling");
         return String::new();
     }
 
-    info!("fallback to clipboard capture");
+    debug!("fallback to clipboard capture");
     match get_text_by_clipboard(user_copy_priority_marker) {
         Ok(text) if !text.is_empty() => text,
         Ok(_) => {
-            info!("get_text_by_clipboard is empty");
+            debug!("get_text_by_clipboard is empty");
             String::new()
         }
         Err(err) => {
@@ -136,7 +136,7 @@ fn read_user_clipboard_text(user_copy_priority_marker: Option<u64>) -> Option<St
         if clipboard_sequence() != base_seq {
             let text = read_clipboard_text().ok()?.trim().to_string();
             if !text.is_empty() {
-                info!("Using user clipboard text captured after selection release");
+                debug!("Using user clipboard text captured after selection release");
                 return Some(text);
             }
         }
@@ -164,7 +164,7 @@ fn read_user_clipboard_text_if_ready(
 
     let text = read_clipboard_text()?.trim().to_string();
     if !text.is_empty() {
-        info!("Using user clipboard text captured after selection release");
+        debug!("Using user clipboard text captured after selection release");
         return Ok(Some(text));
     }
 
@@ -215,7 +215,7 @@ fn get_text_by_clipboard(
     let seq_before = clipboard_sequence();
 
     if copy_modifier_active() {
-        info!("Skipping internal clipboard capture because copy modifier is held");
+        debug!("Skipping internal clipboard capture because copy modifier is held");
         return Ok(String::new());
     }
 

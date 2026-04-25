@@ -1,6 +1,6 @@
 use crate::window::{save_foreground_window, vault_window};
 use crate::APP;
-use log::info;
+use log::debug;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 use tauri::api::notification::Notification;
@@ -28,7 +28,7 @@ pub fn vault_quick_add_window() {
             .icon("immersive-input")
             .show();
     }
-    info!("Vault quick add: capture mode started (step 1 – waiting for account)");
+    debug!("Vault quick add: capture mode started (step 1 – waiting for account)");
 }
 
 /// 由 mouse_hook 在每次划词获得文字后调用。
@@ -50,7 +50,7 @@ pub fn handle_quick_add_capture(text: &str) -> bool {
                     .icon("immersive-input")
                     .show();
             }
-            info!("Vault quick add: account captured, waiting for password");
+            debug!("Vault quick add: account captured, waiting for password");
             true
         }
         2 => {
@@ -59,7 +59,7 @@ pub fn handle_quick_add_capture(text: &str) -> bool {
             cap.0 = 0;
             cap.1 = String::new();
             drop(cap);
-            info!("Vault quick add: password captured, opening vault window");
+            debug!("Vault quick add: password captured, opening vault window");
             open_vault_with_prefilled(account, password);
             true
         }

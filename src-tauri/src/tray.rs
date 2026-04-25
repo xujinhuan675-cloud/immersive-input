@@ -9,7 +9,7 @@ use crate::window::ocr_translate;
 use crate::window::selection_light_ai;
 use crate::window::updater_window;
 use crate::window::vault_window;
-use log::info;
+use log::{debug, info};
 use tauri::CustomMenuItem;
 use tauri::GlobalShortcutManager;
 use tauri::SystemTrayEvent;
@@ -48,7 +48,7 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
         };
     }
 
-    info!(
+    debug!(
         "Update tray with language: {}, copy mode: {}, text select behavior: {}",
         language, copy_mode, text_select_behavior
     );
@@ -207,13 +207,13 @@ fn on_clipboard_monitor_click(app: &AppHandle) {
         .unwrap();
 }
 fn on_auto_copy_click(app: &AppHandle, mode: &str) {
-    info!("Set copy mode to: {}", mode);
+    debug!("Set copy mode to: {}", mode);
     set("translate_auto_copy", mode);
     app.emit_all("translate_auto_copy_changed", mode).unwrap();
     update_tray(app.app_handle(), "".to_string(), mode.to_string());
 }
 fn on_text_select_behavior_click(app: &AppHandle, mode: &str) {
-    info!("Set text select behavior to: {}", mode);
+    debug!("Set text select behavior to: {}", mode);
     set("text_select_behavior", mode);
     app.emit_all("text_select_behavior_changed", mode)
         .unwrap_or_default();

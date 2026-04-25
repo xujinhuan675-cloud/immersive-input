@@ -1,6 +1,6 @@
 use crate::{error::Error, APP};
 use dirs::config_dir;
-use log::{info, warn};
+use log::{debug, warn};
 use serde_json::{json, Value};
 use std::sync::Mutex;
 use tauri::{Manager, Wry};
@@ -12,14 +12,14 @@ pub fn init_config(app: &mut tauri::App) {
     let config_path = config_dir().unwrap();
     let config_path = config_path.join(app.config().tauri.bundle.identifier.clone());
     let config_path = config_path.join("config.json");
-    info!("Load config from: {:?}", config_path);
+    debug!("Load config from: {:?}", config_path);
     let mut store = StoreBuilder::new(app.handle(), config_path).build();
 
     match store.load() {
-        Ok(_) => info!("Config loaded"),
+        Ok(_) => debug!("Config loaded"),
         Err(e) => {
             warn!("Config load error: {:?}", e);
-            info!("Config not found, creating new config");
+            debug!("Config not found, creating new config");
         }
     }
     app.manage(StoreWrapper(Mutex::new(store)));

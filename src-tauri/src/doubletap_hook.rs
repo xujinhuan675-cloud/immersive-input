@@ -4,7 +4,7 @@ use crate::vault::{vault_quick_add_window, vault_quick_fill_window};
 use crate::window::{
     input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate,
 };
-use log::info;
+use log::debug;
 use once_cell::sync::Lazy;
 use rdev::Key;
 use std::sync::Mutex;
@@ -162,7 +162,7 @@ pub fn handle_key_press(key: Key) {
 
     if triggered {
         let key_str = key_to_str(key);
-        info!("Double-tap detected: {}", key_str);
+        debug!("Double-tap detected: {}", key_str);
         dispatch(key, &key_str);
     }
 }
@@ -186,7 +186,7 @@ fn dispatch(key: Key, key_str: &str) {
     for (config_name, action_fn) in actions {
         if let Some(val) = get(config_name) {
             if val.as_str().unwrap_or("") == key_str {
-                info!("Double-tap hotkey: {} \u{2192} {}", key_str, config_name);
+                debug!("Double-tap hotkey: {} \u{2192} {}", key_str, config_name);
                 let produces_char = key_produces_char(key);
                 let action = *action_fn;
                 std::thread::spawn(move || {

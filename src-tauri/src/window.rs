@@ -11,7 +11,7 @@ use crate::TranslateExcerptModeWrapper;
 use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use once_cell::sync::Lazy;
 #[cfg(target_os = "windows")]
 use once_cell::sync::OnceCell;
@@ -453,7 +453,7 @@ pub fn config_window() {
     apply_saved_window_size_with_min(&window, "config", 800, 600, 800, 400);
     window.center().unwrap();
     show_app_window(&window);
-    info!(
+    debug!(
         "[startup] config window shown at {}ms (no transparent flash)",
         t0.elapsed().as_millis()
     );
@@ -700,7 +700,7 @@ pub fn ocr_recognize() {
         app_cache_dir_path.push("immersive_screenshot_cut.png");
 
         let path = app_cache_dir_path.to_string_lossy().replace("\\\\?\\", "");
-        println!("Screenshot path: {}", path);
+        debug!("Screenshot path: {}", path);
         if let Ok(_output) = std::process::Command::new("/usr/sbin/screencapture")
             .arg("-i")
             .arg("-r")
@@ -733,7 +733,7 @@ pub fn ocr_translate() {
         app_cache_dir_path.push("immersive_screenshot_cut.png");
 
         let path = app_cache_dir_path.to_string_lossy().replace("\\\\?\\", "");
-        println!("Screenshot path: {}", path);
+        debug!("Screenshot path: {}", path);
         if let Ok(_output) = std::process::Command::new("/usr/sbin/screencapture")
             .arg("-i")
             .arg("-r")
@@ -1233,7 +1233,7 @@ pub fn vault_window() {
 // ─────────────────────────────────────────────
 pub fn login_window() {
     let app_handle = APP.get().unwrap();
-    info!("login_window called");
+    debug!("login_window called");
     if let Some(w) = app_handle.get_window("login") {
         apply_default_window_icon(&w);
         show_app_window(&w);

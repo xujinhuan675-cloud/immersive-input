@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 #[tauri::command]
 pub fn screenshot(x: i32, y: i32) {
@@ -6,11 +6,11 @@ pub fn screenshot(x: i32, y: i32) {
     use dirs::cache_dir;
     use screenshots::{Compression, Screen};
     use std::fs;
-    info!("Screenshot screen with position: x={}, y={}", x, y);
+    debug!("Screenshot screen with position: x={}, y={}", x, y);
     let screens = Screen::all().unwrap();
     for screen in screens {
         let info = screen.display_info;
-        info!("Screen: {:?}", info);
+        debug!("Screen: {:?}", info);
         if info.x == x && info.y == y {
             let handle = APP.get().unwrap();
             let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");

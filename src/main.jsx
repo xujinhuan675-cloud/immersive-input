@@ -37,7 +37,7 @@ initStore().then(async () => {
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             const elapsed = Math.round(performance.now() - t0);
-            console.log(`[startup] React first paint: ${elapsed}ms after store init`);
+            console.debug(`[startup] React first paint: ${elapsed}ms after store init`);
             if (loadingEl) {
                 const label = appWindow.label;
                 if (label === 'config') {

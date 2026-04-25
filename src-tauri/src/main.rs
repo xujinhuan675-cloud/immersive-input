@@ -32,7 +32,7 @@ use config::*;
 use focused_input::*;
 use hotkey::*;
 use lang_detect::*;
-use log::{info, Level, LevelFilter};
+use log::{debug, info, Level, LevelFilter};
 use once_cell::sync::OnceCell;
 use phrases::*;
 use rapid_ocr::*;
@@ -200,10 +200,10 @@ fn main() {
             // Global AppHandle
             APP.get_or_init(|| app.handle());
             // Init Config
-            info!("Init Config Store");
+            debug!("Init Config Store");
             init_config(app);
             // Always open Config Window on startup (for login check)
-            info!("Opening config window for authentication");
+            debug!("Opening config window for authentication");
             config_window();
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
@@ -219,7 +219,7 @@ fn main() {
             start_server();
             // Register Global Shortcut
             match register_shortcut("all") {
-                Ok(()) => {}
+                Ok(()) => info!("Global shortcuts initialized"),
                 Err(e) => Notification::new(app.config().tauri.bundle.identifier.clone())
                     .title("Failed to register global shortcut")
                     .body(&e)

@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::APP;
-use log::{error, info};
+use log::{debug, error};
 use serde_json::{json, Value};
 use std::io::Read;
 use tauri::Manager;
@@ -24,7 +24,7 @@ pub fn reload_store() {
 pub fn cut_image(left: u32, top: u32, width: u32, height: u32, app_handle: tauri::AppHandle) {
     use dirs::cache_dir;
     use image::GenericImage;
-    info!("Cut image: {}x{}+{}+{}", width, height, left, top);
+    debug!("Cut image: {}x{}+{}+{}", width, height, left, top);
     let mut app_cache_dir_path = cache_dir().expect("Get Cache Dir Failed");
     app_cache_dir_path.push(&app_handle.config().tauri.bundle.identifier);
     app_cache_dir_path.push("immersive_screenshot.png");

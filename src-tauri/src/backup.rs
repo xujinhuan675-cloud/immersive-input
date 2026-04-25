@@ -1,6 +1,6 @@
 use crate::error::Error;
 use dirs::config_dir;
-use log::info;
+use log::debug;
 use reqwest_dav::{Auth, ClientBuilder, Depth};
 use std::fs;
 use std::io::Write;
@@ -56,7 +56,7 @@ fn write_backup_bundle<W: Write + std::io::Seek>(
             return Err(Error::Error("Backup File Name Error".into()));
         };
 
-        info!("adding file {path:?} as {file_name:?} ...");
+        debug!("adding file {path:?} as {file_name:?} ...");
         add_file_to_zip(zip, &path, file_name)?;
     }
 
@@ -70,7 +70,7 @@ fn write_backup_bundle<W: Write + std::io::Seek>(
             };
 
             if path.is_file() {
-                info!("adding file {path:?} as {file_name:?} ...");
+                debug!("adding file {path:?} as {file_name:?} ...");
                 add_file_to_zip(zip, path, file_name)?;
             }
         }
