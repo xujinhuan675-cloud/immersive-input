@@ -32,13 +32,12 @@ use config::*;
 use focused_input::*;
 use hotkey::*;
 use lang_detect::*;
-use log::{debug, info, Level, LevelFilter};
+use log::{debug, info, LevelFilter};
 use once_cell::sync::OnceCell;
 use phrases::*;
 use rapid_ocr::*;
 use screenshot::screenshot;
 use server::*;
-use std::env;
 use std::sync::Mutex;
 use system_ocr::*;
 use tauri::api::notification::Notification;
@@ -65,37 +64,20 @@ pub struct PrevForegroundWindow(pub Mutex<isize>);
 pub struct TranslateExcerptModeWrapper(pub Mutex<bool>);
 pub struct LightAiTargetWrapper(pub Mutex<String>);
 
-fn configure_runtime_log_env() {
-    let override_value = env::var("IMMERSIVE_INPUT_RUST_LOG").ok();
-    let rust_log = override_value.unwrap_or_else(|| {
-        [
-            "info",
-            "immersive_input=trace",
-            "webview=trace",
-            "tauri_plugin_log=trace",
-            "hyper=warn",
-            "hyper_util=warn",
-            "h2=warn",
-            "reqwest=warn",
-            "reqwest_dav=warn",
-            "rustls=warn",
-            "mio=warn",
-            "tiny_http=warn",
-            "notify=warn",
-            "notify_debouncer_mini=warn",
-            "os_info=warn",
-            "tracing=warn",
-            "tao=warn",
-            "wry=warn",
-        ]
-        .join(",")
-    });
-
-    env::set_var("RUST_LOG", rust_log);
+fn build_log_targets() -> Vec<LogTarget> {
+    if cfg!(debug_assertions) {
+        vec![LogTarget::LogDir, LogTarget::Stdout]
+    } else {
+        vec![LogTarget::LogDir]
+    }
 }
 
-fn build_log_targets() -> Vec<LogTarget> {
-    vec![LogTarget::LogDir, LogTarget::Stdout, LogTarget::Webview]
+fn build_log_level() -> LevelFilter {
+    if cfg!(debug_assertions) {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -116,7 +98,6 @@ fn configure_windows_app_id(app_id: &str) {
 fn configure_windows_app_id(_app_id: &str) {}
 
 fn main() {
-    configure_runtime_log_env();
     let context = tauri::generate_context!();
     configure_windows_app_id(&context.config().tauri.bundle.identifier);
 
@@ -134,7 +115,7 @@ fn main() {
         .plugin(
             tauri_plugin_log::Builder::default()
                 .targets(build_log_targets())
-                .level(LevelFilter::Trace)
+                .level(build_log_level())
                 .level_for("hyper", LevelFilter::Warn)
                 .level_for("hyper_util", LevelFilter::Warn)
                 .level_for("h2", LevelFilter::Warn)
@@ -149,17 +130,6 @@ fn main() {
                 .level_for("tao", LevelFilter::Warn)
                 .level_for("wry", LevelFilter::Warn)
                 .level_for("tracing", LevelFilter::Warn)
-                .filter(|metadata| {
-                    let target = metadata.target();
-                    let is_app_log =
-                        target.starts_with("immersive_input") || target.starts_with("webview");
-
-                    if is_app_log {
-                        return true;
-                    }
-
-                    !matches!(metadata.level(), Level::Trace | Level::Debug)
-                })
                 .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )

@@ -5,7 +5,7 @@ use crate::window::{
     save_foreground_window, set_light_ai_opened_from_input_handle, show_input_ai_handle_window,
 };
 use crate::{LightAiTargetWrapper, StringWrapper, APP};
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use once_cell::sync::Lazy;
 use rdev::Key;
 #[cfg(target_os = "windows")]
@@ -83,6 +83,15 @@ struct InputHandleMonitorState {
     last_available_ms: u64,
     enabled: bool,
     last_config_reload_ms: u64,
+    last_logged_status: Option<InputHandleLogStatus>,
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct InputHandleLogStatus {
+    enabled: bool,
+    snapshot_available: bool,
+    visible_for_current_target: bool,
+    target_key: String,
 }
 
 #[cfg(target_os = "windows")]
@@ -163,6 +172,8 @@ pub fn start_input_ai_handle_monitor() {
                     hide_input_ai_handle_window();
                 }
 
+                log_monitor_status_if_changed(&snapshot, &mut monitor_state);
+
                 std::thread::sleep(Duration::from_millis(HANDLE_MONITOR_INTERVAL_MS));
             }
         })
@@ -225,6 +236,46 @@ fn reset_monitor_state(monitor_state: &mut InputHandleMonitorState) {
     monitor_state.trigger_anchor_rect = None;
     monitor_state.last_available_snapshot = None;
     monitor_state.last_available_ms = 0;
+    monitor_state.last_logged_status = None;
+}
+
+fn log_monitor_status_if_changed(
+    snapshot: &FocusedInputSnapshot,
+    monitor_state: &mut InputHandleMonitorState,
+) {
+    let current = InputHandleLogStatus {
+        enabled: monitor_state.enabled,
+        snapshot_available: snapshot.available,
+        visible_for_current_target: monitor_state.visible_for_current_target,
+        target_key: if snapshot.available {
+            snapshot.target_key.clone()
+        } else {
+            monitor_state.current_target_key.clone()
+        },
+    };
+
+    if monitor_state
+        .last_logged_status
+        .as_ref()
+        .is_some_and(|previous| previous == &current)
+    {
+        return;
+    }
+
+    debug!(
+        target: "focused_input",
+        "[focused_input][monitor] enabled={} available={} visible={} target={}",
+        current.enabled,
+        current.snapshot_available,
+        current.visible_for_current_target,
+        if current.target_key.is_empty() {
+            "<none>"
+        } else {
+            &current.target_key
+        }
+    );
+
+    monitor_state.last_logged_status = Some(current);
 }
 
 fn handle_snapshot_for_visibility(
@@ -330,7 +381,7 @@ struct ThreadAutomationContext {
 
 #[cfg(target_os = "windows")]
 fn log_capture_stage(capture_kind: &str, stage: &str) {
-    debug!(
+    trace!(
         target: "focused_input",
         "[focused_input][{:?}][{}] {}",
         std::thread::current().id(),
@@ -352,7 +403,7 @@ fn log_capture_error(stage: &str, err: &WinError) {
 
 #[cfg(target_os = "windows")]
 fn reset_thread_automation(reason: &str) {
-    debug!(
+    trace!(
         target: "focused_input",
         "[focused_input][{:?}] resetting thread automation: {}",
         std::thread::current().id(),
