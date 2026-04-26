@@ -9,7 +9,7 @@ import { invoke } from '@tauri-apps/api';
 import { emit } from '@tauri-apps/api/event';
 import React, { useState } from 'react';
 
-import { createServiceInstanceKey } from '../../../../../utils/service_instance';
+import { createServiceInstanceKey, getServiceName } from '../../../../../utils/service_instance';
 import { useToastStyle } from '../../../../../hooks';
 
 function SectionTitle({ children }) {
@@ -55,15 +55,28 @@ export default function AddServiceModal(props) {
         onBuiltinSelect,
         pluginType,
         pluginList = {},
+        serviceInstanceList = [],
         deletePluginServices,
     } = props;
     const [installing, setInstalling] = useState(false);
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
-    const pluginEntries = Object.entries(pluginList ?? {}).sort((left, right) =>
-        String(left[1]?.display ?? left[0]).localeCompare(String(right[1]?.display ?? right[0]))
-    );
+    const addedServiceNameSet = new Set((serviceInstanceList ?? []).map((serviceInstanceKey) => getServiceName(serviceInstanceKey)));
+    const visibleBuiltinServices = builtinServices.filter((service) => !addedServiceNameSet.has(service.key));
+    const pluginEntries = Object.entries(pluginList ?? {})
+        .filter(([pluginKey]) => !addedServiceNameSet.has(pluginKey))
+        .sort((left, right) =>
+            String(left[1]?.display ?? left[0]).localeCompare(String(right[1]?.display ?? right[0]))
+        );
     const hasPluginSupport = Boolean(pluginType);
+    const builtinEmptyMessage =
+        builtinServices.length > 0
+            ? t('config.service.all_builtin_services_added', {
+                  defaultValue: 'All built-in services have already been added.',
+              })
+            : t('config.service.no_builtin_services', {
+                  defaultValue: 'No built-in services available.',
+              });
 
     const handleInstallPlugin = async () => {
         if (installing) {
@@ -116,14 +129,12 @@ export default function AddServiceModal(props) {
                             <SectionTitle>
                                 {t('config.service.builtin_services', { defaultValue: 'Built-in Services' })}
                             </SectionTitle>
-                            {builtinServices.length === 0 ? (
+                            {visibleBuiltinServices.length === 0 ? (
                                 <div className='mb-3 rounded-xl border border-dashed border-divider px-4 py-3 text-sm text-default-500'>
-                                    {t('config.service.no_builtin_services', {
-                                        defaultValue: 'No built-in services available.',
-                                    })}
+                                    {builtinEmptyMessage}
                                 </div>
                             ) : null}
-                            {builtinServices.map((service) => (
+                            {visibleBuiltinServices.map((service) => (
                                 <ServiceSelectRow
                                     key={service.key}
                                     icon={service.icon}

@@ -17,6 +17,7 @@ import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import * as recognizeServices from '../../../../services/recognize';
 import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
+import { RECOGNIZE_DEFAULT_VISIBLE } from '../../../Config/pages/Service/servicePriority';
 import detect from '../../../../utils/lang_detect';
 
 export const sourceTextAtom = atom('');
@@ -38,7 +39,7 @@ export default function SourceArea(props) {
     const [hideWindow] = useConfig('translate_hide_window', false);
     const [hideSource] = useConfig('hide_source', false);
     const [recognizeLanguage] = useConfig('recognize_language', 'auto');
-    const [recognizeServiceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
+    const [recognizeServiceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
     const { t } = useTranslation();

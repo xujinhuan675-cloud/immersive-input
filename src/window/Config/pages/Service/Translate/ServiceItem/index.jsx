@@ -14,6 +14,13 @@ import {
     ServiceSourceType,
 } from '../../../../../../utils/service_instance';
 
+const BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG = new Set([
+    'bing',
+    'ecdict',
+    'lingva',
+    'yandex',
+]);
+
 export default function ServiceItem(props) {
     const {
         serviceInstanceKey,
@@ -38,6 +45,10 @@ export default function ServiceItem(props) {
     }
 
     const isBuiltin = serviceSourceType === ServiceSourceType.BUILDIN;
+    const pluginNeeds = Array.isArray(pluginList?.[serviceName]?.needs) ? pluginList[serviceName].needs : [];
+    const canEditConfig = isBuiltin
+        ? !BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG.has(serviceName)
+        : pluginNeeds.length > 0;
     const displayName = isBuiltin
         ? getDisplayInstanceName(
               serviceInstanceConfig[INSTANCE_NAME_CONFIG_KEY],
@@ -73,18 +84,20 @@ export default function ServiceItem(props) {
                             setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
                         }}
                     />
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='light'
-                        className='text-default-500'
-                        onPress={() => {
-                            setCurrentConfigKey(serviceInstanceKey);
-                            onConfigOpen();
-                        }}
-                    >
-                        <LuPencilLine className='text-[18px]' />
-                    </Button>
+                    {canEditConfig ? (
+                        <Button
+                            isIconOnly
+                            size='sm'
+                            variant='light'
+                            className='text-default-500'
+                            onPress={() => {
+                                setCurrentConfigKey(serviceInstanceKey);
+                                onConfigOpen();
+                            }}
+                        >
+                            <LuPencilLine className='text-[18px]' />
+                        </Button>
+                    ) : null}
                     <Button
                         isIconOnly
                         size='sm'

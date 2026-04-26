@@ -6,7 +6,7 @@ export async function sendVerificationEmail({ to, code }) {
         throw new Error('Missing RESEND_API_KEY or RESEND_FROM');
     }
 
-    const fromWithName = `Immersive Input <${from}>`;
+    const fromWithName = `Flow Input <${from}>`;
 
     // 使用部署后的公开 URL
     const logoUrl = 'https://immersive-input.vercel.app/app-icon.png';
@@ -25,8 +25,8 @@ export async function sendVerificationEmail({ to, code }) {
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <tr>
                         <td style="padding: 40px 40px 30px 40px; text-align: center; border-bottom: 1px solid #e5e5e5;">
-                            <img src="${logoUrl}" alt="Immersive Input" style="width: 64px; height: 64px; margin-bottom: 16px; border-radius: 12px;" />
-                            <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #333333;">Immersive Input</h1>
+                            <img src="${logoUrl}" alt="Flow Input" style="width: 64px; height: 64px; margin-bottom: 16px; border-radius: 12px;" />
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #333333;">Flow Input</h1>
                         </td>
                     </tr>
                     <tr>
@@ -47,10 +47,10 @@ export async function sendVerificationEmail({ to, code }) {
                         <td style="padding: 30px 40px; background-color: #f8f9fa; border-top: 1px solid #e5e5e5; border-radius: 0 0 8px 8px;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center;">
                                 Best regards,<br>
-                                <strong>Immersive Input Team</strong>
+                                <strong>Flow Input Team</strong>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999999; text-align: center;">
-                                © ${new Date().getFullYear()} Immersive Input. All rights reserved.
+                                © ${new Date().getFullYear()} Flow Input. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -62,7 +62,7 @@ export async function sendVerificationEmail({ to, code }) {
 </html>
     `.trim();
 
-    const textContent = `Your verification code is: ${code}. It expires in 10 minutes.\n\nBest regards,\nImmersive Input Team`;
+    const textContent = `Your verification code is: ${code}. It expires in 10 minutes.\n\nBest regards,\nFlow Input Team`;
 
     const resp = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -73,7 +73,7 @@ export async function sendVerificationEmail({ to, code }) {
         body: JSON.stringify({
             from: fromWithName,
             to,
-            subject: 'Your verification code - Immersive Input',
+            subject: 'Your verification code - Flow Input',
             html: htmlContent,
             text: textContent,
         }),
@@ -98,7 +98,7 @@ export async function sendPasswordResetEmail({ to, code }) {
         throw new Error('Missing RESEND_API_KEY or RESEND_FROM');
     }
 
-    const fromWithName = `Immersive Input <${from}>`;
+    const fromWithName = `Flow Input <${from}>`;
     const logoUrl = 'https://immersive-input.vercel.app/app-icon.png';
 
     const htmlContent = `
@@ -115,8 +115,8 @@ export async function sendPasswordResetEmail({ to, code }) {
                 <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     <tr>
                         <td style="padding: 40px 40px 30px 40px; text-align: center; border-bottom: 1px solid #e5e5e5;">
-                            <img src="${logoUrl}" alt="Immersive Input" style="width: 64px; height: 64px; margin-bottom: 16px; border-radius: 12px;" />
-                            <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #333333;">Immersive Input</h1>
+                            <img src="${logoUrl}" alt="Flow Input" style="width: 64px; height: 64px; margin-bottom: 16px; border-radius: 12px;" />
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 600; color: #333333;">Flow Input</h1>
                         </td>
                     </tr>
                     <tr>
@@ -137,10 +137,10 @@ export async function sendPasswordResetEmail({ to, code }) {
                         <td style="padding: 30px 40px; background-color: #f8f9fa; border-top: 1px solid #e5e5e5; border-radius: 0 0 8px 8px;">
                             <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center;">
                                 Best regards,<br>
-                                <strong>Immersive Input Team</strong>
+                                <strong>Flow Input Team</strong>
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #999999; text-align: center;">
-                                © ${new Date().getFullYear()} Immersive Input. All rights reserved.
+                                © ${new Date().getFullYear()} Flow Input. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -152,7 +152,7 @@ export async function sendPasswordResetEmail({ to, code }) {
 </html>
     `.trim();
 
-    const textContent = `Password Reset Code: ${code}. It expires in 10 minutes.\n\nBest regards,\nImmersive Input Team`;
+    const textContent = `Password Reset Code: ${code}. It expires in 10 minutes.\n\nBest regards,\nFlow Input Team`;
 
     const resp = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -163,7 +163,7 @@ export async function sendPasswordResetEmail({ to, code }) {
         body: JSON.stringify({
             from: fromWithName,
             to,
-            subject: 'Password Reset - Immersive Input',
+            subject: 'Password Reset - Flow Input',
             html: htmlContent,
             text: textContent,
         }),

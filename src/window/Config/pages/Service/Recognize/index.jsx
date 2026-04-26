@@ -22,6 +22,29 @@ import ConfigModal from './ConfigModal';
 
 const RECOGNIZE_SERVICE_CATALOG_VERSION_KEY = 'recognize_service_catalog_version';
 const RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY = 'recognize_active_service_instance_key';
+const RECOGNIZE_SERVICE_CATALOG_VERSION = 3;
+const RECOGNIZE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
+    ['system', 'rapid_ocr', 'doc2x', 'qwen_ocr', 'baimiao_ocr'],
+    ['system', 'rapid_ocr', 'qwen_ocr', 'baimiao_ocr', 'doc2x', 'microsoft_ocr'],
+];
+
+function migrateRecognizeRecommendedServices(instanceKeys) {
+    if (!Array.isArray(instanceKeys) || instanceKeys.length === 0) {
+        return [...RECOGNIZE_DEFAULT_VISIBLE];
+    }
+
+    const serviceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
+    const matchesPreviousDefault = RECOGNIZE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some(
+        (visibleList) =>
+            serviceNames.length === visibleList.length &&
+            serviceNames.every((serviceName) => visibleList.includes(serviceName))
+    );
+    if (matchesPreviousDefault) {
+        return [...RECOGNIZE_DEFAULT_VISIBLE];
+    }
+
+    return instanceKeys;
+}
 
 export default function Recognize(props) {
     const { pluginList } = props;
@@ -46,15 +69,23 @@ export default function Recognize(props) {
             return;
         }
 
-        if (catalogVersion >= 1) {
+        if (catalogVersion >= RECOGNIZE_SERVICE_CATALOG_VERSION) {
             return;
         }
 
-        const nextList = migrateServiceInstanceList(recognizeServiceInstanceList, {
-            priorityList: RECOGNIZE_SERVICE_PRIORITY,
-            recommendedList: RECOGNIZE_DEFAULT_VISIBLE,
-            legacyDefaultList: RECOGNIZE_LEGACY_DEFAULT,
-        });
+        let nextList = recognizeServiceInstanceList;
+
+        if (catalogVersion < 1) {
+            nextList = migrateServiceInstanceList(nextList, {
+                priorityList: RECOGNIZE_SERVICE_PRIORITY,
+                recommendedList: RECOGNIZE_DEFAULT_VISIBLE,
+                legacyDefaultList: RECOGNIZE_LEGACY_DEFAULT,
+            });
+        }
+
+        if (catalogVersion < RECOGNIZE_SERVICE_CATALOG_VERSION) {
+            nextList = migrateRecognizeRecommendedServices(nextList);
+        }
 
         const currentListJson = JSON.stringify(recognizeServiceInstanceList);
         const nextListJson = JSON.stringify(nextList);
@@ -63,7 +94,7 @@ export default function Recognize(props) {
             setRecognizeServiceInstanceList(nextList, true);
         }
 
-        setCatalogVersion(1, true);
+        setCatalogVersion(RECOGNIZE_SERVICE_CATALOG_VERSION, true);
     }, [recognizeServiceInstanceList, catalogVersion]);
 
     useEffect(() => {
@@ -214,6 +245,7 @@ export default function Recognize(props) {
                 builtinServices={builtinServiceItems}
                 pluginType='recognize'
                 pluginList={pluginList}
+                serviceInstanceList={recognizeServiceInstanceList}
                 deletePluginServices={deletePluginServices}
             />
             <ConfigModal

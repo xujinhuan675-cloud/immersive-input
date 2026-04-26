@@ -2,7 +2,6 @@ import { Button, Input } from '@nextui-org/react';
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { open } from '@tauri-apps/api/shell';
 import React, { useState } from 'react';
 
 import { TEST_IMAGE_BASE64 } from '../shared';
@@ -63,17 +62,6 @@ export function Config(props) {
                             });
                         }}
                     />
-                </div>
-                <div className='config-item'>
-                    <div className='my-auto text-[length:--nextui-font-size-medium]'>{t('services.no_need')}</div>
-                    <Button
-                        variant='flat'
-                        onPress={() => {
-                            open('https://github.com/pot-app/pot-app-recognize-plugin-rapid');
-                        }}
-                    >
-                        {t('services.help')}
-                    </Button>
                 </div>
                 <Button
                     type='submit'

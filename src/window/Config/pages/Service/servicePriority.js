@@ -1,15 +1,15 @@
 import { getServiceName } from '../../../../utils/service_instance';
 
 export const TRANSLATE_SERVICE_PRIORITY = [
-    'deepl',
     'google',
+    'deepl',
     'bing',
     'openai',
+    'baidu',
     'libretranslate',
     'azure',
     'volcengine',
     'tencent',
-    'baidu',
     'caiyun',
     'youdao',
     'alibaba',
@@ -21,39 +21,30 @@ export const TRANSLATE_SERVICE_PRIORITY = [
     'yandex',
     'niutrans',
     'ecdict',
-    'bing_dict',
-    'cambridge_dict',
-    'baidu_field',
 ];
 
-export const TRANSLATE_DEFAULT_VISIBLE = ['deepl', 'google', 'bing', 'openai', 'libretranslate', 'azure'];
+export const TRANSLATE_DEFAULT_VISIBLE = ['google', 'deepl', 'bing', 'openai'];
 
 export const TRANSLATE_LEGACY_DEFAULT = ['deepl', 'bing', 'lingva', 'yandex', 'google', 'ecdict'];
 
 export const RECOGNIZE_SERVICE_PRIORITY = [
     'system',
     'rapid_ocr',
-    'doc2x',
     'qwen_ocr',
     'baimiao_ocr',
+    'doc2x',
     'microsoft_ocr',
     'tesseract',
     'volcengine_multi_lang_ocr',
     'volcengine_ocr',
     'baidu_accurate_ocr',
     'tencent_accurate_ocr',
-    'simple_latex_ocr',
-    'iflytek_latex_ocr',
     'baidu_ocr',
     'tencent_ocr',
     'iflytek_ocr',
-    'qrcode',
-    'baidu_img_ocr',
-    'tencent_img_ocr',
-    'iflytek_intsig_ocr',
 ];
 
-export const RECOGNIZE_DEFAULT_VISIBLE = ['system', 'rapid_ocr', 'doc2x', 'qwen_ocr', 'baimiao_ocr'];
+export const RECOGNIZE_DEFAULT_VISIBLE = ['system', 'rapid_ocr', 'qwen_ocr', 'baimiao_ocr'];
 
 export const RECOGNIZE_LEGACY_DEFAULT = ['system', 'tesseract'];
 

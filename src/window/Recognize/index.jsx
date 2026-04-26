@@ -15,6 +15,7 @@ import WindowHeader, {
 import { store } from '../../utils/store';
 import { osType } from '../../utils/env';
 import { useConfig } from '../../hooks';
+import { RECOGNIZE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
 import ControlArea from './ControlArea';
 import ImageArea from './ImageArea';
 import TextArea from './TextArea';
@@ -59,7 +60,7 @@ export default function Recognize() {
     const [pluginList, setPluginList] = useAtom(pluginListAtom);
     const [closeOnBlur] = useConfig('recognize_close_on_blur', false);
     const [pined, setPined] = useState(false);
-    const [serviceInstanceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
+    const [serviceInstanceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [activeServiceInstanceKey, setActiveServiceInstanceKey] = useConfig(
         RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY,
         null

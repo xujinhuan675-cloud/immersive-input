@@ -242,7 +242,7 @@ export default function GeneralSettings() {
                                 setAboutModalOpen(true);
                             }}
                         >
-                            {appVersion ? `v${appVersion}` : 'Immersive Input'}
+                            {appVersion ? `v${appVersion}` : 'Flow Input'}
                         </Button>
                     </div>
                 </CardBody>
@@ -256,7 +256,7 @@ export default function GeneralSettings() {
                     <ModalHeader className='flex flex-col gap-1 pb-[8px]'>
                         <span>{t('config.about.label')}</span>
                         <span className='text-sm font-normal text-default-500'>
-                            {`Immersive Input${appVersion ? ` v${appVersion}` : ''}`}
+                            {`Flow Input${appVersion ? ` v${appVersion}` : ''}`}
                         </span>
                     </ModalHeader>
                     <ModalBody className='gap-[10px] pt-0 pb-[10px]'>

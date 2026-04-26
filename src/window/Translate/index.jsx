@@ -26,6 +26,7 @@ import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
 import { useConfig } from '../../hooks';
 import { store } from '../../utils/store';
+import { RECOGNIZE_DEFAULT_VISIBLE, TRANSLATE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
 
 let blurTimeout = null;
 let unlisten = null;
@@ -82,15 +83,11 @@ void listen('tauri://move', () => {
 
 export default function Translate() {
     const { t } = useTranslation();
-    const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig('translate_service_list', [
-        'deepl',
-        'bing',
-        'lingva',
-        'yandex',
-        'google',
-        'ecdict',
-    ]);
-    const [recognizeServiceInstanceList] = useConfig('recognize_service_list', ['system', 'tesseract']);
+    const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig(
+        'translate_service_list',
+        TRANSLATE_DEFAULT_VISIBLE
+    );
+    const [recognizeServiceInstanceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [closeOnBlur] = useConfig('translate_close_on_blur', false);
     const [alwaysOnTop] = useConfig('translate_always_on_top', false);
     const [hideLanguage] = useConfig('hide_language', false);

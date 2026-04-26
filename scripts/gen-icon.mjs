@@ -38,12 +38,15 @@ console.log(`✓ 生成 app-icon.png (${pngBuffer.length} bytes)`);
 console.log('\n正在生成全平台图标格式...');
 execSync(`pnpm tauri icon "${pngOut}"`, { stdio: 'inherit', cwd: ROOT });
 
-// ── public/icon.png 同步（Updater 窗口等地方使用）────────────────────────
+// ── public 图标同步（应用内 UI / Updater / 邮件资源）───────────────────────
 copyFileSync(resolve(ROOT, 'src-tauri/icons/128x128.png'), resolve(ROOT, 'public/icon.png'));
+copyFileSync(pngOut, resolve(ROOT, 'public/app-icon.png'));
 console.log('✓ public/icon.png 已同步');
+console.log('✓ public/app-icon.png 已同步');
 
 console.log('\n✅ 图标生成完成！');
 console.log('   src-tauri/icons/  — 托盘 / 任务栏 / exe 图标');
 console.log('   public/icon.svg   — 应用内 UI（侧边栏、关于页、登录窗口）');
 console.log('   public/icon.png   — Updater 窗口');
+console.log('   public/app-icon.png — 应用官网/邮件模板');
 console.log('\n   重新运行 pnpm tauri dev 即可应用新图标。');

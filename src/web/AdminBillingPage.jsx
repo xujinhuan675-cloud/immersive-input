@@ -371,7 +371,7 @@ export default function AdminBillingPage() {
                     <CardBody className='space-y-3'>
                         <div className='space-y-1'>
                             <p className='text-xs font-semibold uppercase tracking-[0.24em] text-primary-500'>
-                                Immersive Input
+                                Flow Input
                             </p>
                             <div className='flex flex-wrap items-center justify-between gap-3'>
                                 <div className='space-y-1'>

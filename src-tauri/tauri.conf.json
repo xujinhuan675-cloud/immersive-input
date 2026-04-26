@@ -7,7 +7,7 @@
         "withGlobalTauri": false
     },
     "package": {
-        "productName": "Immersive Input",
+        "productName": "Flow Input",
         "version": "4.0.7"
     },
     "tauri": {
@@ -68,8 +68,8 @@
             "copyright": "GPLv3",
             "targets": "all",
             "identifier": "com.immersive-input.desktop",
-            "longDescription": "Immersive Input - AI-powered text enhancement tool",
-            "shortDescription": "Immersive Input",
+            "longDescription": "Flow Input - AI-powered text enhancement tool",
+            "shortDescription": "Flow Input",
             "externalBin": [],
             "resources": [
                 "resources/*",

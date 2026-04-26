@@ -70,7 +70,7 @@ export default function Updater() {
                         icon={
                             <img
                                 src='icon.png'
-                                alt='Immersive Input'
+                                alt='Flow Input'
                                 draggable={false}
                                 style={{ width: 18, height: 18 }}
                             />

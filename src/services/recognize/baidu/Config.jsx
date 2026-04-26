@@ -1,6 +1,5 @@
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { Button, Input } from '@nextui-org/react';
-import { open } from '@tauri-apps/api/shell';
 import React, { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -68,16 +67,6 @@ export function Config(props) {
                             });
                         }}
                     />
-                </div>
-                <div className={'config-item'}>
-                    <h3 className='my-auto'>{t('services.help')}</h3>
-                    <Button
-                        onPress={() => {
-                            open('https://pot-app.com/docs/api/recognize/baidu.html');
-                        }}
-                    >
-                        {t('services.help')}
-                    </Button>
                 </div>
                 <div className={'config-item'}>
                     <Input

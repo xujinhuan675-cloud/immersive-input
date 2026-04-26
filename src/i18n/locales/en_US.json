@@ -480,7 +480,7 @@
             }
         },
         "login": {
-            "welcome_title": "Welcome to Immersive Input",
+            "welcome_title": "Welcome to Flow Input",
             "welcome_subtitle": "Please sign in to continue",
             "subtitle": "Text Selection · AI Analysis",
             "language_label": "Display Language",

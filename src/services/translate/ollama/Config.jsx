@@ -3,7 +3,6 @@ import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { MdDeleteOutline } from 'react-icons/md';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { open } from '@tauri-apps/api/shell';
 import React, { useEffect, useState } from 'react';
 import { Ollama } from 'ollama/browser';
 
@@ -141,16 +140,6 @@ export function Config(props) {
                         </CardBody>
                     </Card>
                 )}
-                <div className='config-item'>
-                    <h3 className='my-auto'>{t('services.help')}</h3>
-                    <Button
-                        onPress={() => {
-                            open('https://pot-app.com/docs/api/translate/ollama.html');
-                        }}
-                    >
-                        {t('services.help')}
-                    </Button>
-                </div>
                 <div className='config-item'>
                     <Switch
                         isSelected={serviceConfig['stream']}

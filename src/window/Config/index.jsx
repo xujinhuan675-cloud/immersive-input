@@ -27,7 +27,7 @@ export default function Config() {
                     <WindowHeaderTitle
                         icon={
                             <img
-                                alt='Immersive Input'
+                                alt='Flow Input'
                                 src='icon.svg'
                                 draggable={false}
                                 style={{ width: 18, height: 18 }}
@@ -35,7 +35,7 @@ export default function Config() {
                         }
                         textStyle={{ fontSize: 13 }}
                     >
-                        Immersive Input
+                        Flow Input
                     </WindowHeaderTitle>
                 }
                 right={<WindowHeaderWindowControls hideOnDarwin />}
@@ -49,13 +49,13 @@ export default function Config() {
                         <div className='px-[6px] pt-[3px] pb-[10px]'>
                             <div className='flex flex-col items-center gap-[4px]'>
                                 <img
-                                    alt='Immersive Input'
+                                    alt='Flow Input'
                                     src='icon.svg'
                                     className='h-[44px] w-[44px]'
                                     draggable={false}
                                 />
                                 <span className='text-[12px] font-semibold text-default-600 tracking-wide select-none'>
-                                    Immersive Input
+                                    Flow Input
                                 </span>
                             </div>
                         </div>

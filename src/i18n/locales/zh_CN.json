@@ -479,7 +479,7 @@
             }
         },
         "login": {
-            "welcome_title": "欢迎使用 Immersive Input",
+            "welcome_title": "欢迎使用 Flow Input",
             "welcome_subtitle": "请先登录以使用完整功能",
             "subtitle": "划词翻译·AI解析",
             "language_label": "显示语言",

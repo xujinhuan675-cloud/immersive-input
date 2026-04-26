@@ -2,7 +2,6 @@ import { Button, Input } from '@nextui-org/react';
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { open } from '@tauri-apps/api/shell';
 import React, { useState } from 'react';
 
 import { TEST_IMAGE_BASE64 } from '../shared';
@@ -87,16 +86,6 @@ export function Config(props) {
                             });
                         }}
                     />
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto'>{t('services.help')}</h3>
-                    <Button
-                        onPress={() => {
-                            open('https://github.com/Menghuan1918/pot-app-recognize-plugin-doc2x');
-                        }}
-                    >
-                        {t('services.help')}
-                    </Button>
                 </div>
                 <div className='config-item'>
                     <Input

@@ -127,7 +127,7 @@ export default function Login({ embedded = false, onSuccess }) {
                             draggable={false}
                         />
                         <h1 className='text-xl font-bold tracking-wide text-default-800'>
-                            Immersive Input
+                            Flow Input
                         </h1>
                         <p className='mt-1 text-xs tracking-widest text-default-400'>
                             {t('login.subtitle')}
