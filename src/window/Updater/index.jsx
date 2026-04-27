@@ -22,6 +22,7 @@ export default function Updater() {
     const [downloaded, setDownloaded] = useState(0);
     const [total, setTotal] = useState(0);
     const [body, setBody] = useState('');
+    const [hasUpdate, setHasUpdate] = useState(false);
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
 
@@ -32,12 +33,15 @@ export default function Updater() {
         checkUpdate().then(
             (update) => {
                 if (update.shouldUpdate) {
-                    setBody(update.manifest.body);
+                    setHasUpdate(true);
+                    setBody(update.manifest.body || update.manifest.notes || '');
                 } else {
+                    setHasUpdate(false);
                     setBody(t('updater.latest'));
                 }
             },
             (e) => {
+                setHasUpdate(false);
                 setBody(e.toString());
                 toast.error(e.toString(), { style: toastStyle });
             }
@@ -164,7 +168,7 @@ export default function Updater() {
                 <Button
                     variant='flat'
                     isLoading={downloaded !== 0}
-                    isDisabled={downloaded !== 0}
+                    isDisabled={downloaded !== 0 || !hasUpdate}
                     color='primary'
                     onPress={() => {
                         installUpdate().then(

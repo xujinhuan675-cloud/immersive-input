@@ -12,9 +12,11 @@ import * as builtinServices from '../../../../../services/recognize';
 import AddServiceModal from '../AddServiceModal';
 import {
     RECOGNIZE_DEFAULT_VISIBLE,
+    RECOGNIZE_SERVICE_CATALOG_VERSION,
     RECOGNIZE_LEGACY_DEFAULT,
     RECOGNIZE_SERVICE_PRIORITY,
     migrateServiceInstanceList,
+    migrateRecognizeRecommendedServices,
     sortBuiltinServiceItems,
 } from '../servicePriority';
 import ServiceItem from './ServiceItem';
@@ -22,29 +24,6 @@ import ConfigModal from './ConfigModal';
 
 const RECOGNIZE_SERVICE_CATALOG_VERSION_KEY = 'recognize_service_catalog_version';
 const RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY = 'recognize_active_service_instance_key';
-const RECOGNIZE_SERVICE_CATALOG_VERSION = 3;
-const RECOGNIZE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
-    ['system', 'rapid_ocr', 'doc2x', 'qwen_ocr', 'baimiao_ocr'],
-    ['system', 'rapid_ocr', 'qwen_ocr', 'baimiao_ocr', 'doc2x', 'microsoft_ocr'],
-];
-
-function migrateRecognizeRecommendedServices(instanceKeys) {
-    if (!Array.isArray(instanceKeys) || instanceKeys.length === 0) {
-        return [...RECOGNIZE_DEFAULT_VISIBLE];
-    }
-
-    const serviceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
-    const matchesPreviousDefault = RECOGNIZE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some(
-        (visibleList) =>
-            serviceNames.length === visibleList.length &&
-            serviceNames.every((serviceName) => visibleList.includes(serviceName))
-    );
-    if (matchesPreviousDefault) {
-        return [...RECOGNIZE_DEFAULT_VISIBLE];
-    }
-
-    return instanceKeys;
-}
 
 export default function Recognize(props) {
     const { pluginList } = props;

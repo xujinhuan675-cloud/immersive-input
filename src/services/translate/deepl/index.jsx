@@ -1,5 +1,11 @@
 import { fetch, Body } from '@tauri-apps/api/http';
 
+const DEEPL_FREE_MIN_INTERVAL_MS = 1200;
+const DEEPL_FREE_RETRY_DELAY_MS = 2500;
+
+let deeplFreeLastRequestAt = 0;
+let deeplFreeQueue = Promise.resolve();
+
 export async function translate(text, from, to, options = {}) {
     const { config } = options;
 
@@ -16,6 +22,21 @@ export async function translate(text, from, to, options = {}) {
 }
 
 async function translate_by_free(text, from, to) {
+    return enqueueDeepLFreeRequest(async () => {
+        try {
+            return await requestDeepLFreeTranslation(text, from, to);
+        } catch (error) {
+            if (!isDeepLRateLimitError(error)) {
+                throw error;
+            }
+
+            await sleep(DEEPL_FREE_RETRY_DELAY_MS);
+            return requestDeepLFreeTranslation(text, from, to);
+        }
+    });
+}
+
+async function requestDeepLFreeTranslation(text, from, to) {
     const url = 'https://www2.deepl.com/jsonrpc';
     const rand = getRandomNumber();
     const body = {
@@ -41,7 +62,7 @@ async function translate_by_free(text, from, to) {
         body_str = body_str.replace('"method":"', '"method": "');
     }
 
-    let res = await fetch(url, {
+    const res = await fetch(url, {
         method: 'POST',
         body: Body.text(body_str),
         headers: { 'Content-Type': 'application/json' },
@@ -55,6 +76,10 @@ async function translate_by_free(text, from, to) {
             throw JSON.stringify(result);
         }
     } else {
+        if (res.status === 429) {
+            throw buildDeepLRateLimitError(res.data);
+        }
+
         if (res.data.error) {
             throw `Status Code: ${res.status}\n${res.data.error.message}`;
         } else {
@@ -62,6 +87,7 @@ async function translate_by_free(text, from, to) {
         }
     }
 }
+
 async function translate_by_deeplx(text, from, to, url) {
     let res = await fetch(url, {
         method: 'POST',
@@ -143,6 +169,43 @@ function getICount(translate_text) {
 function getRandomNumber() {
     const rand = Math.floor(Math.random() * 99999) + 100000;
     return rand * 1000;
+}
+
+async function enqueueDeepLFreeRequest(task) {
+    const previous = deeplFreeQueue;
+    let releaseCurrentRequest;
+    deeplFreeQueue = new Promise((resolve) => {
+        releaseCurrentRequest = resolve;
+    });
+
+    await previous;
+
+    try {
+        const waitMs = Math.max(0, DEEPL_FREE_MIN_INTERVAL_MS - (Date.now() - deeplFreeLastRequestAt));
+        if (waitMs > 0) {
+            await sleep(waitMs);
+        }
+
+        const result = await task();
+        deeplFreeLastRequestAt = Date.now();
+        return result;
+    } finally {
+        releaseCurrentRequest();
+    }
+}
+
+function buildDeepLRateLimitError(data) {
+    return `DeepL Free endpoint is temporarily rate limited. Please try again later, or switch to Auth Key / DeepLX.\nHttp Status: 429\n${JSON.stringify(data)}`;
+}
+
+function isDeepLRateLimitError(error) {
+    return String(error).includes('Http Status: 429') || String(error).includes('Status Code: 429');
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
 }
 
 export * from './Config';

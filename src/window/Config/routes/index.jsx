@@ -6,6 +6,7 @@ import History from '../pages/History';
 import Hotkey from '../pages/Hotkey';
 import AIFeatures from '../pages/AIFeatures';
 import Account from '../pages/Account';
+import About from '../pages/About';
 
 const routes = [
     {
@@ -34,7 +35,7 @@ const routes = [
     },
     {
         path: '/about',
-        element: <Navigate to='/general' replace />,
+        element: <About />,
     },
     {
         path: '/ai',

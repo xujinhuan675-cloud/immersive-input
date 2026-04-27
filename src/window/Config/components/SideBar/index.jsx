@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
     MdOutlineAutoAwesome,
     MdOutlineHistory,
+    MdOutlineInfo,
     MdOutlineKeyboardCommandKey,
     MdOutlineManageAccounts,
     MdOutlineTranslate,
@@ -18,6 +19,7 @@ const MENU = [
     { path: '/translate', Icon: MdOutlineTranslate, key: 'translate' },
     { path: '/hotkey', Icon: MdOutlineKeyboardCommandKey, key: 'hotkey' },
     { path: '/history', Icon: MdOutlineHistory, key: 'history' },
+    { path: '/about', Icon: MdOutlineInfo, key: 'about' },
 ];
 
 export default function SideBar() {

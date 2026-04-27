@@ -3,12 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import { CardBody } from '@nextui-org/react';
-import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@nextui-org/react';
 import { info } from 'tauri-plugin-log-api';
-import { Button } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
-import { appLogDir, appConfigDir } from '@tauri-apps/api/path';
-import { open } from '@tauri-apps/api/shell';
 import { Card } from '@nextui-org/react';
 import { invoke } from '@tauri-apps/api';
 import { useTheme } from 'next-themes';
@@ -16,7 +12,6 @@ import { useTheme } from 'next-themes';
 import SettingsDropdown from '../../../components/SettingsDropdown';
 import { useConfig } from '../../../hooks/useConfig';
 import { applyAppFont, buildAppFontStack, getCuratedFontList, isChineseCapableFont } from '../../../utils/appFont';
-import { appVersion } from '../../../utils/env';
 import { osType } from '../../../utils/env';
 import Backup from './Backup';
 
@@ -53,7 +48,6 @@ export default function GeneralSettings() {
     const [appTheme, setAppTheme] = useConfig('app_theme', 'system');
     const [appFont, setAppFont] = useConfig('app_font', 'default');
     const [trayClickEvent, setTrayClickEvent] = useConfig('tray_click_event', 'config');
-    const [aboutModalOpen, setAboutModalOpen] = useState(false);
     const { t, i18n } = useTranslation();
     const { setTheme } = useTheme();
     const fontOptions = useMemo(() => getCuratedFontList(fontList, appFont), [fontList, appFont]);
@@ -232,95 +226,6 @@ export default function GeneralSettings() {
                 </CardBody>
             </Card>
             <Backup />
-            <Card>
-                <CardBody>
-                    <div className='config-item'>
-                        <h3 className='my-auto'>{t('config.about.label')}</h3>
-                        <Button
-                            variant='bordered'
-                            onPress={() => {
-                                setAboutModalOpen(true);
-                            }}
-                        >
-                            {appVersion ? `v${appVersion}` : 'Flow Input'}
-                        </Button>
-                    </div>
-                </CardBody>
-            </Card>
-            <Modal
-                isOpen={aboutModalOpen}
-                onOpenChange={setAboutModalOpen}
-                size='md'
-            >
-                <ModalContent className='max-w-[420px]'>
-                    <ModalHeader className='flex flex-col gap-1 pb-[8px]'>
-                        <span>{t('config.about.label')}</span>
-                        <span className='text-sm font-normal text-default-500'>
-                            {`Flow Input${appVersion ? ` v${appVersion}` : ''}`}
-                        </span>
-                    </ModalHeader>
-                    <ModalBody className='gap-[10px] pt-0 pb-[10px]'>
-                        <div className='grid grid-cols-2 gap-[8px]'>
-                            <Button
-                                size='sm'
-                                variant='light'
-                                className='justify-start'
-                                fullWidth
-                                onPress={() => {
-                                    open('https://github.com/IOTO-Doc/Immersive-Input');
-                                }}
-                            >
-                                GitHub
-                            </Button>
-                            <Button
-                                size='sm'
-                                variant='light'
-                                className='justify-start'
-                                fullWidth
-                                onPress={() => {
-                                    invoke('updater_window');
-                                }}
-                            >
-                                {t('config.about.check_update')}
-                            </Button>
-                            <Button
-                                size='sm'
-                                variant='light'
-                                className='justify-start'
-                                fullWidth
-                                onPress={async () => {
-                                    const dir = await appLogDir();
-                                    open(dir);
-                                }}
-                            >
-                                {t('config.about.view_log')}
-                            </Button>
-                            <Button
-                                size='sm'
-                                variant='light'
-                                className='justify-start'
-                                fullWidth
-                                onPress={async () => {
-                                    const dir = await appConfigDir();
-                                    open(dir);
-                                }}
-                            >
-                                {t('config.about.view_config')}
-                            </Button>
-                        </div>
-                    </ModalBody>
-                    <ModalFooter className='pt-0 pb-[12px]'>
-                        <Button
-                            variant='light'
-                            onPress={() => {
-                                setAboutModalOpen(false);
-                            }}
-                        >
-                            {t('common.close')}
-                        </Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
         </>
     );
 }

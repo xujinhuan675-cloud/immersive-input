@@ -29,19 +29,30 @@ export function Config(props) {
     const [isLoading, setIsLoading] = useState(false);
 
     const toastStyle = useToastStyle();
+    const isFreeMode = deeplConfig?.type === 'free';
+
+    function saveConfig() {
+        setDeeplConfig(deeplConfig, true);
+        updateServiceList(instanceKey);
+        onClose();
+    }
 
     return (
         deeplConfig !== null && (
             <form
                 onSubmit={(e) => {
                     e.preventDefault();
+
+                    if (isFreeMode) {
+                        saveConfig();
+                        return;
+                    }
+
                     setIsLoading(true);
                     translate('hello', Language.auto, Language.zh_cn, { config: deeplConfig }).then(
                         () => {
                             setIsLoading(false);
-                            setDeeplConfig(deeplConfig, true);
-                            updateServiceList(instanceKey);
-                            onClose();
+                            saveConfig();
                         },
                         (e) => {
                             setIsLoading(false);
@@ -91,6 +102,11 @@ export function Config(props) {
                             <DropdownItem key='deeplx'>{t(`services.translate.deepl.deeplx`)}</DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
+                </div>
+                <div className={`config-item ${!isFreeMode && 'hidden'}`}>
+                    <p className='text-[12px] text-default-500'>
+                        {t('services.translate.deepl.free_note')}
+                    </p>
                 </div>
                 <div className={`config-item ${deeplConfig.type !== 'api' && 'hidden'}`}>
                     <Input

@@ -15,13 +15,21 @@ import WindowHeader, {
 import { store } from '../../utils/store';
 import { osType } from '../../utils/env';
 import { useConfig } from '../../hooks';
-import { RECOGNIZE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
+import {
+    RECOGNIZE_DEFAULT_VISIBLE,
+    RECOGNIZE_LEGACY_DEFAULT,
+    RECOGNIZE_SERVICE_CATALOG_VERSION,
+    RECOGNIZE_SERVICE_PRIORITY,
+    migrateRecognizeRecommendedServices,
+    migrateServiceInstanceList,
+} from '../Config/pages/Service/servicePriority';
 import ControlArea from './ControlArea';
 import ImageArea from './ImageArea';
 import TextArea from './TextArea';
 
 export const pluginListAtom = atom();
 const RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY = 'recognize_active_service_instance_key';
+const RECOGNIZE_SERVICE_CATALOG_VERSION_KEY = 'recognize_service_catalog_version';
 
 let blurTimeout = null;
 
@@ -60,18 +68,16 @@ export default function Recognize() {
     const [pluginList, setPluginList] = useAtom(pluginListAtom);
     const [closeOnBlur] = useConfig('recognize_close_on_blur', false);
     const [pined, setPined] = useState(false);
-    const [serviceInstanceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
+    const [serviceInstanceList, setServiceInstanceList] = useConfig(
+        'recognize_service_list',
+        RECOGNIZE_DEFAULT_VISIBLE
+    );
+    const [catalogVersion, setCatalogVersion] = useConfig(RECOGNIZE_SERVICE_CATALOG_VERSION_KEY, 0);
     const [activeServiceInstanceKey, setActiveServiceInstanceKey] = useConfig(
         RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY,
         null
     );
     const [serviceInstanceConfigMap, setServiceInstanceConfigMap] = useState(null);
-    const effectiveServiceInstanceList =
-        Array.isArray(serviceInstanceList) && serviceInstanceList.length > 0
-            ? activeServiceInstanceKey && serviceInstanceList.includes(activeServiceInstanceKey)
-                ? [activeServiceInstanceKey]
-                : [serviceInstanceList[0]]
-            : [];
 
     const loadPluginList = async () => {
         let temp = {};
@@ -97,13 +103,46 @@ export default function Recognize() {
     };
     const loadServiceInstanceConfigMap = async () => {
         const config = {};
-        for (const serviceInstanceKey of effectiveServiceInstanceList) {
+        for (const serviceInstanceKey of serviceInstanceList) {
             config[serviceInstanceKey] = (await store.get(serviceInstanceKey)) ?? {};
         }
         setServiceInstanceConfigMap({ ...config });
     };
     useEffect(() => {
-        if (effectiveServiceInstanceList.length > 0) {
+        if (serviceInstanceList === null || catalogVersion === null) {
+            return;
+        }
+
+        if (catalogVersion >= RECOGNIZE_SERVICE_CATALOG_VERSION) {
+            return;
+        }
+
+        let nextList = serviceInstanceList;
+
+        if (catalogVersion < 1) {
+            nextList = migrateServiceInstanceList(nextList, {
+                priorityList: RECOGNIZE_SERVICE_PRIORITY,
+                recommendedList: RECOGNIZE_DEFAULT_VISIBLE,
+                legacyDefaultList: RECOGNIZE_LEGACY_DEFAULT,
+            });
+        }
+
+        if (catalogVersion < RECOGNIZE_SERVICE_CATALOG_VERSION) {
+            nextList = migrateRecognizeRecommendedServices(nextList);
+        }
+
+        const currentListJson = JSON.stringify(serviceInstanceList);
+        const nextListJson = JSON.stringify(nextList);
+
+        if (currentListJson !== nextListJson) {
+            setServiceInstanceList(nextList, true);
+        }
+
+        setCatalogVersion(RECOGNIZE_SERVICE_CATALOG_VERSION, true);
+    }, [catalogVersion, serviceInstanceList]);
+
+    useEffect(() => {
+        if (Array.isArray(serviceInstanceList) && serviceInstanceList.length > 0) {
             loadServiceInstanceConfigMap();
         }
     }, [serviceInstanceList, activeServiceInstanceKey]);
@@ -161,7 +200,9 @@ export default function Recognize() {
                 </div>
                 <div className='h-[50px]'>
                     <ControlArea
-                        serviceInstanceList={effectiveServiceInstanceList}
+                        serviceInstanceList={serviceInstanceList}
+                        activeServiceInstanceKey={activeServiceInstanceKey}
+                        setActiveServiceInstanceKey={setActiveServiceInstanceKey}
                         serviceInstanceConfigMap={serviceInstanceConfigMap}
                     />
                 </div>

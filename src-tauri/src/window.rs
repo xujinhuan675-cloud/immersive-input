@@ -35,22 +35,44 @@ use windows::Win32::{
     not(feature = "custom-protocol")
 ))]
 static DEV_WEBVIEW_DATA_DIR: Lazy<std::path::PathBuf> = Lazy::new(|| {
+    let is_isolated = std::env::var("IMMERSIVE_INPUT_DEV_WEBVIEW_ISOLATED")
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false);
+    let base_dir = dirs::data_local_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("com.immersive-input.desktop")
+        .join("immersive-input-webview2-dev");
     let session_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or_default();
-    let dir = std::env::temp_dir()
-        .join("immersive-input-webview2-dev")
-        .join(format!("session-{}-{}", std::process::id(), session_id));
+    let dir = if is_isolated {
+        base_dir.join(format!("session-{}-{}", std::process::id(), session_id))
+    } else {
+        base_dir.join("shared-profile")
+    };
 
     if let Some(parent) = dir.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
     let _ = std::fs::create_dir_all(&dir);
-    debug!(
-        "[startup] using isolated WebView2 data directory for tauri dev: {:?}",
-        dir
-    );
+    if is_isolated {
+        debug!(
+            "[startup] using isolated WebView2 data directory for tauri dev: {:?}",
+            dir
+        );
+    } else {
+        debug!(
+            "[startup] using persistent WebView2 data directory for tauri dev: {:?}",
+            dir
+        );
+    }
     dir
 });
 

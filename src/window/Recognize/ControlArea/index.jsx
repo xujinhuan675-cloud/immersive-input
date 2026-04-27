@@ -25,7 +25,8 @@ export const languageAtom = atom();
 export const recognizeFlagAtom = atom();
 
 export default function ControlArea(props) {
-    const { serviceInstanceConfigMap, serviceInstanceList } = props;
+    const { serviceInstanceConfigMap, serviceInstanceList, activeServiceInstanceKey, setActiveServiceInstanceKey } =
+        props;
     const pluginList = useAtomValue(pluginListAtom);
     const [recognizeLanguage] = useConfig('recognize_language', 'auto');
     const [serverPort] = useConfig('server_port', 60828);
@@ -42,12 +43,16 @@ export default function ControlArea(props) {
 
     useEffect(() => {
         if (serviceInstanceList) {
-            setCurrentServiceInstanceKey(serviceInstanceList[0]);
+            const nextServiceInstanceKey =
+                activeServiceInstanceKey && serviceInstanceList.includes(activeServiceInstanceKey)
+                    ? activeServiceInstanceKey
+                    : serviceInstanceList[0];
+            setCurrentServiceInstanceKey(nextServiceInstanceKey);
         }
         if (recognizeLanguage) {
             setLanguage(recognizeLanguage);
         }
-    }, [serviceInstanceList, recognizeLanguage]);
+    }, [serviceInstanceList, activeServiceInstanceKey, recognizeLanguage]);
 
     return (
         <div className='flex justify-between px-[12px] h-full'>
@@ -87,6 +92,7 @@ export default function ControlArea(props) {
                         className='max-h-[70vh] overflow-y-auto'
                         onAction={(key) => {
                             setCurrentServiceInstanceKey(key);
+                            setActiveServiceInstanceKey(key, true);
                         }}
                     >
                         {serviceInstanceList.map((instanceKey) => {

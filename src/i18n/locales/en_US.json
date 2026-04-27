@@ -672,7 +672,8 @@
                     "type": "Service Type",
                     "free": "Free",
                     "api": "Auth Key",
-                    "deeplx": "DeepLX"
+                    "deeplx": "DeepLX",
+                    "free_note": "The built-in free mode uses a public web endpoint and may be rate limited upstream, so saving skips live validation. If you keep seeing 429 errors, switch to Auth Key or DeepLX."
                 },
                 "google": {
                     "title": "Google",

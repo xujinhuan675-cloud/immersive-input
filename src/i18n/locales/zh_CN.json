@@ -461,8 +461,8 @@
                 "btn_lightai": "AI 润色"
             },
             "about": {
-                "label": "关于应用",
-                "title": "关于应用",
+                "label": "关于",
+                "title": "关于",
                 "website": "官网",
                 "github": "GitHub",
                 "feedback": "问题反馈",
@@ -671,7 +671,8 @@
                     "type": "服务类型",
                     "free": "内置免费",
                     "api": "Auth Key",
-                    "deeplx": "DeepLX"
+                    "deeplx": "DeepLX",
+                    "free_note": "内置免费模式使用公开网页端接口，可能会被官方限流；因此保存时不做在线校验。若频繁出现 429，请改用 Auth Key 或 DeepLX。"
                 },
                 "google": {
                     "title": "谷歌翻译",
