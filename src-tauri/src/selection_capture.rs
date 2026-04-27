@@ -252,8 +252,8 @@ fn get_text_by_clipboard(
 fn send_internal_copy() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-        KEYEVENTF_KEYUP, VK_C, VK_CONTROL,
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        VK_C, VK_CONTROL,
     };
 
     let no_scan: u16 = 0;

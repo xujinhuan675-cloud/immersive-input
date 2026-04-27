@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/",
+            "destination": "/landing.html"
+        },
+        {
             "source": "/api/auth/send-register-code",
             "destination": "/api/auth?route=send-code&scene=register"
         },

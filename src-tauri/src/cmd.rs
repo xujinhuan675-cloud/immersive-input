@@ -277,7 +277,10 @@ pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> 
 
 /// Replace the entire contents of the previous focused input.
 #[tauri::command]
-pub fn replace_input_text(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
+pub fn replace_input_text(
+    text: String,
+    state: tauri::State<PrevForegroundWindow>,
+) -> Result<(), String> {
     {
         use arboard::Clipboard;
         let mut cb = Clipboard::new().map_err(|e| e.to_string())?;

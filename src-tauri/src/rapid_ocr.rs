@@ -62,7 +62,11 @@ fn parse_rapid_output(stdout: &[u8]) -> Result<String, String> {
 }
 
 #[tauri::command(async)]
-pub fn rapid_ocr(app_handle: tauri::AppHandle, base64: &str, language: &str) -> Result<String, String> {
+pub fn rapid_ocr(
+    app_handle: tauri::AppHandle,
+    base64: &str,
+    language: &str,
+) -> Result<String, String> {
     let image_bytes = general_purpose::STANDARD
         .decode(base64)
         .map_err(|error| error.to_string())?;
@@ -73,8 +77,10 @@ pub fn rapid_ocr(app_handle: tauri::AppHandle, base64: &str, language: &str) -> 
         &app_handle,
         &format!("resources/rapid/{}", get_binary_relative_path()),
     )?;
-    let det_model_path =
-        resolve_resource_path(&app_handle, "resources/rapid/PPOCR/models/ch_PP-OCR_det_infer.onnx")?;
+    let det_model_path = resolve_resource_path(
+        &app_handle,
+        "resources/rapid/PPOCR/models/ch_PP-OCR_det_infer.onnx",
+    )?;
     let models_dir = det_model_path
         .parent()
         .ok_or_else(|| "Failed to resolve Rapid OCR models directory".to_string())?
@@ -85,10 +91,16 @@ pub fn rapid_ocr(app_handle: tauri::AppHandle, base64: &str, language: &str) -> 
         .to_path_buf();
 
     if !binary_path.exists() {
-        return Err(format!("Rapid OCR binary not found: {}", binary_path.display()));
+        return Err(format!(
+            "Rapid OCR binary not found: {}",
+            binary_path.display()
+        ));
     }
     if !models_dir.exists() {
-        return Err(format!("Rapid OCR models not found: {}", models_dir.display()));
+        return Err(format!(
+            "Rapid OCR models not found: {}",
+            models_dir.display()
+        ));
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -1,4 +1,4 @@
-﻿use crate::clipboard::*;
+use crate::clipboard::*;
 use crate::config::{get, set};
 use crate::phrases::open_phrases_window;
 use crate::window::chat_window;
@@ -70,10 +70,7 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
         .unwrap();
     #[cfg(not(target_os = "linux"))]
     tray_handle
-        .set_tooltip(&format!(
-            "Flow Input {}",
-            app_handle.package_info().version
-        ))
+        .set_tooltip(&format!("Flow Input {}", app_handle.package_info().version))
         .unwrap();
 
     let enable_clipboard_monitor = match get("clipboard_monitor") {
@@ -138,9 +135,7 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "copy_source_target" => on_auto_copy_click(app, "source_target"),
             "copy_disable" => on_auto_copy_click(app, "disable"),
             "text_select_behavior_toolbar" => on_text_select_behavior_click(app, "toolbar"),
-            "text_select_behavior_direct" => {
-                on_text_select_behavior_click(app, "direct_translate")
-            }
+            "text_select_behavior_direct" => on_text_select_behavior_click(app, "direct_translate"),
             "text_select_behavior_disabled" => on_text_select_behavior_click(app, "disabled"),
             "ocr_recognize" => on_ocr_recognize_click(),
             "ocr_translate" => on_ocr_translate_click(),
@@ -342,12 +337,16 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
     let copy_target = CustomMenuItem::new("copy_target", labels.copy_target);
     let copy_source_target = CustomMenuItem::new("copy_source_target", labels.copy_source_target);
     let copy_disable = CustomMenuItem::new("copy_disable", labels.copy_disable);
-    let text_select_behavior_toolbar =
-        CustomMenuItem::new("text_select_behavior_toolbar", labels.text_selection_toolbar);
+    let text_select_behavior_toolbar = CustomMenuItem::new(
+        "text_select_behavior_toolbar",
+        labels.text_selection_toolbar,
+    );
     let text_select_behavior_direct =
         CustomMenuItem::new("text_select_behavior_direct", labels.text_selection_direct);
-    let text_select_behavior_disabled =
-        CustomMenuItem::new("text_select_behavior_disabled", labels.text_selection_disabled);
+    let text_select_behavior_disabled = CustomMenuItem::new(
+        "text_select_behavior_disabled",
+        labels.text_selection_disabled,
+    );
 
     let ocr_recognize = CustomMenuItem::new("ocr_recognize", labels.ocr_recognize);
     let ocr_translate = CustomMenuItem::new("ocr_translate", labels.ocr_translate);
