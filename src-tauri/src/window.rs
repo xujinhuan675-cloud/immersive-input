@@ -859,22 +859,25 @@ pub fn float_toolbar_window() {
         w.emit("selection_text_updated", ()).unwrap_or_default();
         return;
     }
-    let window = match with_dev_webview_data_directory(tauri::WindowBuilder::new(
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "float_toolbar",
         tauri::WindowUrl::App("index.html".into()),
     ))
     // transparent(true) + CSS box-shadow 实现悬浮卡片效果，圆角外区域透明显示后方内容
-    .transparent(true)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .focused(false)
     .visible(false)
     .inner_size(600.0, 100.0) // frontend will resize dynamically
-    .additional_browser_args("--disable-web-security")
-    .build()
+    .additional_browser_args("--disable-web-security");
+    #[cfg(not(target_os = "macos"))]
     {
+        // macOS without tauri's private API does not expose WindowBuilder::transparent.
+        builder = builder.transparent(true);
+    }
+    let window = match builder.build() {
         Ok(w) => w,
         Err(e) => {
             warn!("Failed to create float_toolbar window: {:?}", e);
@@ -921,12 +924,11 @@ pub fn show_input_ai_handle_window(x: i32, y: i32) {
         return;
     }
 
-    let window = match with_dev_webview_data_directory(tauri::WindowBuilder::new(
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
         app_handle,
         "input_ai_handle",
         tauri::WindowUrl::App("index.html".into()),
     ))
-    .transparent(true)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
@@ -934,9 +936,12 @@ pub fn show_input_ai_handle_window(x: i32, y: i32) {
     .resizable(false)
     .visible(false)
     .inner_size(24.0, 24.0)
-    .additional_browser_args("--disable-web-security")
-    .build()
+    .additional_browser_args("--disable-web-security");
+    #[cfg(not(target_os = "macos"))]
     {
+        builder = builder.transparent(true);
+    }
+    let window = match builder.build() {
         Ok(window) => window,
         Err(error) => {
             warn!("Failed to create input_ai_handle window: {:?}", error);
