@@ -101,6 +101,14 @@ export default function TargetArea(props) {
     const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
     const speak = useVoice();
+    const isAvailableServiceInstance = (instanceKey) => {
+        const serviceName = getServiceName(instanceKey);
+        return whetherPluginService(instanceKey)
+            ? Boolean(pluginList['translate']?.[serviceName])
+            : Boolean(builtinServices[serviceName]);
+    };
+    const availableTranslateServiceInstanceList = translateServiceInstanceList.filter(isAvailableServiceInstance);
+    const initialServiceAvailable = isAvailableServiceInstance(name);
 
     function clearPendingResultUpdate() {
         if (resultUpdateTimerRef.current) {
@@ -194,6 +202,15 @@ export default function TargetArea(props) {
             clearPendingResultUpdate();
         };
     }, []);
+
+    useEffect(() => {
+        if (
+            !availableTranslateServiceInstanceList.includes(currentTranslateServiceInstanceKey) &&
+            availableTranslateServiceInstanceList.length > 0
+        ) {
+            setCurrentTranslateServiceInstanceKey(availableTranslateServiceInstanceList[0]);
+        }
+    }, [availableTranslateServiceInstanceList, currentTranslateServiceInstanceKey]);
 
     const addToHistory = async (text, source, target, serviceInstanceKey, nextResult) => {
         const db = await Database.load('sqlite:history.db');
@@ -299,10 +316,18 @@ export default function TargetArea(props) {
                 setIsLoading(false);
             }
         } else {
-            const LanguageEnum = builtinServices[translateServiceName].Language;
+            const builtinService = builtinServices[translateServiceName];
+            if (!builtinService) {
+                clearPendingResultUpdate();
+                setError('Service not available');
+                setIsLoading(false);
+                return;
+            }
+
+            const LanguageEnum = builtinService.Language;
             if (sourceLanguage in LanguageEnum && targetLanguage in LanguageEnum) {
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
-                builtinServices[translateServiceName]
+                builtinService
                     .translate(sourceText.trim(), LanguageEnum[sourceLanguage], LanguageEnum[targetLanguage], {
                         config: instanceConfig,
                         detect: detectLanguage,
@@ -394,6 +419,10 @@ export default function TargetArea(props) {
     const showBody = !collapsed && (isLoading || hasStringResult || hasStructuredResult || error !== '');
     const showFooter = !collapsed && (hasStringResult || error !== '');
 
+    if (!initialServiceAvailable || availableTranslateServiceInstanceList.length === 0) {
+        return null;
+    }
+
     const handleSpeak = async () => {
         const data = await synthesizeBuiltInTts(result, targetLanguage);
         speak(data);
@@ -452,10 +481,18 @@ export default function TargetArea(props) {
                 setIsLoading(false);
             }
         } else {
-            const LanguageEnum = builtinServices[getServiceName(currentTranslateServiceInstanceKey)].Language;
+            const builtinService = builtinServices[getServiceName(currentTranslateServiceInstanceKey)];
+            if (!builtinService) {
+                clearPendingResultUpdate();
+                setError('Service not available');
+                setIsLoading(false);
+                return;
+            }
+
+            const LanguageEnum = builtinService.Language;
             if (newSourceLanguage in LanguageEnum && newTargetLanguage in LanguageEnum) {
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
-                builtinServices[getServiceName(currentTranslateServiceInstanceKey)]
+                builtinService
                     .translate(result.trim(), LanguageEnum[newSourceLanguage], LanguageEnum[newTargetLanguage], {
                         config: instanceConfig,
                         detect: newSourceLanguage,
@@ -527,7 +564,7 @@ export default function TargetArea(props) {
                                 setCurrentTranslateServiceInstanceKey(String(key));
                             }}
                         >
-                            {translateServiceInstanceList.map((instanceKey) => {
+                            {availableTranslateServiceInstanceList.map((instanceKey) => {
                                 return (
                                     <DropdownItem
                                         key={instanceKey}

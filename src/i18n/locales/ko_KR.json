@@ -9,9 +9,6 @@
         },
         "services": {
             "translate": {
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "deepl": {
                     "title": "DeepL",
                     "custom_url": "DeepLX 주소",

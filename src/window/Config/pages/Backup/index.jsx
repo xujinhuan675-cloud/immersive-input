@@ -7,7 +7,6 @@ import { warn } from 'tauri-plugin-log-api';
 import { Button } from '@nextui-org/react';
 import { Input } from '@nextui-org/react';
 import { Card } from '@nextui-org/react';
-import { Avatar } from '@nextui-org/react';
 import React, { useEffect, useState } from 'react';
 
 import SettingsDropdown from '../../../../components/SettingsDropdown';
@@ -15,38 +14,32 @@ import { useConfig, useToastStyle } from '../../../../hooks';
 import { osType } from '../../../../utils/env';
 import * as webdav from './utils/webdav';
 import WebDavModal from './WebDavModal';
-import AliyunModal from './AliyunModal';
 import * as local from './utils/local';
 import * as phraseTransfer from './utils/phrases';
 import * as vaultTransfer from './utils/vault';
-import * as aliyun from './utils/aliyun';
-
-let refreshTimer = null;
 
 export default function Backup() {
     const [backupType, setBackupType] = useConfig('backup_type', 'webdav');
     const [davUserName, setDavUserName] = useConfig('webdav_username', '');
     const [davPassword, setDavPassword] = useConfig('webdav_password', '');
     const [davUrl, setDavUrl] = useConfig('webdav_url', '');
-    const [aliyunQrCodeUrl, setAliyunQrCodeUrl] = useState('');
-    const [aliyunUserInfo, setAliyunUserInfo] = useState(null);
-    const [aliyunAccessToken, setAliyunAccessToken] = useConfig('aliyun_access_token', '');
-    // const [aliyunRefreshToken, setAliyunRefreshToken] = useConfig('aliyun_refresh_token', '');
     const {
         isOpen: isWebDavListOpen,
         onOpen: onWebDavListOpen,
         onOpenChange: onWebDavListOpenChange,
-    } = useDisclosure();
-    const {
-        isOpen: isAliyunListOpen,
-        onOpen: onAliyunListOpen,
-        onOpenChange: onAliyunListOpenChange,
     } = useDisclosure();
     const [uploading, setUploading] = useState(false);
     const [phrasesAction, setPhrasesAction] = useState('');
     const [vaultAction, setVaultAction] = useState('');
     const toastStyle = useToastStyle();
     const { t } = useTranslation();
+    const effectiveBackupType = backupType === 'aliyun' ? 'webdav' : backupType;
+
+    useEffect(() => {
+        if (backupType === 'aliyun') {
+            setBackupType('webdav', true);
+        }
+    }, [backupType]);
 
     const onBackup = async () => {
         setUploading(true);
@@ -56,23 +49,16 @@ export default function Backup() {
         }-${time.getDate()}-${time.getHours()}-${time.getMinutes()}-${time.getSeconds()}`;
 
         let result;
-        switch (backupType) {
+        switch (effectiveBackupType) {
             case 'webdav':
                 result = webdav.backup(davUrl, davUserName, davPassword, fileName + '.zip');
                 break;
             case 'local':
                 result = local.backup(fileName);
                 break;
-            case 'aliyun':
-                if (aliyunAccessToken === '') {
-                    toast.error(t('config.backup.aliyun_login_first'), { style: toastStyle });
-                    setUploading(false);
-                } else {
-                    result = aliyun.backup(aliyunAccessToken, fileName + '.zip');
-                }
-                break;
             default:
                 warn('Unknown backup type');
+                setUploading(false);
                 return;
         }
         result.then(
@@ -88,7 +74,7 @@ export default function Backup() {
     };
 
     const onBackupListOpen = () => {
-        switch (backupType) {
+        switch (effectiveBackupType) {
             case 'webdav':
                 onWebDavListOpen();
                 break;
@@ -102,67 +88,8 @@ export default function Backup() {
                     }
                 );
                 break;
-            case 'aliyun':
-                if (aliyunAccessToken === '') {
-                    toast.error(t('config.backup.aliyun_login_first'), { style: toastStyle });
-                } else {
-                    onAliyunListOpen();
-                }
-
-                break;
             default:
                 warn('Unknown backup type');
-        }
-    };
-
-    const pollingStatus = async (sid) => {
-        refreshTimer = setInterval(async () => {
-            try {
-                const { status, code } = await aliyun.status(sid);
-                switch (status) {
-                    case 'QRCodeExpired': {
-                        refreshQrCode();
-                        break;
-                    }
-                    case 'LoginSuccess': {
-                        clearInterval(refreshTimer);
-                        toast.success(t('config.backup.login_success'), { style: toastStyle });
-                        const token = await aliyun.accessToken(code);
-                        setAliyunAccessToken(token);
-                        await refreshUserInfo(token);
-                        break;
-                    }
-                }
-            } catch (e) {
-                toast.error(e.toString(), { style: toastStyle });
-                refreshQrCode();
-            }
-        }, 2000);
-    };
-
-    const refreshQrCode = async () => {
-        try {
-            const { url, sid } = await aliyun.qrcode();
-            setAliyunQrCodeUrl(url);
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-            }
-            pollingStatus(sid);
-        } catch (e) {
-            setAliyunQrCodeUrl('');
-            toast.error(e.toString(), { style: toastStyle });
-        }
-    };
-
-    const refreshUserInfo = async (token) => {
-        try {
-            const info = await aliyun.userInfo(token);
-            setAliyunQrCodeUrl('');
-            setAliyunUserInfo(info);
-        } catch (e) {
-            toast.error(e.toString(), { style: toastStyle });
-            setAliyunAccessToken('');
-            refreshQrCode();
         }
     };
 
@@ -234,19 +161,6 @@ export default function Backup() {
         }
     };
 
-    useEffect(() => {
-        if (backupType === null || backupType !== 'aliyun') return;
-        if (aliyunAccessToken === '') {
-            refreshQrCode();
-        } else {
-            refreshUserInfo(aliyunAccessToken);
-        }
-
-        return () => {
-            clearInterval(refreshTimer);
-        };
-    }, [backupType]);
-
     const sectionTitleClassName = 'my-auto text-foreground';
     const sectionControlClassName = 'flex w-full flex-col gap-3 sm:w-auto sm:min-w-[340px] sm:items-end';
     const rowClassName =
@@ -271,23 +185,22 @@ export default function Backup() {
                     </h3>
 
                     <div className={sectionControlClassName}>
-                        {backupType !== null && (
+                        {effectiveBackupType !== null && (
                             <SettingsDropdown
-                                label={t(`config.backup.${backupType}`)}
+                                label={t(`config.backup.${effectiveBackupType}`)}
                                 ariaLabel='backup type'
-                                selectedKey={backupType}
+                                selectedKey={effectiveBackupType}
                                 onAction={(key) => {
                                     setBackupType(key);
                                 }}
                             >
                                 <DropdownItem key='webdav'>{t('config.backup.webdav')}</DropdownItem>
-                                <DropdownItem key='aliyun'>{t('config.backup.aliyun')}</DropdownItem>
                                 <DropdownItem key='local'>{t('config.backup.local')}</DropdownItem>
                             </SettingsDropdown>
                         )}
 
                         <div className={fieldWrapClassName}>
-                            <div className={backupType !== 'webdav' ? 'hidden' : 'space-y-3'}>
+                            <div className={effectiveBackupType !== 'webdav' ? 'hidden' : 'space-y-3'}>
                                 <div className={rowClassName}>
                                     <h4 className='pt-1 text-sm font-medium text-foreground'>
                                         {t('config.backup.webdav_url')}
@@ -337,40 +250,6 @@ export default function Backup() {
                                         />
                                     )}
                                 </div>
-                            </div>
-
-                            <div className={backupType !== 'aliyun' ? 'hidden' : 'space-y-3'}>
-                                {aliyunQrCodeUrl !== '' && (
-                                    <div className='flex justify-center sm:justify-start'>
-                                        <img
-                                            src={aliyunQrCodeUrl}
-                                            className='h-[200px] rounded-xl border border-default-100 bg-white p-2'
-                                        />
-                                    </div>
-                                )}
-
-                                {aliyunUserInfo !== null && (
-                                    <div className={rowClassName}>
-                                        <h4 className='pt-1 text-sm font-medium text-foreground'>
-                                            {t('config.backup.username')}
-                                        </h4>
-                                        <Button
-                                            variant='light'
-                                            className='justify-start px-0 sm:px-2'
-                                            onPress={() => {
-                                                setAliyunAccessToken('');
-                                                setAliyunUserInfo(null);
-                                                refreshQrCode();
-                                            }}
-                                        >
-                                            <Avatar
-                                                src={aliyunUserInfo.avatar}
-                                                size='sm'
-                                            />
-                                            <span className='text-sm'>{aliyunUserInfo.name}</span>
-                                        </Button>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -462,12 +341,6 @@ export default function Backup() {
                 url={davUrl}
                 username={davUserName}
                 password={davPassword}
-            />
-            <AliyunModal
-                isOpen={isAliyunListOpen}
-                onOpenChange={onAliyunListOpenChange}
-                accessToken={aliyunAccessToken}
-                // refreshToken={aliyunRefreshToken}
             />
         </Card>
     );

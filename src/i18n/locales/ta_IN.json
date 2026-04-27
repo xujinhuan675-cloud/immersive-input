@@ -243,9 +243,6 @@
                     "title": "கூகிள்",
                     "custom_url": "தனிப்பயன் முகவரி"
                 },
-                "lingva": {
-                    "title": "மொழியியல்"
-                },
                 "bing": {
                     "title": "பிங்"
                 },
@@ -273,9 +270,6 @@
                 },
                 "yandex": {
                     "title": "யாண்டெக்ச்"
-                },
-                "ecdict": {
-                    "title": "Ecdict (ஆன்லைன்)"
                 },
                 "transmart": {
                     "title": "டிரான்ச்மார்ட்",

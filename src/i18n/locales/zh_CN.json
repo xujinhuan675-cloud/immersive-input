@@ -678,9 +678,6 @@
                     "title": "谷歌翻译",
                     "custom_url": "自定义 URL"
                 },
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {
                     "title": "必应翻译"
                 },
@@ -731,9 +728,6 @@
                 },
                 "yandex": {
                     "title": "Yandex"
-                },
-                "ecdict": {
-                    "title": "ECDict(在线)"
                 },
                 "transmart": {
                     "title": "腾讯交互翻译",

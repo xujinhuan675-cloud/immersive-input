@@ -257,9 +257,6 @@
             "help": "إرشاد التكوين",
             "no_need": "لا يتطلب أي تكوين",
             "translate": {
-                "lingva": {
-                    "title": "lingva"
-                },
                 "deepl": {
                     "title": "DeepL",
                     "custom_url": "عنوان DeepLX",
@@ -323,9 +320,6 @@
                 },
                 "yandex": {
                     "title": "yandex"
-                },
-                "ecdict": {
-                    "title": "ECDict (متصل)"
                 },
                 "transmart": {
                     "username": "اسم المستخدم",

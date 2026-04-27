@@ -1,4 +1,4 @@
-import { getServiceName } from '../../../../utils/service_instance';
+import { ServiceSourceType, getServiceName, getServiceSouceType } from '../../../../utils/service_instance';
 
 export const TRANSLATE_SERVICE_PRIORITY = [
     'google',
@@ -17,20 +17,17 @@ export const TRANSLATE_SERVICE_PRIORITY = [
     'ollama',
     'geminipro',
     'chatglm',
-    'lingva',
     'yandex',
     'niutrans',
-    'ecdict',
 ];
 
 export const TRANSLATE_DEFAULT_VISIBLE = ['google', 'deepl', 'bing', 'openai'];
 
-export const TRANSLATE_LEGACY_DEFAULT = ['deepl', 'bing', 'lingva', 'yandex', 'google', 'ecdict'];
-
-export const TRANSLATE_SERVICE_CATALOG_VERSION = 3;
+export const TRANSLATE_SERVICE_CATALOG_VERSION = 4;
 export const TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
     ['deepl', 'google', 'bing', 'openai', 'libretranslate', 'azure'],
     ['google', 'deepl', 'bing', 'openai', 'baidu'],
+    ['deepl', 'bing', 'yandex', 'google'],
 ];
 
 export const RECOGNIZE_SERVICE_PRIORITY = [
@@ -71,6 +68,20 @@ function matchesServiceNameList(serviceNames, visibleList) {
     );
 }
 
+function filterKnownServiceInstanceKeys(instanceKeys, priorityList) {
+    if (!Array.isArray(instanceKeys)) {
+        return [];
+    }
+
+    return instanceKeys.filter((instanceKey) => {
+        if (getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN) {
+            return true;
+        }
+
+        return priorityList.includes(getServiceName(instanceKey));
+    });
+}
+
 export function sortBuiltinServiceItems(items, priorityList) {
     return [...items].sort((left, right) => {
         const priorityDelta = getPriorityIndex(left.key, priorityList) - getPriorityIndex(right.key, priorityList);
@@ -102,24 +113,31 @@ export function sortServiceInstanceKeys(instanceKeys, priorityList) {
 }
 
 export function migrateServiceInstanceList(instanceKeys, { priorityList, recommendedList, legacyDefaultList }) {
-    if (!Array.isArray(instanceKeys) || instanceKeys.length === 0) {
+    const filteredInstanceKeys = filterKnownServiceInstanceKeys(instanceKeys, priorityList);
+    if (filteredInstanceKeys.length === 0) {
         return [...recommendedList];
     }
 
-    const serviceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
-    if (serviceNames.every((serviceName) => legacyDefaultList.includes(serviceName))) {
+    if (
+        Array.isArray(legacyDefaultList) &&
+        legacyDefaultList.length > 0 &&
+        filteredInstanceKeys
+            .map((instanceKey) => getServiceName(instanceKey))
+            .every((serviceName) => legacyDefaultList.includes(serviceName))
+    ) {
         return [...recommendedList];
     }
 
-    return sortServiceInstanceKeys(instanceKeys, priorityList);
+    return sortServiceInstanceKeys(filteredInstanceKeys, priorityList);
 }
 
 export function migrateTranslateRecommendedServices(instanceKeys) {
-    if (!Array.isArray(instanceKeys) || instanceKeys.length === 0) {
+    const filteredInstanceKeys = filterKnownServiceInstanceKeys(instanceKeys, TRANSLATE_SERVICE_PRIORITY);
+    if (filteredInstanceKeys.length === 0) {
         return [...TRANSLATE_DEFAULT_VISIBLE];
     }
 
-    const serviceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
+    const serviceNames = filteredInstanceKeys.map((instanceKey) => getServiceName(instanceKey));
     const matchesPreviousDefault = TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some((visibleList) =>
         matchesServiceNameList(serviceNames, visibleList)
     );
@@ -127,7 +145,7 @@ export function migrateTranslateRecommendedServices(instanceKeys) {
         return [...TRANSLATE_DEFAULT_VISIBLE];
     }
 
-    return instanceKeys;
+    return filteredInstanceKeys;
 }
 
 export function migrateRecognizeRecommendedServices(instanceKeys) {

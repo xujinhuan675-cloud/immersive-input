@@ -679,9 +679,6 @@
                     "title": "Google",
                     "custom_url": "Custom URL"
                 },
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {
                     "title": "Bing"
                 },
@@ -732,9 +729,6 @@
                 },
                 "yandex": {
                     "title": "Yandex"
-                },
-                "ecdict": {
-                    "title": "ECDict(Online)"
                 },
                 "transmart": {
                     "title": "TranSmart",

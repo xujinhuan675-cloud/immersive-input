@@ -30,9 +30,6 @@
                 "chatglm_summary": {},
                 "openai_polish": {},
                 "geminipro_summary": {},
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {},
                 "openai_summary": {}
             },

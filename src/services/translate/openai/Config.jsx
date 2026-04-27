@@ -1,4 +1,4 @@
-import { Input, Button, Switch, Textarea, Card, CardBody, Link } from '@nextui-org/react';
+import { Input, Button, Switch, Textarea } from '@nextui-org/react';
 import { DropdownTrigger } from '@nextui-org/react';
 import { MdDeleteOutline } from 'react-icons/md';
 import { DropdownMenu } from '@nextui-org/react';
@@ -45,7 +45,8 @@ export function Config(props) {
         },
         { sync: false }
     );
-    // 兼容旧版本
+
+    // Backfill missing fields for older saved instances.
     if (openaiConfig) {
         if (openaiConfig.promptList === undefined) {
             setOpenaiConfig({
@@ -135,7 +136,7 @@ export function Config(props) {
                 </div>
                 <div className='config-item'>
                     <Switch
-                        isSelected={openaiConfig['stream']}
+                        isSelected={openaiConfig.stream}
                         onValueChange={(value) => {
                             setOpenaiConfig({
                                 ...openaiConfig,
@@ -153,7 +154,7 @@ export function Config(props) {
                     <Input
                         label={t('services.translate.openai.request_path')}
                         labelPlacement='outside-left'
-                        value={openaiConfig['requestPath']}
+                        value={openaiConfig.requestPath}
                         variant='bordered'
                         classNames={{
                             base: 'justify-between',
@@ -173,7 +174,7 @@ export function Config(props) {
                         label={t('services.translate.openai.api_key')}
                         labelPlacement='outside-left'
                         type='password'
-                        value={openaiConfig['apiKey']}
+                        value={openaiConfig.apiKey}
                         variant='bordered'
                         classNames={{
                             base: 'justify-between',
@@ -188,37 +189,11 @@ export function Config(props) {
                         }}
                     />
                 </div>
-                <Card
-                    isBlurred
-                    className='border-none bg-success/20 dark:bg-success/10'
-                    shadow='sm'
-                >
-                    <CardBody>
-                        <div>
-                            推荐
-                            <Link
-                                isExternal
-                                href='https://aihubmix.com/register?aff=trJY'
-                                color='primary'
-                            >
-                                AiHubMix
-                            </Link>
-                            的OpenAI API 密钥，速度飞快，经济实惠，1美元的OpenAI API 额度只需人民币6.3元
-                            <Link
-                                isExternal
-                                href='https://pot-app.com/ads/aihubmix.html'
-                                color='primary'
-                            >
-                                配置文档
-                            </Link>
-                        </div>
-                    </CardBody>
-                </Card>
                 <div className={`config-item ${openaiConfig.service === 'azure' && 'hidden'}`}>
                     <Input
                         label={t('services.translate.openai.model')}
                         labelPlacement='outside-left'
-                        value={openaiConfig['model']}
+                        value={openaiConfig.model}
                         variant='bordered'
                         classNames={{
                             base: 'justify-between',
@@ -240,7 +215,7 @@ export function Config(props) {
                     {openaiConfig.promptList &&
                         openaiConfig.promptList.map((prompt, index) => {
                             return (
-                                <div className='config-item'>
+                                <div className='config-item' key={`${prompt.role}-${index}`}>
                                     <Textarea
                                         label={prompt.role}
                                         labelPlacement='outside'
@@ -257,15 +232,15 @@ export function Config(props) {
                                                                 role: 'system',
                                                                 content: value,
                                                             };
-                                                        } else {
-                                                            return {
-                                                                role: index % 2 !== 0 ? 'user' : 'assistant',
-                                                                content: value,
-                                                            };
                                                         }
-                                                    } else {
-                                                        return p;
+
+                                                        return {
+                                                            role: index % 2 !== 0 ? 'user' : 'assistant',
+                                                            content: value,
+                                                        };
                                                     }
+
+                                                    return p;
                                                 }),
                                             });
                                         }}
@@ -318,8 +293,8 @@ export function Config(props) {
                         label=''
                         labelPlacement='outside'
                         variant='faded'
-                        value={openaiConfig['requestArguments']}
-                        placeholder={`Input API Request Arguments`}
+                        value={openaiConfig.requestArguments}
+                        placeholder='Input API Request Arguments'
                         onValueChange={(value) => {
                             setOpenaiConfig({
                                 ...openaiConfig,

@@ -242,9 +242,6 @@
                     "title": "Google",
                     "custom_url": "Пользовательский адрес"
                 },
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {
                     "title": "Bing"
                 },
@@ -354,9 +351,6 @@
                     "not_installed": "Эта модель ещё не установлена, нажмите, чтобы загрузить и установить",
                     "stream": "Потоковый режим",
                     "install_ollama_link": "Загрузить Ollama"
-                },
-                "ecdict": {
-                    "title": "ECDict (Online)"
                 }
             },
             "recognize": {

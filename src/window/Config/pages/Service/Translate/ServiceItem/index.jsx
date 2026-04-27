@@ -16,8 +16,6 @@ import {
 
 const BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG = new Set([
     'bing',
-    'ecdict',
-    'lingva',
     'yandex',
 ]);
 
@@ -45,6 +43,10 @@ export default function ServiceItem(props) {
     }
 
     const isBuiltin = serviceSourceType === ServiceSourceType.BUILDIN;
+    if (isBuiltin && !(serviceName in builtinServices)) {
+        return <></>;
+    }
+
     const pluginNeeds = Array.isArray(pluginList?.[serviceName]?.needs) ? pluginList[serviceName].needs : [];
     const canEditConfig = isBuiltin
         ? !BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG.has(serviceName)

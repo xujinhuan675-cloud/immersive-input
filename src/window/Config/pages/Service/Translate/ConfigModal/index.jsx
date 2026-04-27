@@ -9,11 +9,15 @@ import { ServiceSourceType, getServiceName, getServiceSouceType, whetherPluginSe
 export default function ConfigModal(props) {
     const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
 
-    const serviceSourceType = getServiceSouceType(serviceInstanceKey)
-    const pluginServiceFlag = whetherPluginService(serviceInstanceKey)
-    const serviceName = getServiceName(serviceInstanceKey)
+    const serviceSourceType = getServiceSouceType(serviceInstanceKey);
+    const pluginServiceFlag = whetherPluginService(serviceInstanceKey);
+    const serviceName = getServiceName(serviceInstanceKey);
 
     const { t } = useTranslation();
+    if (!pluginServiceFlag && !(serviceName in builtinServices)) {
+        return <></>;
+    }
+
     const ConfigComponent = pluginServiceFlag ? PluginConfig : builtinServices[serviceName].Config;
 
     return pluginServiceFlag && !(serviceName in pluginList) ? (

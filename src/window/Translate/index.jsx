@@ -26,10 +26,16 @@ import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
 import { useConfig } from '../../hooks';
 import { store } from '../../utils/store';
-import { RECOGNIZE_DEFAULT_VISIBLE, TRANSLATE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
+import {
+    RECOGNIZE_DEFAULT_VISIBLE,
+    TRANSLATE_DEFAULT_VISIBLE,
+    TRANSLATE_SERVICE_CATALOG_VERSION,
+    migrateTranslateRecommendedServices,
+} from '../Config/pages/Service/servicePriority';
 
 let blurTimeout = null;
 let unlisten = null;
+const TRANSLATE_SERVICE_CATALOG_VERSION_KEY = 'translate_service_catalog_version';
 
 const listenBlur = () => {
     return listen('tauri://blur', () => {
@@ -87,6 +93,7 @@ export default function Translate() {
         'translate_service_list',
         TRANSLATE_DEFAULT_VISIBLE
     );
+    const [translateCatalogVersion, setTranslateCatalogVersion] = useConfig(TRANSLATE_SERVICE_CATALOG_VERSION_KEY, 0);
     const [recognizeServiceInstanceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [closeOnBlur] = useConfig('translate_close_on_blur', false);
     const [alwaysOnTop] = useConfig('translate_always_on_top', false);
@@ -154,6 +161,21 @@ export default function Translate() {
     useEffect(() => {
         invoke('set_translate_excerpt_mode', { enabled: excerptMode }).catch(() => {});
     }, [excerptMode]);
+
+    useEffect(() => {
+        if (translateServiceInstanceList === null || translateCatalogVersion === null) {
+            return;
+        }
+
+        const nextList = migrateTranslateRecommendedServices(translateServiceInstanceList);
+        if (JSON.stringify(nextList) !== JSON.stringify(translateServiceInstanceList)) {
+            setTranslateServiceInstanceList(nextList, true);
+        }
+
+        if (translateCatalogVersion < TRANSLATE_SERVICE_CATALOG_VERSION) {
+            setTranslateCatalogVersion(TRANSLATE_SERVICE_CATALOG_VERSION, true);
+        }
+    }, [translateServiceInstanceList, translateCatalogVersion]);
 
     useEffect(() => {
         return () => {

@@ -11,38 +11,16 @@ import * as builtinServices from '../../../../../services/translate';
 import AddServiceModal from '../AddServiceModal';
 import {
     TRANSLATE_DEFAULT_VISIBLE,
-    TRANSLATE_LEGACY_DEFAULT,
+    TRANSLATE_SERVICE_CATALOG_VERSION,
     TRANSLATE_SERVICE_PRIORITY,
     migrateServiceInstanceList,
+    migrateTranslateRecommendedServices,
     sortBuiltinServiceItems,
 } from '../servicePriority';
 import ServiceItem from './ServiceItem';
 import ConfigModal from './ConfigModal';
 
 const TRANSLATE_SERVICE_CATALOG_VERSION_KEY = 'translate_service_catalog_version';
-const TRANSLATE_SERVICE_CATALOG_VERSION = 3;
-const TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
-    ['deepl', 'google', 'bing', 'openai', 'libretranslate', 'azure'],
-    ['google', 'deepl', 'bing', 'openai', 'baidu'],
-];
-
-function migrateTranslateRecommendedServices(instanceKeys) {
-    if (!Array.isArray(instanceKeys) || instanceKeys.length === 0) {
-        return [...TRANSLATE_DEFAULT_VISIBLE];
-    }
-
-    const serviceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
-    const matchesPreviousDefault = TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some(
-        (visibleList) =>
-            serviceNames.length === visibleList.length &&
-            serviceNames.every((serviceName) => visibleList.includes(serviceName))
-    );
-    if (matchesPreviousDefault) {
-        return [...TRANSLATE_DEFAULT_VISIBLE];
-    }
-
-    return instanceKeys;
-}
 
 export default function Translate(props) {
     const { pluginList } = props;
@@ -73,7 +51,6 @@ export default function Translate(props) {
             nextList = migrateServiceInstanceList(nextList, {
                 priorityList: TRANSLATE_SERVICE_PRIORITY,
                 recommendedList: TRANSLATE_DEFAULT_VISIBLE,
-                legacyDefaultList: TRANSLATE_LEGACY_DEFAULT,
             });
         }
 

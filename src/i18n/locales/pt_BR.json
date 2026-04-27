@@ -242,9 +242,6 @@
                     "title": "Google",
                     "custom_url": "URL personalizada"
                 },
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {
                     "title": "Bing"
                 },
@@ -354,9 +351,6 @@
                     "ready": "Pronto",
                     "not_installed": "Este modelo ainda não foi instalado, clique para baixar e instalar agora",
                     "prompt_description": "Ao personalizar o Prompt, você pode personalizar o comportamento da IA. $text $from $to $detect será substituído pelo texto a ser traduzido, idioma de origem, idioma de destino e idioma detectado."
-                },
-                "ecdict": {
-                    "title": "ECDict(Online)"
                 }
             },
             "recognize": {

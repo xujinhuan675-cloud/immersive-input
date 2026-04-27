@@ -4,7 +4,7 @@
 
 > 🌈 一个跨平台的 AI 驱动文本增强工具
 
-![License](https://img.shields.io/github/license/pot-app/pot-desktop.svg)
+![License](https://img.shields.io/github/license/IOTO-Doc/Immersive-Input.svg)
 ![Tauri](https://img.shields.io/badge/Tauri-1.6.8-blue?logo=tauri)
 ![JavaScript](https://img.shields.io/badge/-JavaScript-yellow?logo=javascript&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-orange?logo=rust&logoColor=white)
@@ -71,7 +71,7 @@ immersive-input/
 │   ├── services/                   # 各类外部服务（每项服务 = index.jsx + Config.jsx + info.ts）
 │   │   ├── translate/              # 20+ 翻译服务（deepl/openai/google/baidu/bing 等）
 │   │   ├── recognize/              # OCR 服务（system/tesseract/baidu/tencent/iflytek 等）
-│   │   ├── tts/                    # 语音合成服务（lingva）
+│   │   ├── tts/                    # 语音合成服务
 │   │   ├── collection/             # 生词本服务（anki/eudic）
 │   │   └── light_ai/               # 轻 AI 润色（openai 接口封装）
 │   │
@@ -536,8 +536,6 @@ pnpm test
 -   [x] [有道翻译](https://ai.youdao.com/)
 -   [x] [剑桥词典](https://dictionary.cambridge.org/)
 -   [x] [Yandex](https://translate.yandex.com/)
--   [x] [Lingva](https://github.com/TheDavidDelta/lingva-translate)
--   [x] [ECDICT](https://github.com/skywind3000/ECDICT) (离线词典)
 
 更多接口支持见 [插件系统](#插件系统)
 
@@ -566,7 +564,6 @@ pnpm test
 
 ## 语音合成
 
--   [x] [Lingva](https://github.com/thedaviddelta/lingva-translate)
 
 更多接口支持见 [插件系统](#插件系统)
 
@@ -1029,9 +1026,8 @@ const handleClick = useCallback(async (id) => {
 
 </div>
 
--   [Pot](https://github.com/pot-app/pot-desktop) 项目基础
+-   Pot 项目基础
 -   [Bob](https://github.com/ripperhe/Bob) 灵感来源
 -   [Tauri](https://github.com/tauri-apps/tauri) 优秀的 GUI 框架
 
 <div align="center">
-

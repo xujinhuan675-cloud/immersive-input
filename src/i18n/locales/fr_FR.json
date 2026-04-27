@@ -103,9 +103,6 @@
                 "bing_dict": {
                     "title": "Dictionnaire Bing"
                 },
-                "lingva": {
-                    "title": "Lingva"
-                },
                 "bing": {
                     "title": "Bing"
                 },
@@ -130,9 +127,6 @@
                     "model": "Modèle",
                     "install_model": "Installer",
                     "install_ollama": "Impossible de se connecter à ollama en local, veuillez d'abord télécharger, installer et démarrer ollama. Si vous utilisez une instance ollama qui n'est pas sur cette machine, veuillez changer l'adresse de demande."
-                },
-                "ecdict": {
-                    "title": "ECDict (en ligne)"
                 }
             },
             "recognize": {
