@@ -1,6 +1,7 @@
 name: Flow Input Package
 
 on:
+    workflow_dispatch:
     push:
         branches:
             - master
