@@ -1,6 +1,6 @@
 [package]
 name = "immersive-input"
-version = "4.0.10"
+version = "4.0.11"
 description = "Flow Input"
 authors = ["immersive-input"]
 license = "GPL-3.0-only"

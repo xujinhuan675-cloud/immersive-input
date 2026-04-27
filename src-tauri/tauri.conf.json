@@ -8,7 +8,7 @@
     },
     "package": {
         "productName": "Flow Input",
-        "version": "4.0.10"
+        "version": "4.0.11"
     },
     "tauri": {
         "allowlist": {
@@ -129,7 +129,7 @@
             "endpoints": [
                 "https://github.com/xujinhuan675-cloud/immersive-input/releases/latest/download/latest.json"
             ],
-            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcyNDc4MDI2REJEOUE1QjMKUldTenBkbmJKb0JIY3ZpUlZsblFVNVZSUGRVeE9BdUQrcHBLK25PQnRwZG56d2w5a3dGeHJvTTIK"
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMjc3QUI3N0REMEE0NUMKUldSY3BOQjl0M29uTFBFZ3cwMW84a1VlNFQyVGd6ZVBVN3JMSEs1M0d3SVU3K2x0emxtcEhIL2sK"
         }
     }
 }
