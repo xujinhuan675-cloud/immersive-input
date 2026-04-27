@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const DEFAULT_REPOSITORY = 'IOTO-Doc/Immersive-Input';
+export const DEFAULT_REPOSITORY = 'xujinhuan675-cloud/immersive-input';
 export const APP_SLUG = 'flow-input';
 
 export function getPackageVersion() {

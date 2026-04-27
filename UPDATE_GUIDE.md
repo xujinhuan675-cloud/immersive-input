@@ -23,7 +23,7 @@ pnpm tauri signer generate -w ~/.tauri/immersive-input.key
     "active": true,
     "dialog": false,
     "endpoints": [
-        "https://github.com/IOTO-Doc/Immersive-Input/releases/latest/download/latest.json"
+        "https://github.com/xujinhuan675-cloud/immersive-input/releases/latest/download/latest.json"
     ],
     "pubkey": "这里粘贴刚才生成的公钥"
 }

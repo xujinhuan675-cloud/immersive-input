@@ -4,7 +4,7 @@ version = "4.0.8"
 description = "Flow Input"
 authors = ["immersive-input"]
 license = "GPL-3.0-only"
-repository = "https://github.com/IOTO-Doc/Immersive-Input"
+repository = "https://github.com/xujinhuan675-cloud/immersive-input"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

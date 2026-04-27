@@ -29,7 +29,7 @@ export default function About() {
                         size='sm'
                         startContent={<BsGithub />}
                         onPress={() => {
-                            open('https://github.com/IOTO-Doc/Immersive-Input');
+                            open('https://github.com/xujinhuan675-cloud/immersive-input');
                         }}
                     >
                         GitHub

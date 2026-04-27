@@ -4,7 +4,7 @@
 
 > 🌈 一个跨平台的 AI 驱动文本增强工具
 
-![License](https://img.shields.io/github/license/IOTO-Doc/Immersive-Input.svg)
+![License](https://img.shields.io/github/license/xujinhuan675-cloud/immersive-input.svg)
 ![Tauri](https://img.shields.io/badge/Tauri-1.6.8-blue?logo=tauri)
 ![JavaScript](https://img.shields.io/badge/-JavaScript-yellow?logo=javascript&logoColor=white)
 ![Rust](https://img.shields.io/badge/-Rust-orange?logo=rust&logoColor=white)

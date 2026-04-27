@@ -20,6 +20,7 @@ dist-ssr
 # Tauri updater files (sensitive)
 *.key
 latest.json
+.tmp-appdata/
 
 # Editor directories and files
 .idea
