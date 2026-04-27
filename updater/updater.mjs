@@ -31,26 +31,33 @@ async function buildManifest() {
         {
             platform: 'darwin-aarch64',
             fileName: macUpdaterBundleName(version, 'aarch64'),
+            required: false,
         },
         {
             platform: 'darwin-x86_64',
             fileName: macUpdaterBundleName(version, 'x64'),
+            required: false,
         },
         {
             platform: 'windows-x86_64',
             fileName: windowsUpdaterBundleName(version, 'x64'),
+            required: true,
         },
     ];
 
     const platforms = {};
-    const missingPlatforms = [];
+    const missingRequiredPlatforms = [];
 
     for (const asset of assets) {
         const url = releaseDownloadUrl(repository, releaseTag, asset.fileName);
         const signature = await getSignature(`${url}.sig`);
 
         if (!signature) {
-            missingPlatforms.push(asset.platform);
+            if (asset.required) {
+                missingRequiredPlatforms.push(asset.platform);
+            } else {
+                console.warn(`Skipping optional updater platform: ${asset.platform}`);
+            }
             continue;
         }
 
@@ -60,8 +67,10 @@ async function buildManifest() {
         };
     }
 
-    if (missingPlatforms.length > 0) {
-        throw new Error(`Missing updater signatures for: ${missingPlatforms.join(', ')}`);
+    if (missingRequiredPlatforms.length > 0) {
+        throw new Error(
+            `Missing updater signatures for required platforms: ${missingRequiredPlatforms.join(', ')}`
+        );
     }
 
     const notes = `Flow Input ${version}`;

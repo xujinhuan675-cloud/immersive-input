@@ -192,7 +192,7 @@ jobs:
         needs:
             - build-for-macos
             - build-for-windows
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build-for-windows.result == 'success' }}
         runs-on: ubuntu-latest
 
         steps:
