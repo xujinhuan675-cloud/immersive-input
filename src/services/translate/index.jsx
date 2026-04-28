@@ -1,7 +1,6 @@
 import * as _deepl from './deepl';
 import * as _bing from './bing';
 import * as _yandex from './yandex';
-import * as _openai from './openai';
 import * as _google from './google';
 import * as _transmart from './transmart';
 import * as _alibaba from './alibaba';
@@ -20,7 +19,6 @@ import * as _azure from './azure';
 export const deepl = _deepl;
 export const bing = _bing;
 export const yandex = _yandex;
-export const openai = _openai;
 export const google = _google;
 export const transmart = _transmart;
 export const alibaba = _alibaba;

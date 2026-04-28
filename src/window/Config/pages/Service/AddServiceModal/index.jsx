@@ -52,6 +52,7 @@ export default function AddServiceModal(props) {
         setCurrentConfigKey,
         onConfigOpen,
         builtinServices = [],
+        extraSections = [],
         onBuiltinSelect,
         pluginType,
         pluginList = {},
@@ -62,7 +63,6 @@ export default function AddServiceModal(props) {
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
     const addedServiceNameSet = new Set((serviceInstanceList ?? []).map((serviceInstanceKey) => getServiceName(serviceInstanceKey)));
-    const visibleBuiltinServices = builtinServices.filter((service) => !addedServiceNameSet.has(service.key));
     const pluginEntries = Object.entries(pluginList ?? {})
         .filter(([pluginKey]) => !addedServiceNameSet.has(pluginKey))
         .sort((left, right) =>
@@ -77,6 +77,42 @@ export default function AddServiceModal(props) {
             : t('config.service.no_builtin_services', {
                   defaultValue: 'No built-in services available.',
               });
+
+    const getVisibleServices = (services = []) =>
+        services.filter((service) => !addedServiceNameSet.has(service.key));
+
+    const renderServiceSection = (title, services = [], emptyMessage = null, onClose = null) => {
+        const visibleServices = getVisibleServices(services);
+
+        return (
+            <>
+                <SectionTitle>{title}</SectionTitle>
+                {visibleServices.length === 0 && emptyMessage ? (
+                    <div className='mb-3 rounded-xl border border-dashed border-divider px-4 py-3 text-sm text-default-500'>
+                        {emptyMessage}
+                    </div>
+                ) : null}
+                {visibleServices.map((service) => (
+                    <ServiceSelectRow
+                        key={service.key}
+                        icon={service.icon}
+                        label={service.label}
+                        onPress={() => {
+                            if (service.onSelect) {
+                                service.onSelect();
+                            } else if (onBuiltinSelect) {
+                                onBuiltinSelect(service);
+                            } else {
+                                setCurrentConfigKey(createServiceInstanceKey(service.key));
+                                onConfigOpen();
+                            }
+                            onClose?.();
+                        }}
+                    />
+                ))}
+            </>
+        );
+    };
 
     const handleInstallPlugin = async () => {
         if (installing) {
@@ -126,31 +162,22 @@ export default function AddServiceModal(props) {
                     <>
                         <ModalHeader>{t('config.service.add_service')}</ModalHeader>
                         <ModalBody>
-                            <SectionTitle>
-                                {t('config.service.builtin_services', { defaultValue: 'Built-in Services' })}
-                            </SectionTitle>
-                            {visibleBuiltinServices.length === 0 ? (
-                                <div className='mb-3 rounded-xl border border-dashed border-divider px-4 py-3 text-sm text-default-500'>
-                                    {builtinEmptyMessage}
-                                </div>
-                            ) : null}
-                            {visibleBuiltinServices.map((service) => (
-                                <ServiceSelectRow
-                                    key={service.key}
-                                    icon={service.icon}
-                                    label={service.label}
-                                    onPress={() => {
-                                        if (service.onSelect) {
-                                            service.onSelect();
-                                        } else if (onBuiltinSelect) {
-                                            onBuiltinSelect(service);
-                                        } else {
-                                            setCurrentConfigKey(createServiceInstanceKey(service.key));
-                                            onConfigOpen();
-                                        }
-                                        onClose();
-                                    }}
-                                />
+                            {renderServiceSection(
+                                t('config.service.builtin_services', { defaultValue: 'Built-in Services' }),
+                                builtinServices,
+                                builtinEmptyMessage,
+                                onClose
+                            )}
+
+                            {extraSections.map((section) => (
+                                <React.Fragment key={section.key ?? section.title}>
+                                    {renderServiceSection(
+                                        section.title,
+                                        section.services,
+                                        section.emptyMessage ?? null,
+                                        onClose
+                                    )}
+                                </React.Fragment>
                             ))}
 
                             {hasPluginSupport ? (

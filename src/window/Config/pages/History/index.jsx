@@ -22,6 +22,11 @@ import {
     getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../utils/aiConfig';
+import {
+    getAiTranslateDisplayName,
+    getLinkedAiServiceInstanceKey,
+    isAiTranslateServiceKey,
+} from '../../../../utils/aiTranslate';
 import { normalizeLanguageKey } from '../../../../utils/language';
 import {
     ServiceSourceType,
@@ -372,6 +377,17 @@ export default function History() {
     };
 
     const getTranslateServiceDisplayName = (serviceInstanceKey) => {
+        if (isAiTranslateServiceKey(serviceInstanceKey)) {
+            const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(serviceInstanceKey);
+            const aiConfig = linkedAiInstanceKey ? aiApiConfigMap[linkedAiInstanceKey] ?? {} : {};
+
+            return getAiTranslateDisplayName(
+                {},
+                aiConfig,
+                t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
+            );
+        }
+
         const serviceName = getServiceName(serviceInstanceKey);
         if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
             return pluginList?.[ServiceType.TRANSLATE]?.[serviceName]?.display ?? serviceName;
@@ -380,11 +396,30 @@ export default function History() {
     };
 
     const getTranslateServiceIcon = (serviceInstanceKey) => {
+        if (isAiTranslateServiceKey(serviceInstanceKey)) {
+            return null;
+        }
+
         const serviceName = getServiceName(serviceInstanceKey);
         if (getServiceSouceType(serviceInstanceKey) === ServiceSourceType.PLUGIN) {
             return pluginList?.[ServiceType.TRANSLATE]?.[serviceName]?.icon ?? null;
         }
+        if (serviceName === 'openai') {
+            return 'logo/openai.svg';
+        }
         return builtinServices[serviceName]?.info.icon ?? null;
+    };
+
+    const getTranslateServiceIconNode = (serviceInstanceKey) => {
+        if (!isAiTranslateServiceKey(serviceInstanceKey)) {
+            return null;
+        }
+
+        const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(serviceInstanceKey);
+        const aiConfig = linkedAiInstanceKey ? aiApiConfigMap[linkedAiInstanceKey] ?? {} : {};
+        const providerId = getAiProviderId(getMergedAiApiConfig(aiConfig));
+
+        return <AiProviderIcon providerId={providerId} />;
     };
 
     const getRowKey = (item, typeKey = activeTab) => `${typeKey}-${item.id}`;
@@ -652,7 +687,11 @@ export default function History() {
                     <div className='min-w-0'>
                         <ServiceIdentity
                             iconSrc={isAiTab ? null : getTranslateServiceIcon(item.service)}
-                            iconNode={isAiTab ? <AiProviderIcon providerId={aiServiceInfo.providerId} /> : null}
+                            iconNode={
+                                isAiTab
+                                    ? <AiProviderIcon providerId={aiServiceInfo.providerId} />
+                                    : getTranslateServiceIconNode(item.service)
+                            }
                             title={serviceTitle}
                             titleClassName={isAiTab ? 'text-default-700' : ''}
                         />

@@ -1,10 +1,10 @@
+import { isAiTranslateServiceKey } from '../../../../utils/aiTranslate';
 import { ServiceSourceType, getServiceName, getServiceSouceType } from '../../../../utils/service_instance';
 
 export const TRANSLATE_SERVICE_PRIORITY = [
     'google',
     'deepl',
     'bing',
-    'openai',
     'baidu',
     'libretranslate',
     'azure',
@@ -21,10 +21,11 @@ export const TRANSLATE_SERVICE_PRIORITY = [
     'niutrans',
 ];
 
-export const TRANSLATE_DEFAULT_VISIBLE = ['google', 'deepl', 'bing', 'openai'];
+export const TRANSLATE_DEFAULT_VISIBLE = ['google', 'deepl', 'bing'];
 
-export const TRANSLATE_SERVICE_CATALOG_VERSION = 4;
+export const TRANSLATE_SERVICE_CATALOG_VERSION = 5;
 export const TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
+    ['google', 'deepl', 'bing', 'openai'],
     ['deepl', 'google', 'bing', 'openai', 'libretranslate', 'azure'],
     ['google', 'deepl', 'bing', 'openai', 'baidu'],
     ['deepl', 'bing', 'yandex', 'google'],
@@ -74,6 +75,10 @@ function filterKnownServiceInstanceKeys(instanceKeys, priorityList) {
     }
 
     return instanceKeys.filter((instanceKey) => {
+        if (isAiTranslateServiceKey(instanceKey)) {
+            return true;
+        }
+
         if (getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN) {
             return true;
         }

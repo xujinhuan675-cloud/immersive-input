@@ -18,10 +18,20 @@ import { useConfig, useToastStyle, useVoice } from '../../../../hooks';
 import { sourceTextAtom, detectLanguageAtom } from '../SourceArea';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
+import AiProviderIcon from '../../../../components/AiProviderIcon';
 import * as builtinServices from '../../../../services/translate';
 import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
 
 import { info, error as logError } from 'tauri-plugin-log-api';
+import { getAiProviderId, getMergedAiApiConfig } from '../../../../utils/aiConfig';
+import {
+    getAiTranslateDisplayName,
+    getAiTranslateLanguageEnum,
+    getLinkedAiServiceInstanceKey,
+    getMergedAiTranslateConfig,
+    isAiTranslateServiceKey,
+    translateWithAiBinding,
+} from '../../../../utils/aiTranslate';
 import {
     INSTANCE_NAME_CONFIG_KEY,
     getDisplayInstanceName,
@@ -101,7 +111,27 @@ export default function TargetArea(props) {
     const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
     const speak = useVoice();
+
+    function getAiTranslateMeta(instanceKey) {
+        const bindingConfig = getMergedAiTranslateConfig(
+            serviceInstanceConfigMap[instanceKey] ?? {},
+            instanceKey
+        );
+        const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(instanceKey, bindingConfig);
+        const aiConfig = linkedAiInstanceKey ? serviceInstanceConfigMap[linkedAiInstanceKey] ?? {} : {};
+
+        return {
+            bindingConfig,
+            linkedAiInstanceKey,
+            aiConfig,
+        };
+    }
+
     const isAvailableServiceInstance = (instanceKey) => {
+        if (isAiTranslateServiceKey(instanceKey)) {
+            return Boolean(getAiTranslateMeta(instanceKey).linkedAiInstanceKey);
+        }
+
         const serviceName = getServiceName(instanceKey);
         return whetherPluginService(instanceKey)
             ? Boolean(pluginList['translate']?.[serviceName])
@@ -145,15 +175,43 @@ export default function TargetArea(props) {
     }
 
     function getServiceDisplayLabel(instanceKey) {
+        if (isAiTranslateServiceKey(instanceKey)) {
+            const { bindingConfig, aiConfig } = getAiTranslateMeta(instanceKey);
+            return getAiTranslateDisplayName(
+                bindingConfig,
+                aiConfig,
+                t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
+            );
+        }
+
         return whetherPluginService(instanceKey)
             ? getInstanceName(instanceKey, () => pluginList['translate'][getServiceName(instanceKey)].display)
             : getInstanceName(instanceKey, () => t(`services.translate.${getServiceName(instanceKey)}.title`));
     }
 
-    function getServiceIcon(instanceKey) {
-        return whetherPluginService(instanceKey)
-            ? pluginList['translate'][getServiceName(instanceKey)].icon
-            : builtinServices[getServiceName(instanceKey)].info.icon;
+    function renderServiceIcon(instanceKey, className) {
+        if (isAiTranslateServiceKey(instanceKey)) {
+            const { aiConfig } = getAiTranslateMeta(instanceKey);
+            const providerId = getAiProviderId(getMergedAiApiConfig(aiConfig));
+
+            return (
+                <span className={`flex items-center justify-center ${className}`}>
+                    <AiProviderIcon providerId={providerId} className='text-[16px]' />
+                </span>
+            );
+        }
+
+        return (
+            <img
+                src={
+                    whetherPluginService(instanceKey)
+                        ? pluginList['translate'][getServiceName(instanceKey)].icon
+                        : builtinServices[getServiceName(instanceKey)].info.icon
+                }
+                alt=''
+                className={className}
+            />
+        );
     }
 
     useEffect(() => {
@@ -245,7 +303,81 @@ export default function TargetArea(props) {
 
         const translateServiceName = getServiceName(currentTranslateServiceInstanceKey);
 
-        if (whetherPluginService(currentTranslateServiceInstanceKey)) {
+        if (isAiTranslateServiceKey(currentTranslateServiceInstanceKey)) {
+            const { bindingConfig, aiConfig } = getAiTranslateMeta(currentTranslateServiceInstanceKey);
+            const LanguageEnum = getAiTranslateLanguageEnum();
+
+            if (sourceLanguage in LanguageEnum && targetLanguage in LanguageEnum) {
+                translateWithAiBinding(
+                    sourceText.trim(),
+                    LanguageEnum[sourceLanguage],
+                    LanguageEnum[targetLanguage],
+                    bindingConfig,
+                    aiConfig,
+                    {
+                        detect: detectLanguage,
+                        setResult: (value) => {
+                            if (translateID[index] !== id) return;
+                            applyResultUpdate(value);
+                        },
+                    }
+                ).then(
+                    (value) => {
+                        info(`[${currentTranslateServiceInstanceKey}]resolve:` + value);
+                        if (translateID[index] !== id) return;
+
+                        const nextResult = typeof value === 'string' ? value.trim() : value;
+                        applyResultUpdate(nextResult, true);
+                        setIsLoading(false);
+
+                        if (!historyDisable && typeof nextResult === 'string' && nextResult !== '') {
+                            addToHistory(
+                                sourceText.trim(),
+                                detectLanguage,
+                                targetLanguage,
+                                currentTranslateServiceInstanceKey,
+                                nextResult
+                            );
+                        }
+
+                        if (index === 0 && !clipboardMonitor && typeof value === 'string') {
+                            switch (autoCopy) {
+                                case 'target':
+                                    writeText(value).then(() => {
+                                        if (hideWindow) {
+                                            sendNotification({ title: t('common.write_clipboard'), body: value });
+                                        }
+                                    });
+                                    break;
+                                case 'source_target':
+                                    writeText(sourceText.trim() + '\n\n' + value).then(() => {
+                                        if (hideWindow) {
+                                            sendNotification({
+                                                title: t('common.write_clipboard'),
+                                                body: sourceText.trim() + '\n\n' + value,
+                                            });
+                                        }
+                                    });
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                    },
+                    (e) => {
+                        info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
+                        if (translateID[index] !== id) return;
+                        clearPendingResultUpdate();
+                        setError(e.toString());
+                        setIsLoading(false);
+                    }
+                );
+            } else {
+                clearPendingResultUpdate();
+                setError('Language not supported');
+                setIsLoading(false);
+            }
+        } else if (whetherPluginService(currentTranslateServiceInstanceKey)) {
             const pluginInfo = pluginList['translate'][translateServiceName];
             if (sourceLanguage in pluginInfo.language && targetLanguage in pluginInfo.language) {
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
@@ -448,7 +580,40 @@ export default function TargetArea(props) {
             newSourceLanguage = 'auto';
         }
 
-        if (whetherPluginService(currentTranslateServiceInstanceKey)) {
+        if (isAiTranslateServiceKey(currentTranslateServiceInstanceKey)) {
+            const { bindingConfig, aiConfig } = getAiTranslateMeta(currentTranslateServiceInstanceKey);
+            const LanguageEnum = getAiTranslateLanguageEnum();
+
+            if (newSourceLanguage in LanguageEnum && newTargetLanguage in LanguageEnum) {
+                translateWithAiBinding(
+                    result.trim(),
+                    LanguageEnum[newSourceLanguage],
+                    LanguageEnum[newTargetLanguage],
+                    bindingConfig,
+                    aiConfig,
+                    {
+                        detect: newSourceLanguage,
+                        setResult: (value) => {
+                            applyResultUpdate(value);
+                        },
+                    }
+                ).then(
+                    (value) => {
+                        applyResultUpdate(typeof value === 'string' ? value.trim() : value, true);
+                        setIsLoading(false);
+                    },
+                    (e) => {
+                        clearPendingResultUpdate();
+                        setError(e.toString());
+                        setIsLoading(false);
+                    }
+                );
+            } else {
+                clearPendingResultUpdate();
+                setError('Language not supported');
+                setIsLoading(false);
+            }
+        } else if (whetherPluginService(currentTranslateServiceInstanceKey)) {
             const pluginInfo = pluginList['translate'][getServiceName(currentTranslateServiceInstanceKey)];
             if (newSourceLanguage in pluginInfo.language && newTargetLanguage in pluginInfo.language) {
                 const instanceConfig = serviceInstanceConfigMap[currentTranslateServiceInstanceKey];
@@ -535,11 +700,10 @@ export default function TargetArea(props) {
                                 className={SERVICE_TRIGGER_BUTTON_CLASS}
                             >
                                 <div className='flex min-w-0 items-center gap-2'>
-                                    <img
-                                        src={getServiceIcon(currentTranslateServiceInstanceKey)}
-                                        alt=''
-                                        className='h-4 w-4 shrink-0 rounded-[4px]'
-                                    />
+                                    {renderServiceIcon(
+                                        currentTranslateServiceInstanceKey,
+                                        'h-4 w-4 shrink-0 rounded-[4px]'
+                                    )}
                                     <div className='min-w-0 text-left'>
                                         <div className='truncate text-[13px] font-medium text-foreground'>
                                             {getServiceDisplayLabel(currentTranslateServiceInstanceKey)}
@@ -568,13 +732,7 @@ export default function TargetArea(props) {
                                 return (
                                     <DropdownItem
                                         key={instanceKey}
-                                        startContent={
-                                            <img
-                                                src={getServiceIcon(instanceKey)}
-                                                alt=''
-                                                className='h-4 w-4 rounded-[4px]'
-                                            />
-                                        }
+                                        startContent={renderServiceIcon(instanceKey, 'h-4 w-4 rounded-[4px]')}
                                     >
                                         {getServiceDisplayLabel(instanceKey)}
                                     </DropdownItem>

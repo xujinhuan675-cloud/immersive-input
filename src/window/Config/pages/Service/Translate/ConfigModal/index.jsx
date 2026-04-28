@@ -1,10 +1,13 @@
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Spacer } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { LuBrainCircuit } from 'react-icons/lu';
 
 import * as builtinServices from '../../../../../../services/translate';
+import { isAiTranslateServiceKey } from '../../../../../../utils/aiTranslate';
 import { PluginConfig } from '../../PluginConfig';
 import { ServiceSourceType, getServiceName, getServiceSouceType, whetherPluginService } from '../../../../../../utils/service_instance';
+import AiTranslateConfig from './AiTranslateConfig';
 
 export default function ConfigModal(props) {
     const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
@@ -12,13 +15,18 @@ export default function ConfigModal(props) {
     const serviceSourceType = getServiceSouceType(serviceInstanceKey);
     const pluginServiceFlag = whetherPluginService(serviceInstanceKey);
     const serviceName = getServiceName(serviceInstanceKey);
+    const aiTranslateService = isAiTranslateServiceKey(serviceInstanceKey);
 
     const { t } = useTranslation();
-    if (!pluginServiceFlag && !(serviceName in builtinServices)) {
+    if (!aiTranslateService && !pluginServiceFlag && !(serviceName in builtinServices)) {
         return <></>;
     }
 
-    const ConfigComponent = pluginServiceFlag ? PluginConfig : builtinServices[serviceName].Config;
+    const ConfigComponent = aiTranslateService
+        ? AiTranslateConfig
+        : pluginServiceFlag
+          ? PluginConfig
+          : builtinServices[serviceName].Config;
 
     return pluginServiceFlag && !(serviceName in pluginList) ? (
         <></>
@@ -32,7 +40,16 @@ export default function ConfigModal(props) {
                 {(onClose) => (
                     <>
                         <ModalHeader>
-                            {serviceSourceType === ServiceSourceType.BUILDIN && (
+                            {aiTranslateService && (
+                                <>
+                                    <div className='flex h-[24px] w-[24px] items-center justify-center rounded-full bg-primary-100 text-primary'>
+                                        <LuBrainCircuit className='text-[14px]' />
+                                    </div>
+                                    <Spacer x={2} />
+                                    {t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })}
+                                </>
+                            )}
+                            {!aiTranslateService && serviceSourceType === ServiceSourceType.BUILDIN && (
                                 <>
                                     <img
                                         src={builtinServices[serviceName].info.icon}
@@ -66,15 +83,17 @@ export default function ConfigModal(props) {
                                 onClose={onClose}
                             />
                         </ModalBody>
-                        <ModalFooter>
-                            <Button
-                                color='danger'
-                                variant='light'
-                                onPress={onClose}
-                            >
-                                {t('common.cancel')}
-                            </Button>
-                        </ModalFooter>
+                        {!aiTranslateService ? (
+                            <ModalFooter>
+                                <Button
+                                    color='danger'
+                                    variant='light'
+                                    onPress={onClose}
+                                >
+                                    {t('common.cancel')}
+                                </Button>
+                            </ModalFooter>
+                        ) : null}
                     </>
                 )}
             </ModalContent>

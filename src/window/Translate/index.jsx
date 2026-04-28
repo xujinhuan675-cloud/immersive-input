@@ -25,6 +25,12 @@ import LanguageArea from './components/LanguageArea';
 import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
 import { useConfig } from '../../hooks';
+import { AI_API_SERVICE_LIST_KEY } from '../../utils/aiConfig';
+import {
+    ensureAiTranslateBindings,
+    getLinkedAiServiceInstanceKey,
+    isAiTranslateServiceKey,
+} from '../../utils/aiTranslate';
 import { store } from '../../utils/store';
 import {
     RECOGNIZE_DEFAULT_VISIBLE,
@@ -94,6 +100,7 @@ export default function Translate() {
         TRANSLATE_DEFAULT_VISIBLE
     );
     const [translateCatalogVersion, setTranslateCatalogVersion] = useConfig(TRANSLATE_SERVICE_CATALOG_VERSION_KEY, 0);
+    const [aiApiServiceInstanceList] = useConfig(AI_API_SERVICE_LIST_KEY, []);
     const [recognizeServiceInstanceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [closeOnBlur] = useConfig('translate_close_on_blur', false);
     const [alwaysOnTop] = useConfig('translate_always_on_top', false);
@@ -163,19 +170,44 @@ export default function Translate() {
     }, [excerptMode]);
 
     useEffect(() => {
-        if (translateServiceInstanceList === null || translateCatalogVersion === null) {
+        if (
+            translateServiceInstanceList === null ||
+            translateCatalogVersion === null ||
+            aiApiServiceInstanceList === null
+        ) {
             return;
         }
 
-        const nextList = migrateTranslateRecommendedServices(translateServiceInstanceList);
-        if (JSON.stringify(nextList) !== JSON.stringify(translateServiceInstanceList)) {
-            setTranslateServiceInstanceList(nextList, true);
-        }
+        let cancelled = false;
 
-        if (translateCatalogVersion < TRANSLATE_SERVICE_CATALOG_VERSION) {
-            setTranslateCatalogVersion(TRANSLATE_SERVICE_CATALOG_VERSION, true);
-        }
-    }, [translateServiceInstanceList, translateCatalogVersion]);
+        const syncTranslateServiceList = async () => {
+            const migratedList = migrateTranslateRecommendedServices(translateServiceInstanceList);
+            const { nextList } = await ensureAiTranslateBindings(
+                migratedList,
+                aiApiServiceInstanceList,
+                {
+                    legacySourceList: translateServiceInstanceList,
+                }
+            );
+
+            if (cancelled) {
+                return;
+            }
+
+            if (JSON.stringify(nextList) !== JSON.stringify(translateServiceInstanceList)) {
+                setTranslateServiceInstanceList(nextList, true);
+            }
+
+            if (translateCatalogVersion < TRANSLATE_SERVICE_CATALOG_VERSION) {
+                setTranslateCatalogVersion(TRANSLATE_SERVICE_CATALOG_VERSION, true);
+            }
+        };
+
+        void syncTranslateServiceList();
+        return () => {
+            cancelled = true;
+        };
+    }, [translateServiceInstanceList, translateCatalogVersion, aiApiServiceInstanceList]);
 
     useEffect(() => {
         return () => {
@@ -219,7 +251,17 @@ export default function Translate() {
     const loadServiceInstanceConfigMap = async () => {
         const config = {};
         for (const serviceInstanceKey of translateServiceInstanceList) {
-            config[serviceInstanceKey] = (await store.get(serviceInstanceKey)) ?? {};
+            const serviceInstanceConfig = (await store.get(serviceInstanceKey)) ?? {};
+            config[serviceInstanceKey] = serviceInstanceConfig;
+            if (isAiTranslateServiceKey(serviceInstanceKey)) {
+                const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(
+                    serviceInstanceKey,
+                    serviceInstanceConfig
+                );
+                if (linkedAiInstanceKey) {
+                    config[linkedAiInstanceKey] = (await store.get(linkedAiInstanceKey)) ?? {};
+                }
+            }
         }
         for (const serviceInstanceKey of recognizeServiceInstanceList) {
             config[serviceInstanceKey] = (await store.get(serviceInstanceKey)) ?? {};
@@ -227,10 +269,14 @@ export default function Translate() {
         setServiceInstanceConfigMap({ ...config });
     };
     useEffect(() => {
-        if (translateServiceInstanceList !== null && recognizeServiceInstanceList !== null) {
+        if (
+            translateServiceInstanceList !== null &&
+            recognizeServiceInstanceList !== null &&
+            aiApiServiceInstanceList !== null
+        ) {
             loadServiceInstanceConfigMap();
         }
-    }, [translateServiceInstanceList, recognizeServiceInstanceList]);
+    }, [translateServiceInstanceList, recognizeServiceInstanceList, aiApiServiceInstanceList]);
 
     return (
         pluginList && (
