@@ -12,6 +12,7 @@ import InputAiHandle from './window/InputAiHandle';
 import LightAI from './window/LightAI';
 import Explain from './window/Explain';
 import Chat from './window/Chat';
+import TtsPlayer from './window/TtsPlayer';
 import Translate from './window/Translate';
 import Recognize from './window/Recognize';
 import Updater from './window/Updater';
@@ -37,6 +38,7 @@ const windowMap = {
     light_ai: <LightAI />,
     explain: <Explain />,
     chat: <Chat />,
+    tts_player: <TtsPlayer />,
     screenshot: <Screenshot />,
     recognize: <Recognize />,
     config: <Config />,
@@ -82,7 +84,7 @@ const WINDOW_SIZE_MEMORY = {
     explain: { width: true, height: true },
     chat: { width: true, height: true },
     vault: { width: true, height: true },
-    updater: { width: true, height: true },
+    updater: { width: true, height: true, minWidth: 480, minHeight: 320 },
     phrases_inline: { width: true, height: false },
 };
 

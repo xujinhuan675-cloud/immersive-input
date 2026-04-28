@@ -26,6 +26,8 @@ mod window;
 use backup::*;
 use clipboard::*;
 use cmd::paste_result;
+use cmd::take_pending_chat_http_text;
+use cmd::take_pending_tts_text;
 use cmd::write_clipboard;
 use cmd::*;
 use config::*;
@@ -63,6 +65,8 @@ pub struct StringWrapper(pub Mutex<String>);
 pub struct PrevForegroundWindow(pub Mutex<isize>);
 pub struct TranslateExcerptModeWrapper(pub Mutex<bool>);
 pub struct LightAiTargetWrapper(pub Mutex<String>);
+pub struct PendingChatHttpTextWrapper(pub Mutex<String>);
+pub struct PendingTtsTextWrapper(pub Mutex<String>);
 
 fn build_log_targets() -> Vec<LogTarget> {
     if cfg!(debug_assertions) {
@@ -164,6 +168,8 @@ fn main() {
             app.manage(PrevForegroundWindow(Mutex::new(0)));
             app.manage(TranslateExcerptModeWrapper(Mutex::new(false)));
             app.manage(LightAiTargetWrapper(Mutex::new("selection".to_string())));
+            app.manage(PendingChatHttpTextWrapper(Mutex::new(String::new())));
+            app.manage(PendingTtsTextWrapper(Mutex::new(String::new())));
             app.manage(FocusedInputSnapshotWrapper(Mutex::new(
                 FocusedInputSnapshot::default(),
             )));
@@ -237,6 +243,8 @@ fn main() {
             open_vault_quick_fill,
             get_vault_mode,
             get_light_ai_target,
+            take_pending_chat_http_text,
+            take_pending_tts_text,
             set_translate_excerpt_mode,
             save_prev_window,
             open_login_window

@@ -1,3 +1,5 @@
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/tauri';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
@@ -346,8 +348,8 @@ export default function Chat() {
         [speak]
     );
 
-    const send = useCallback(async () => {
-        const text = input.trim();
+    const sendText = useCallback(async (rawText) => {
+        const text = String(rawText || '').trim();
         if (!text || loading || !apiConfig) return;
 
         setMenuOpen(false);
@@ -406,7 +408,45 @@ export default function Chat() {
             },
             controller.signal
         );
-    }, [apiConfig, input, loading, messages]);
+    }, [apiConfig, loading, messages]);
+
+    const send = useCallback(async () => {
+        await sendText(input);
+    }, [input, sendText]);
+
+    useEffect(() => {
+        if (!apiConfig) {
+            return undefined;
+        }
+
+        let disposed = false;
+
+        async function consumePendingText() {
+            const pendingText = await invoke('take_pending_chat_http_text').catch(() => '');
+            if (disposed || !pendingText) {
+                return;
+            }
+
+            await sendText(pendingText);
+        }
+
+        void consumePendingText();
+
+        const unlisten = listen('http_chat_text', (event) => {
+            const payload = String(event.payload || '');
+            if (!payload.trim()) {
+                return;
+            }
+
+            setInput(payload);
+            void sendText(payload);
+        });
+
+        return () => {
+            disposed = true;
+            void unlisten.then((off) => off());
+        };
+    }, [apiConfig, sendText]);
 
     return (
         <TrayWindow>

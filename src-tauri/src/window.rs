@@ -1112,6 +1112,8 @@ pub fn explain_window() {
     let (window, exists) = build_window("explain", "Explain");
     window.set_skip_taskbar(true).unwrap_or_default();
     if exists {
+        show_app_window(&window);
+        window.set_focus().unwrap_or_default();
         window.emit("new_text", text).unwrap_or_default();
         return;
     }
@@ -1139,7 +1141,8 @@ pub fn explain_window() {
     window
         .set_position(tauri::PhysicalPosition::new(x, y))
         .unwrap_or_default();
-    window.show().unwrap_or_default();
+    show_app_window(&window);
+    window.set_focus().unwrap_or_default();
     window.emit("new_text", text).unwrap_or_default();
 }
 
@@ -1180,6 +1183,47 @@ pub fn chat_window() {
     apply_saved_window_size(&window, "chat", 460, 540);
     window.center().unwrap_or_default();
     show_app_window(&window);
+}
+
+pub fn tts_player_window() -> Window {
+    let app_handle = APP.get().unwrap();
+    if let Some(window) = app_handle.get_window("tts_player") {
+        return window;
+    }
+
+    let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
+        app_handle,
+        "tts_player",
+        tauri::WindowUrl::App("index.html".into()),
+    ))
+    .title("TTS Player")
+    .visible(false)
+    .focused(false)
+    .skip_taskbar(true)
+    .resizable(false)
+    .inner_size(1.0, 1.0)
+    .position(-10000.0, -10000.0)
+    .additional_browser_args("--disable-web-security");
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.transparent(true).decorations(false);
+    }
+
+    if let Some(icon) = default_window_icon() {
+        builder = builder.icon(icon).unwrap();
+    }
+
+    let window = builder.build().unwrap();
+    apply_default_window_icon(&window);
+    window.hide().unwrap_or_default();
+    window
 }
 
 #[tauri::command]
@@ -1395,10 +1439,11 @@ pub fn open_login_window() {
 #[tauri::command(async)]
 pub fn updater_window() {
     let (window, _exists) = build_window("updater", "Updater");
+    window.set_resizable(true).unwrap_or_default();
     window
-        .set_min_size(Some(tauri::LogicalSize::new(600, 400)))
-        .unwrap();
-    apply_saved_window_size(&window, "updater", 600, 400);
-    window.center().unwrap();
+        .set_min_size(Some(tauri::LogicalSize::new(480, 320)))
+        .unwrap_or_default();
+    apply_saved_window_size_with_min(&window, "updater", 540, 360, 480, 320);
+    window.center().unwrap_or_default();
     show_app_window(&window);
 }
