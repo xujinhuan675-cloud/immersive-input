@@ -17,6 +17,9 @@ function getFallbackProviderIds(config = {}) {
         candidates.push(selectedProviderId);
     }
 
+    if (!candidates.includes(BUILTIN_TTS_PROVIDER_IDS.SYSTEM)) {
+        candidates.push(BUILTIN_TTS_PROVIDER_IDS.SYSTEM);
+    }
     if (!candidates.includes(BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE)) {
         candidates.push(BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE);
     }
@@ -28,6 +31,9 @@ function getFallbackProviderIds(config = {}) {
 }
 
 function isProviderConfigured(providerId, config = {}) {
+    if (providerId === BUILTIN_TTS_PROVIDER_IDS.SYSTEM) {
+        return Boolean(config.supported);
+    }
     if (providerId === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
         return Boolean(String(config.apiKey || '').trim());
     }

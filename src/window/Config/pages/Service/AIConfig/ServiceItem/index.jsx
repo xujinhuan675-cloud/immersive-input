@@ -1,10 +1,9 @@
-import { Button, Switch } from '@nextui-org/react';
+import { Switch } from '@nextui-org/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuPencilLine, LuTrash2 } from 'react-icons/lu';
 
 import AiProviderIcon from '../../../../../../components/AiProviderIcon';
-import SortableConfigRow from '../../../../../../components/SortableConfigRow';
 import { useConfig } from '../../../../../../hooks';
 import {
     getAiApiDisplayName,
@@ -12,6 +11,7 @@ import {
     getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
+import { ConfigServiceIconButton, ConfigServiceListRow } from './ServiceRow';
 
 export default function ServiceItem(props) {
     const {
@@ -36,7 +36,7 @@ export default function ServiceItem(props) {
     const displayName = getAiApiDisplayName(mergedConfig, providerTitle);
 
     return (
-        <SortableConfigRow
+        <ConfigServiceListRow
             dragHandleProps={drag}
             icon={<AiProviderIcon providerId={providerId} className='text-[18px]' />}
             title={displayName}
@@ -50,29 +50,22 @@ export default function ServiceItem(props) {
                             setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
                         }}
                     />
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='light'
-                        className='text-default-500'
+                    <ConfigServiceIconButton
                         onPress={() => {
                             setCurrentConfigKey(serviceInstanceKey);
                             onConfigOpen();
                         }}
                     >
                         <LuPencilLine className='text-[18px]' />
-                    </Button>
-                    <Button
-                        isIconOnly
-                        size='sm'
-                        variant='light'
+                    </ConfigServiceIconButton>
+                    <ConfigServiceIconButton
                         color='danger'
                         onPress={() => {
                             deleteServiceInstance(serviceInstanceKey);
                         }}
                     >
                         <LuTrash2 className='text-[18px]' />
-                    </Button>
+                    </ConfigServiceIconButton>
                 </>
             }
         />

@@ -9,13 +9,18 @@ export const AI_API_PROVIDER_TITLE = 'OpenAI Compatible API';
 
 export const BUILTIN_TTS_CONFIG_KEY = 'builtin_tts_config';
 export const BUILTIN_TTS_PROVIDER_IDS = {
+    SYSTEM: 'system_tts',
     VOLCENGINE: 'volcengine_tts',
     OPENAI: 'openai_tts',
 };
 export const BUILTIN_TTS_PROVIDER_OPTIONS = [
+    { key: BUILTIN_TTS_PROVIDER_IDS.SYSTEM, label: 'System Voice' },
     { key: BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE, label: 'Volcengine TTS' },
     { key: BUILTIN_TTS_PROVIDER_IDS.OPENAI, label: 'OpenAI TTS' },
 ];
+export const SYSTEM_TTS_DEFAULT_RATE = 1;
+export const SYSTEM_TTS_DEFAULT_PITCH = 1;
+export const SYSTEM_TTS_DEFAULT_VOLUME = 1;
 export const OPENAI_TTS_DEFAULT_URL = 'https://api.openai.com/v1/audio/speech';
 export const OPENAI_TTS_DEFAULT_MODEL = 'gpt-4o-mini-tts';
 export const OPENAI_TTS_DEFAULT_VOICE = 'alloy';
@@ -86,6 +91,11 @@ const AI_API_CONFIG_KEYS = [INSTANCE_NAME_CONFIG_KEY, 'provider', 'apiUrl', 'api
 const BUILTIN_TTS_CONFIG_KEYS = [
     'speechUseForReadAloud',
     'speechProvider',
+    'speechProviderOrder',
+    'speechSystemVoiceURI',
+    'speechSystemRate',
+    'speechSystemPitch',
+    'speechSystemVolume',
     'speechOpenaiApiUrl',
     'speechOpenaiApiKey',
     'speechOpenaiModel',
@@ -152,7 +162,16 @@ export function createAiApiConfigForProvider(providerId, overrides = {}) {
 export function createDefaultBuiltInTtsConfig(overrides = {}) {
     return {
         speechUseForReadAloud: false,
-        speechProvider: BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE,
+        speechProvider: BUILTIN_TTS_PROVIDER_IDS.SYSTEM,
+        speechProviderOrder: [
+            BUILTIN_TTS_PROVIDER_IDS.SYSTEM,
+            BUILTIN_TTS_PROVIDER_IDS.OPENAI,
+            BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE,
+        ],
+        speechSystemVoiceURI: '',
+        speechSystemRate: SYSTEM_TTS_DEFAULT_RATE,
+        speechSystemPitch: SYSTEM_TTS_DEFAULT_PITCH,
+        speechSystemVolume: SYSTEM_TTS_DEFAULT_VOLUME,
         speechOpenaiApiUrl: '',
         speechOpenaiApiKey: '',
         speechOpenaiModel: OPENAI_TTS_DEFAULT_MODEL,
@@ -179,6 +198,9 @@ export function getMergedBuiltInTtsConfig(config = {}) {
 
 export function normalizeBuiltInTtsProviderId(providerId) {
     const normalized = String(providerId ?? '').trim().toLowerCase();
+    if (normalized === BUILTIN_TTS_PROVIDER_IDS.SYSTEM) {
+        return BUILTIN_TTS_PROVIDER_IDS.SYSTEM;
+    }
     if (normalized === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
         return BUILTIN_TTS_PROVIDER_IDS.OPENAI;
     }
@@ -194,7 +216,23 @@ export function getActiveReadAloudProviderId(config = {}) {
     if (mergedConfig.speechUseForReadAloud) {
         return normalizeBuiltInTtsProviderId(mergedConfig.speechProvider);
     }
-    return BUILTIN_TTS_PROVIDER_IDS.VOLCENGINE;
+    return BUILTIN_TTS_PROVIDER_IDS.SYSTEM;
+}
+
+export function getResolvedSystemSpeechConfig(config = {}) {
+    const mergedConfig = getMergedBuiltInTtsConfig(config);
+    const hasSpeechSynthesis =
+        typeof window !== 'undefined' &&
+        typeof window.speechSynthesis !== 'undefined' &&
+        typeof window.SpeechSynthesisUtterance !== 'undefined';
+
+    return {
+        supported: hasSpeechSynthesis,
+        voiceURI: mergedConfig.speechSystemVoiceURI || '',
+        rate: Number(mergedConfig.speechSystemRate ?? SYSTEM_TTS_DEFAULT_RATE),
+        pitch: Number(mergedConfig.speechSystemPitch ?? SYSTEM_TTS_DEFAULT_PITCH),
+        volume: Number(mergedConfig.speechSystemVolume ?? SYSTEM_TTS_DEFAULT_VOLUME),
+    };
 }
 
 export function getResolvedOpenAiSpeechConfig(config = {}, aiApiConfig = null) {
@@ -232,6 +270,9 @@ export function getResolvedVolcengineSpeechConfig(config = {}) {
 
 export function getResolvedBuiltInTtsConfig(config = {}, providerId, aiApiConfig = null) {
     const normalizedProviderId = normalizeBuiltInTtsProviderId(providerId);
+    if (normalizedProviderId === BUILTIN_TTS_PROVIDER_IDS.SYSTEM) {
+        return getResolvedSystemSpeechConfig(config);
+    }
     if (normalizedProviderId === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
         return getResolvedOpenAiSpeechConfig(config, aiApiConfig);
     }

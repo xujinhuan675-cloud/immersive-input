@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { HiDotsHorizontal, HiOutlineChatAlt2 } from 'react-icons/hi';
+import { HiDotsHorizontal, HiOutlineChatAlt2, HiOutlineVolumeUp } from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -16,9 +17,13 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
+import { useToastStyle, useVoice } from '../../hooks';
+import { synthesizeBuiltInTts } from '../../services/tts/runtime';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { saveHistory } from '../../utils/aiHistory';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
+import detect from '../../utils/lang_detect';
+import { normalizeLanguageKey } from '../../utils/language';
 
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
@@ -95,6 +100,19 @@ async function streamChat(messages, apiConfig, onChunk, onComplete, onError, sig
 
 const SYSTEM_PROMPT = '你是一个有帮助的 AI 助手。请根据用户的问题提供准确、有用的回答。';
 
+function getMessageSpeechText(content = '') {
+    return String(content || '')
+        .replace(/```([\s\S]*?)```/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^\s*[-*+]\s+/gm, '')
+        .replace(/^\s*\d+\.\s+/gm, '')
+        .replace(/[*_~>#]/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 const styles = {
     messageList: {
         flex: 1,
@@ -117,6 +135,26 @@ const styles = {
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         boxShadow: '0 10px 24px -22px rgba(15, 23, 42, 0.35)',
+    }),
+    bubbleRow: (isUser) => ({
+        display: 'flex',
+        flexDirection: isUser ? 'row-reverse' : 'row',
+        alignItems: 'flex-end',
+        gap: '6px',
+    }),
+    bubbleActionButton: (disabled) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '28px',
+        height: '28px',
+        borderRadius: '8px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.9)',
+        color: '#64748b',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.42 : 1,
+        flexShrink: 0,
     }),
     roleTag: (isUser) => ({
         fontSize: '11px',
@@ -227,6 +265,8 @@ const styles = {
 };
 
 export default function Chat() {
+    const toastStyle = useToastStyle();
+    const speak = useVoice();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -289,6 +329,22 @@ export default function Chat() {
         setMessages([]);
         setMenuOpen(false);
     }, [loading]);
+
+    const handleSpeakMessage = useCallback(
+        async (message) => {
+            const text = getMessageSpeechText(message?.content);
+            if (!text) return;
+
+            let languageKey = 'auto';
+            try {
+                languageKey = normalizeLanguageKey(await detect(text)) || 'auto';
+            } catch {}
+
+            const data = await synthesizeBuiltInTts(text, languageKey);
+            speak(data);
+        },
+        [speak]
+    );
 
     const send = useCallback(async () => {
         const text = input.trim();
@@ -354,6 +410,7 @@ export default function Chat() {
 
     return (
         <TrayWindow>
+            <Toaster />
             <WindowHeader
                 style={TRAY_WINDOW_HEADER_STYLE}
                 center={
@@ -393,40 +450,57 @@ export default function Chat() {
                                 <div style={styles.roleTag(message.role === 'user')}>
                                     {message.role === 'user' ? '你' : 'AI'}
                                 </div>
-                                <div
-                                    style={{
-                                        ...styles.bubble(message.role === 'user'),
-                                        color: message.error ? '#dc2626' : undefined,
-                                    }}
-                                >
-                                    {message.role === 'user' ? (
-                                        message.content || ''
-                                    ) : message.content ? (
-                                        <div style={{ lineHeight: 1.65 }}>
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                components={{
-                                                    p: ({ children }) => (
-                                                        <p style={{ margin: '0 0 6px 0' }}>{children}</p>
-                                                    ),
-                                                    code: ({ inline, children }) =>
-                                                        inline ? (
-                                                            <code style={styles.codeInline}>{children}</code>
-                                                        ) : (
-                                                            <pre style={styles.codeBlock}>
-                                                                <code>{children}</code>
-                                                            </pre>
+                                <div style={styles.bubbleRow(message.role === 'user')}>
+                                    <button
+                                        type='button'
+                                        title='朗读'
+                                        style={styles.bubbleActionButton(!getMessageSpeechText(message.content))}
+                                        disabled={!getMessageSpeechText(message.content)}
+                                        onClick={() => {
+                                            handleSpeakMessage(message).catch((error) => {
+                                                toast.error(error?.message || String(error), {
+                                                    style: toastStyle,
+                                                });
+                                            });
+                                        }}
+                                    >
+                                        <HiOutlineVolumeUp className='text-[14px]' />
+                                    </button>
+                                    <div
+                                        style={{
+                                            ...styles.bubble(message.role === 'user'),
+                                            color: message.error ? '#dc2626' : undefined,
+                                        }}
+                                    >
+                                        {message.role === 'user' ? (
+                                            message.content || ''
+                                        ) : message.content ? (
+                                            <div style={{ lineHeight: 1.65 }}>
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={{
+                                                        p: ({ children }) => (
+                                                            <p style={{ margin: '0 0 6px 0' }}>{children}</p>
                                                         ),
-                                                }}
-                                            >
-                                                {message.content}
-                                            </ReactMarkdown>
-                                        </div>
-                                    ) : message.pending ? (
-                                        <span style={{ color: '#94a3b8' }}>正在生成...</span>
-                                    ) : (
-                                        ''
-                                    )}
+                                                        code: ({ inline, children }) =>
+                                                            inline ? (
+                                                                <code style={styles.codeInline}>{children}</code>
+                                                            ) : (
+                                                                <pre style={styles.codeBlock}>
+                                                                    <code>{children}</code>
+                                                                </pre>
+                                                            ),
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </ReactMarkdown>
+                                            </div>
+                                        ) : message.pending ? (
+                                            <span style={{ color: '#94a3b8' }}>正在生成...</span>
+                                        ) : (
+                                            ''
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}

@@ -2,7 +2,8 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/tauri';
 import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HiSparkles } from 'react-icons/hi';
+import toast, { Toaster } from 'react-hot-toast';
+import { HiOutlineVolumeUp, HiSparkles } from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -17,6 +18,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
+import { useToastStyle, useVoice } from '../../hooks';
 import { useConfig } from '../../hooks/useConfig';
 import {
     STYLE_KEYS,
@@ -24,6 +26,7 @@ import {
     lightAiStream,
     translateTextStream,
 } from '../../services/light_ai/openai';
+import { synthesizeBuiltInTts } from '../../services/tts/runtime';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
@@ -203,6 +206,27 @@ const styles = {
         fontWeight: 600,
         color: '#2563eb',
     },
+    cardHeaderActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginLeft: 'auto',
+    },
+    cardIconButton: (disabled) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '30px',
+        height: '30px',
+        borderRadius: '9px',
+        border: '1px solid rgba(226, 232, 240, 0.92)',
+        background: '#ffffff',
+        color: '#64748b',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.42 : 1,
+        transition: 'border-color 140ms ease, background 140ms ease, color 140ms ease',
+        flexShrink: 0,
+    }),
     cardBody: {
         minHeight: '118px',
         padding: '14px',
@@ -332,6 +356,8 @@ function getLanguageLabelZh(key) {
 
 export default function LightAI() {
     const apiConfig = useApiConfig();
+    const toastStyle = useToastStyle();
+    const speak = useVoice();
     const [activeTab, setActiveTab] = useState('style');
     const [sourceText, setSourceText] = useState('');
     const [targetMode, setTargetMode] = useState('selection');
@@ -373,6 +399,13 @@ export default function LightAI() {
         () => getLanguageLabelZh(resolvedTargetLanguage),
         [resolvedTargetLanguage]
     );
+    const currentResultLanguage = useMemo(() => {
+        if (activeTab === 'translate') {
+            return normalizeLanguageKey(resolvedTargetLanguage) || 'auto';
+        }
+
+        return normalizeLanguageKey(sourceLanguage) || 'auto';
+    }, [activeTab, resolvedTargetLanguage, sourceLanguage]);
 
     const loadInitialContext = useCallback(async () => {
         try {
@@ -547,6 +580,32 @@ export default function LightAI() {
         await invoke('write_clipboard', { text: currentResult }).catch(() => {});
     };
 
+    const speakText = useCallback(
+        async (text, languageKey = 'auto') => {
+            const nextText = String(text || '').trim();
+            if (!nextText) return;
+
+            let nextLanguageKey = normalizeLanguageKey(languageKey) || 'auto';
+            if (nextLanguageKey === 'auto') {
+                try {
+                    nextLanguageKey = normalizeLanguageKey(await detect(nextText)) || 'auto';
+                } catch {}
+            }
+
+            const data = await synthesizeBuiltInTts(nextText, nextLanguageKey);
+            speak(data);
+        },
+        [speak]
+    );
+
+    const handleSpeakSource = useCallback(async () => {
+        await speakText(sourceText, sourceLanguage);
+    }, [sourceLanguage, sourceText, speakText]);
+
+    const handleSpeakResult = useCallback(async () => {
+        await speakText(currentResult, currentResultLanguage);
+    }, [currentResult, currentResultLanguage, speakText]);
+
     const handleDismiss = useCallback(async () => {
         if (targetMode === 'focused_input') {
             await invoke('collapse_light_ai_from_input_handle').catch((error) => {
@@ -597,6 +656,7 @@ export default function LightAI() {
 
     return (
         <TrayWindow style={{ background: '#f6f8fb' }}>
+            <Toaster />
             <WindowHeader
                 style={headerStyle}
                 center={
@@ -689,11 +749,28 @@ export default function LightAI() {
                         <div style={styles.card}>
                             <div style={styles.cardHeader}>
                                 <span>原文</span>
-                                <span style={styles.cardMeta}>
-                                    {targetMode === 'focused_input'
-                                        ? '整个输入框'
-                                        : '选中文本'}
-                                </span>
+                                <div style={styles.cardHeaderActions}>
+                                    <span style={styles.cardMeta}>
+                                        {targetMode === 'focused_input'
+                                            ? '整个输入框'
+                                            : '选中文本'}
+                                    </span>
+                                    <button
+                                        type='button'
+                                        title='朗读'
+                                        style={styles.cardIconButton(!sourceText.trim())}
+                                        disabled={!sourceText.trim()}
+                                        onClick={() => {
+                                            handleSpeakSource().catch((error) => {
+                                                toast.error(error?.message || String(error), {
+                                                    style: toastStyle,
+                                                });
+                                            });
+                                        }}
+                                    >
+                                        <HiOutlineVolumeUp className='text-[15px]' />
+                                    </button>
+                                </div>
                             </div>
                             <div style={styles.cardBody}>
                                 {sourceText || (
@@ -705,13 +782,30 @@ export default function LightAI() {
                         <div style={styles.card}>
                             <div style={styles.cardHeader}>
                                 <span>{panelTitle}</span>
-                                {activeTab === 'style' ? (
-                                    <span style={styles.cardMeta}>
-                                        {STYLE_LABELS_ZH[resolvedSelectedStyle] ??
-                                            STYLE_NAMES[resolvedSelectedStyle] ??
-                                            resolvedSelectedStyle}
-                                    </span>
-                                ) : null}
+                                <div style={styles.cardHeaderActions}>
+                                    {activeTab === 'style' ? (
+                                        <span style={styles.cardMeta}>
+                                            {STYLE_LABELS_ZH[resolvedSelectedStyle] ??
+                                                STYLE_NAMES[resolvedSelectedStyle] ??
+                                                resolvedSelectedStyle}
+                                        </span>
+                                    ) : null}
+                                    <button
+                                        type='button'
+                                        title='朗读'
+                                        style={styles.cardIconButton(!currentResult)}
+                                        disabled={!currentResult}
+                                        onClick={() => {
+                                            handleSpeakResult().catch((error) => {
+                                                toast.error(error?.message || String(error), {
+                                                    style: toastStyle,
+                                                });
+                                            });
+                                        }}
+                                    >
+                                        <HiOutlineVolumeUp className='text-[15px]' />
+                                    </button>
+                                </div>
                             </div>
                             <div style={styles.cardBody}>
                                 {error ? (

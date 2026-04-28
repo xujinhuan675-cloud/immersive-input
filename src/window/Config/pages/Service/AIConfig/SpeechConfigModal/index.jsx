@@ -6,7 +6,7 @@ import { LuVolume2 } from 'react-icons/lu';
 import SpeechConfigPanel from '../SpeechConfigPanel';
 
 export default function SpeechConfigModal(props) {
-    const { isOpen, onOpenChange } = props;
+    const { isOpen, onOpenChange, providerId = null, title = null } = props;
     const { t } = useTranslation();
 
     return (
@@ -20,13 +20,19 @@ export default function SpeechConfigModal(props) {
                                     <LuVolume2 className='text-[16px]' />
                                 </div>
                                 <Spacer x={2} />
-                                {t('ai_config.speech_service_item_title', {
-                                    defaultValue: 'Speech Configuration',
-                                })}
+                                {title ||
+                                    t('ai_config.speech_service_item_title', {
+                                        defaultValue: 'Speech Configuration',
+                                    })}
                             </div>
                         </ModalHeader>
                         <ModalBody>
-                            <SpeechConfigPanel showTitle={false} onSaved={() => onClose()} />
+                            <SpeechConfigPanel
+                                showTitle={false}
+                                showGeneralSection={providerId === null}
+                                initialProvider={providerId}
+                                onSaved={() => onClose()}
+                            />
                         </ModalBody>
                     </>
                 )}
