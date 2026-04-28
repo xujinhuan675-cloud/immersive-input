@@ -111,18 +111,42 @@ export function buildPinyinIndex(text) {
 }
 
 /** 判断一个 phrase 是否匹配查询词（原文 + 标题 + 拼音） */
-export function matchPhrase(phrase, query) {
-    if (!query) return true;
-    const q = query.toLowerCase().trim();
-    if (!q) return true;
-    // 直接文本匹配
-    if (phrase.content.toLowerCase().includes(q)) return true;
-    if (phrase.title.toLowerCase().includes(q)) return true;
-    // 拼音索引匹配（去掉空格后匹配首字母连写）
-    const noSpace = q.replace(/\s+/g, '');
-    if (phrase.pinyin_idx.includes(q)) return true;
-    if (noSpace && phrase.pinyin_idx.includes(noSpace)) return true;
+function normalizePhraseQuery(query) {
+    const normalizedQuery = String(query ?? '').toLowerCase().trim();
+    return {
+        query: normalizedQuery,
+        noSpaceQuery: normalizedQuery.replace(/\s+/g, ''),
+    };
+}
+
+function matchPhraseByScope(phrase, query, options = {}) {
+    const { primaryOnly = false } = options;
+    const { query: normalizedQuery, noSpaceQuery } = normalizePhraseQuery(query);
+
+    if (!normalizedQuery) return true;
+
+    const primaryText = String(phrase?.title || phrase?.content || '');
+    const titleText = String(phrase?.title || '');
+    const contentText = String(phrase?.content || '');
+    const searchableTexts = primaryOnly ? [primaryText] : [contentText, titleText];
+
+    if (searchableTexts.some((text) => String(text).toLowerCase().includes(normalizedQuery))) {
+        return true;
+    }
+
+    const pinyinIndex = primaryOnly ? buildPinyinIndex(primaryText) : String(phrase?.pinyin_idx || '');
+    if (pinyinIndex.includes(normalizedQuery)) return true;
+    if (noSpaceQuery && pinyinIndex.includes(noSpaceQuery)) return true;
+
     return false;
+}
+
+export function matchPhrase(phrase, query) {
+    return matchPhraseByScope(phrase, query);
+}
+
+export function matchPhrasePrimary(phrase, query) {
+    return matchPhraseByScope(phrase, query, { primaryOnly: true });
 }
 
 // ─── Tags CRUD ───

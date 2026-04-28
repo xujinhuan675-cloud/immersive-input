@@ -30,6 +30,7 @@ import {
     getTags,
     incrementUseCount,
     matchPhrase,
+    matchPhrasePrimary,
     updatePhrase,
     updateTag,
 } from '../Phrases/phrasesDb';
@@ -1111,7 +1112,7 @@ export default function PhrasesInline() {
         }
 
         if (search.trim()) {
-            list = list.filter((phrase) => matchPhrase(phrase, search.trim()));
+            list = list.filter((phrase) => matchPhrasePrimary(phrase, search.trim()));
         }
 
         return list;

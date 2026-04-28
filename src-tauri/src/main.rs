@@ -185,17 +185,16 @@ fn main() {
             // Check Update
             check_update(app.handle());
             init_lang_detect();
-            let clipboard_monitor = match get("clipboard_monitor") {
-                Some(v) => v.as_bool().unwrap(),
-                None => {
-                    set("clipboard_monitor", false);
-                    false
-                }
-            };
-            app.manage(ClipboardMonitorEnableWrapper(Mutex::new(
-                clipboard_monitor.to_string(),
+            let clipboard_action_mode = get_clipboard_action_mode();
+            app.manage(ClipboardActionModeWrapper(Mutex::new(
+                clipboard_action_mode.clone(),
             )));
-            start_clipboard_monitor(app.handle());
+            app.manage(ClipboardWriteGuardWrapper(Mutex::new(
+                ClipboardWriteGuard::default(),
+            )));
+            if clipboard_action_enabled(&clipboard_action_mode) {
+                start_clipboard_monitor(app.handle());
+            }
             // Start global mouse hook for auto text-select toolbar
             mouse_hook::start_mouse_hook();
             // Start Windows editable-input monitor for the floating AI handle

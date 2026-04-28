@@ -91,7 +91,7 @@ export default function TargetArea(props) {
 
     const [currentTranslateServiceInstanceKey, setCurrentTranslateServiceInstanceKey] = useState(name);
     const [autoCopy] = useConfig('translate_auto_copy', 'disable');
-    const [clipboardMonitor] = useConfig('clipboard_monitor', false);
+    const [copyActionMode] = useConfig('clipboard_action_mode', 'off');
     const [historyDisable] = useConfig('history_disable', false);
     const [hideWindow] = useConfig('translate_hide_window', false);
 
@@ -111,12 +111,11 @@ export default function TargetArea(props) {
     const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
     const speak = useVoice();
+    const copyActionModeReady = copyActionMode !== null;
+    const isCopyActionEnabled = copyActionModeReady && copyActionMode !== 'off';
 
     function getAiTranslateMeta(instanceKey) {
-        const bindingConfig = getMergedAiTranslateConfig(
-            serviceInstanceConfigMap[instanceKey] ?? {},
-            instanceKey
-        );
+        const bindingConfig = getMergedAiTranslateConfig(serviceInstanceConfigMap[instanceKey] ?? {}, instanceKey);
         const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(instanceKey, bindingConfig);
         const aiConfig = linkedAiInstanceKey ? serviceInstanceConfigMap[linkedAiInstanceKey] ?? {} : {};
 
@@ -196,7 +195,10 @@ export default function TargetArea(props) {
 
             return (
                 <span className={`flex items-center justify-center ${className}`}>
-                    <AiProviderIcon providerId={providerId} className='text-[16px]' />
+                    <AiProviderIcon
+                        providerId={providerId}
+                        className='text-[16px]'
+                    />
                 </span>
             );
         }
@@ -231,9 +233,9 @@ export default function TargetArea(props) {
             targetLanguage &&
             autoCopy !== null &&
             hideWindow !== null &&
-            clipboardMonitor !== null
+            copyActionModeReady
         ) {
-            if (autoCopy === 'source' && !clipboardMonitor) {
+            if (autoCopy === 'source' && !isCopyActionEnabled) {
                 writeText(sourceText).then(() => {
                     if (hideWindow) {
                         sendNotification({ title: t('common.write_clipboard'), body: sourceText });
@@ -247,9 +249,10 @@ export default function TargetArea(props) {
         }
     }, [
         autoCopy,
-        clipboardMonitor,
+        copyActionModeReady,
         currentTranslateServiceInstanceKey,
         hideWindow,
+        isCopyActionEnabled,
         sourceLanguage,
         sourceText,
         targetLanguage,
@@ -340,7 +343,7 @@ export default function TargetArea(props) {
                             );
                         }
 
-                        if (index === 0 && !clipboardMonitor && typeof value === 'string') {
+                        if (index === 0 && !isCopyActionEnabled && typeof value === 'string') {
                             switch (autoCopy) {
                                 case 'target':
                                     writeText(value).then(() => {
@@ -410,7 +413,7 @@ export default function TargetArea(props) {
                             );
                         }
 
-                        if (index === 0 && !clipboardMonitor && typeof value === 'string') {
+                        if (index === 0 && !isCopyActionEnabled && typeof value === 'string') {
                             switch (autoCopy) {
                                 case 'target':
                                     writeText(value).then(() => {
@@ -471,11 +474,11 @@ export default function TargetArea(props) {
                     .then(
                         (value) => {
                             info(`[${currentTranslateServiceInstanceKey}]resolve:` + value);
-                        if (translateID[index] !== id) return;
+                            if (translateID[index] !== id) return;
 
-                        const nextResult = typeof value === 'string' ? value.trim() : value;
-                        applyResultUpdate(nextResult, true);
-                        setIsLoading(false);
+                            const nextResult = typeof value === 'string' ? value.trim() : value;
+                            applyResultUpdate(nextResult, true);
+                            setIsLoading(false);
 
                             if (!historyDisable && typeof nextResult === 'string' && nextResult !== '') {
                                 addToHistory(
@@ -487,7 +490,7 @@ export default function TargetArea(props) {
                                 );
                             }
 
-                            if (index === 0 && !clipboardMonitor && typeof value === 'string') {
+                            if (index === 0 && !isCopyActionEnabled && typeof value === 'string') {
                                 switch (autoCopy) {
                                     case 'target':
                                         writeText(value).then(() => {
@@ -511,14 +514,14 @@ export default function TargetArea(props) {
                                 }
                             }
                         },
-                    (e) => {
-                        info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
-                        if (translateID[index] !== id) return;
-                        clearPendingResultUpdate();
-                        setError(e.toString());
-                        setIsLoading(false);
-                    }
-                );
+                        (e) => {
+                            info(`[${currentTranslateServiceInstanceKey}]reject:` + e);
+                            if (translateID[index] !== id) return;
+                            clearPendingResultUpdate();
+                            setError(e.toString());
+                            setIsLoading(false);
+                        }
+                    );
             } else {
                 clearPendingResultUpdate();
                 setError('Language not supported');
@@ -742,7 +745,9 @@ export default function TargetArea(props) {
                     </Dropdown>
                 </div>
                 <div className='flex items-center gap-1'>
-                    {isLoading ? <span className='px-1 text-[11px] text-default-400'>{t('translate.translate')}...</span> : null}
+                    {isLoading ? (
+                        <span className='px-1 text-[11px] text-default-400'>{t('translate.translate')}...</span>
+                    ) : null}
                     <Button
                         size='sm'
                         isIconOnly
@@ -763,9 +768,7 @@ export default function TargetArea(props) {
                 <div className='overflow-hidden'>
                     <div className='border-t border-default-200/60 px-3 py-2.5 text-default-700'>
                         {isLoading && !hasStringResult && !hasStructuredResult && error === '' ? (
-                            <div className='py-1 text-[12px] text-default-400'>
-                                {t('translate.translate')}...
-                            </div>
+                            <div className='py-1 text-[12px] text-default-400'>{t('translate.translate')}...</div>
                         ) : null}
 
                         {hasStringResult ? (
@@ -989,8 +992,7 @@ export default function TargetArea(props) {
                                 ) : null}
                             </div>
 
-                            <div className='flex items-center gap-1'>
-                            </div>
+                            <div className='flex items-center gap-1'></div>
                         </div>
                     ) : null}
                 </div>

@@ -1,3 +1,4 @@
+use crate::clipboard::remember_internal_clipboard_write;
 use crate::config::StoreWrapper;
 use crate::error::Error;
 use crate::PrevForegroundWindow;
@@ -185,12 +186,18 @@ pub fn font_list() -> Result<Vec<String>, Error> {
     Ok(source.all_families()?)
 }
 
-/// Write text to clipboard
-#[tauri::command]
-pub fn write_clipboard(text: String) -> Result<(), String> {
+fn set_internal_clipboard_text(text: &str) -> Result<(), String> {
     use arboard::Clipboard;
     let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
     cb.set_text(text).map_err(|e| e.to_string())?;
+    remember_internal_clipboard_write(text);
+    Ok(())
+}
+
+/// Write text to clipboard
+#[tauri::command]
+pub fn write_clipboard(text: String) -> Result<(), String> {
+    set_internal_clipboard_text(&text)?;
     Ok(())
 }
 
@@ -257,11 +264,7 @@ fn send_windows_key_chord(keys: &[windows::Win32::UI::Input::KeyboardAndMouse::V
 #[tauri::command]
 pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
     // 1. Write result text to clipboard
-    {
-        use arboard::Clipboard;
-        let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-        cb.set_text(&text).map_err(|e| e.to_string())?;
-    }
+    set_internal_clipboard_text(&text)?;
     std::thread::sleep(std::time::Duration::from_millis(80));
 
     // 2. On Windows: restore foreground window and simulate Ctrl+V
@@ -281,11 +284,7 @@ pub fn replace_input_text(
     text: String,
     state: tauri::State<PrevForegroundWindow>,
 ) -> Result<(), String> {
-    {
-        use arboard::Clipboard;
-        let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-        cb.set_text(&text).map_err(|e| e.to_string())?;
-    }
+    set_internal_clipboard_text(&text)?;
     std::thread::sleep(std::time::Duration::from_millis(80));
 
     #[cfg(target_os = "windows")]
@@ -317,7 +316,6 @@ pub fn fill_autotab(
 ) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        use arboard::Clipboard;
         use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::Input::KeyboardAndMouse::{
             SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
@@ -338,10 +336,7 @@ pub fn fill_autotab(
         let no_flags = KEYBD_EVENT_FLAGS(0);
 
         // 1. Set account to clipboard and Ctrl+V
-        {
-            let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-            cb.set_text(&account).map_err(|e| e.to_string())?;
-        }
+        set_internal_clipboard_text(&account)?;
         std::thread::sleep(std::time::Duration::from_millis(80));
         let paste_account = [
             INPUT {
@@ -431,10 +426,7 @@ pub fn fill_autotab(
         std::thread::sleep(std::time::Duration::from_millis(120));
 
         // 3. Set password to clipboard and Ctrl+V
-        {
-            let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-            cb.set_text(&password).map_err(|e| e.to_string())?;
-        }
+        set_internal_clipboard_text(&password)?;
         std::thread::sleep(std::time::Duration::from_millis(80));
         let paste_password = [
             INPUT {

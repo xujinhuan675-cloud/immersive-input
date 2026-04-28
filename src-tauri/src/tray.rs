@@ -47,10 +47,11 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
             }
         };
     }
+    let clipboard_action_mode = get_clipboard_action_mode();
 
     debug!(
-        "Update tray with language: {}, copy mode: {}, text select behavior: {}",
-        language, copy_mode, text_select_behavior
+        "Update tray with language: {}, copy mode: {}, text select behavior: {}, clipboard action mode: {}",
+        language, copy_mode, text_select_behavior, clipboard_action_mode
     );
     tray_handle
         .set_menu(match language.as_str() {
@@ -73,34 +74,17 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
         .set_tooltip(&format!("Flow Input {}", app_handle.package_info().version))
         .unwrap();
 
-    let enable_clipboard_monitor = match get("clipboard_monitor") {
-        Some(v) => v.as_bool().unwrap(),
-        None => {
-            set("clipboard_monitor", false);
-            false
-        }
-    };
-
-    tray_handle
-        .get_item("clipboard_monitor")
-        .set_selected(enable_clipboard_monitor)
-        .unwrap();
-
-    match copy_mode.as_str() {
-        "source" => tray_handle
-            .get_item("copy_source")
+    match clipboard_action_mode.as_str() {
+        COPY_ACTION_MODE_TRANSLATE => tray_handle
+            .get_item("copy_action_translate")
             .set_selected(true)
             .unwrap(),
-        "target" => tray_handle
-            .get_item("copy_target")
+        COPY_ACTION_MODE_LIGHT_AI => tray_handle
+            .get_item("copy_action_light_ai")
             .set_selected(true)
             .unwrap(),
-        "source_target" => tray_handle
-            .get_item("copy_source_target")
-            .set_selected(true)
-            .unwrap(),
-        "disable" => tray_handle
-            .get_item("copy_disable")
+        COPY_ACTION_MODE_OFF => tray_handle
+            .get_item("copy_action_off")
             .set_selected(true)
             .unwrap(),
         _ => {}
@@ -129,11 +113,9 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
         SystemTrayEvent::LeftClick { .. } => on_tray_click(),
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
             "input_translate" => on_input_translate_click(),
-            "copy_source" => on_auto_copy_click(app, "source"),
-            "clipboard_monitor" => on_clipboard_monitor_click(app),
-            "copy_target" => on_auto_copy_click(app, "target"),
-            "copy_source_target" => on_auto_copy_click(app, "source_target"),
-            "copy_disable" => on_auto_copy_click(app, "disable"),
+            "copy_action_translate" => on_copy_action_mode_click(app, COPY_ACTION_MODE_TRANSLATE),
+            "copy_action_light_ai" => on_copy_action_mode_click(app, COPY_ACTION_MODE_LIGHT_AI),
+            "copy_action_off" => on_copy_action_mode_click(app, COPY_ACTION_MODE_OFF),
             "text_select_behavior_toolbar" => on_text_select_behavior_click(app, "toolbar"),
             "text_select_behavior_direct" => on_text_select_behavior_click(app, "direct_translate"),
             "text_select_behavior_disabled" => on_text_select_behavior_click(app, "disabled"),
@@ -174,38 +156,22 @@ fn on_tray_click() {
 fn on_input_translate_click() {
     input_translate();
 }
-fn on_clipboard_monitor_click(app: &AppHandle) {
-    let enable_clipboard_monitor = match get("clipboard_monitor") {
-        Some(v) => v.as_bool().unwrap(),
-        None => {
-            set("clipboard_monitor", false);
-            false
-        }
+fn on_copy_action_mode_click(app: &AppHandle, mode: &str) {
+    debug!("Set copy action mode to: {}", mode);
+
+    let state = app.state::<ClipboardActionModeWrapper>();
+    let previous_mode = {
+        let mut guard = state.0.lock().unwrap();
+        let previous = guard.clone();
+        *guard = mode.to_string();
+        previous
     };
-    let current = !enable_clipboard_monitor;
-    // Update Config File
-    set("clipboard_monitor", current);
-    // Update State and Start Monitor
-    let state = app.state::<ClipboardMonitorEnableWrapper>();
-    state
-        .0
-        .lock()
-        .unwrap()
-        .replace_range(.., &current.to_string());
-    if current {
+
+    set_clipboard_action_mode(mode);
+    if !clipboard_action_enabled(&previous_mode) && clipboard_action_enabled(mode) {
         start_clipboard_monitor(app.app_handle());
     }
-    // Update Tray Menu Status
-    app.tray_handle()
-        .get_item("clipboard_monitor")
-        .set_selected(current)
-        .unwrap();
-}
-fn on_auto_copy_click(app: &AppHandle, mode: &str) {
-    debug!("Set copy mode to: {}", mode);
-    set("translate_auto_copy", mode);
-    app.emit_all("translate_auto_copy_changed", mode).unwrap();
-    update_tray(app.app_handle(), "".to_string(), mode.to_string());
+    update_tray(app.app_handle(), "".to_string(), "".to_string());
 }
 fn on_text_select_behavior_click(app: &AppHandle, mode: &str) {
     debug!("Set text select behavior to: {}", mode);
@@ -302,13 +268,10 @@ struct TrayMenuLabels<'a> {
     recognition_tools: &'a str,
     ocr_recognize: &'a str,
     ocr_translate: &'a str,
-    clipboard: &'a str,
-    clipboard_monitor: &'a str,
-    auto_copy: &'a str,
-    copy_source: &'a str,
-    copy_target: &'a str,
-    copy_source_target: &'a str,
-    copy_disable: &'a str,
+    copy_actions: &'a str,
+    copy_action_translate: &'a str,
+    copy_action_light_ai: &'a str,
+    copy_action_off: &'a str,
     text_selection: &'a str,
     text_selection_toolbar: &'a str,
     text_selection_direct: &'a str,
@@ -332,11 +295,11 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
     let restart = CustomMenuItem::new("restart", labels.restart);
     let quit = CustomMenuItem::new("quit", labels.quit);
 
-    let clipboard_monitor = CustomMenuItem::new("clipboard_monitor", labels.clipboard_monitor);
-    let copy_source = CustomMenuItem::new("copy_source", labels.copy_source);
-    let copy_target = CustomMenuItem::new("copy_target", labels.copy_target);
-    let copy_source_target = CustomMenuItem::new("copy_source_target", labels.copy_source_target);
-    let copy_disable = CustomMenuItem::new("copy_disable", labels.copy_disable);
+    let copy_action_translate =
+        CustomMenuItem::new("copy_action_translate", labels.copy_action_translate);
+    let copy_action_light_ai =
+        CustomMenuItem::new("copy_action_light_ai", labels.copy_action_light_ai);
+    let copy_action_off = CustomMenuItem::new("copy_action_off", labels.copy_action_off);
     let text_select_behavior_toolbar = CustomMenuItem::new(
         "text_select_behavior_toolbar",
         labels.text_selection_toolbar,
@@ -372,18 +335,11 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
                 .add_item(ocr_translate),
         ))
         .add_submenu(SystemTraySubmenu::new(
-            labels.clipboard,
+            labels.copy_actions,
             SystemTrayMenu::new()
-                .add_item(clipboard_monitor)
-                .add_submenu(SystemTraySubmenu::new(
-                    labels.auto_copy,
-                    SystemTrayMenu::new()
-                        .add_item(copy_source)
-                        .add_item(copy_target)
-                        .add_item(copy_source_target)
-                        .add_native_item(SystemTrayMenuItem::Separator)
-                        .add_item(copy_disable),
-                )),
+                .add_item(copy_action_translate)
+                .add_item(copy_action_light_ai)
+                .add_item(copy_action_off),
         ))
         .add_item(config)
         .add_submenu(SystemTraySubmenu::new(
@@ -406,13 +362,10 @@ fn tray_menu_en_refined() -> tauri::SystemTrayMenu {
         recognition_tools: "Recognition Tools",
         ocr_recognize: "OCR Recognize",
         ocr_translate: "OCR Translate",
-        clipboard: "Clipboard",
-        clipboard_monitor: "Clipboard Monitor",
-        auto_copy: "Auto Copy",
-        copy_source: "Source",
-        copy_target: "Target",
-        copy_source_target: "Source+Target",
-        copy_disable: "Disable",
+        copy_actions: "After Copy",
+        copy_action_translate: "Auto Translate",
+        copy_action_light_ai: "AI Polish",
+        copy_action_off: "Off",
         text_selection: "Text Selection Behavior",
         text_selection_toolbar: "Show Toolbar",
         text_selection_direct: "Direct Translate",
@@ -435,13 +388,10 @@ fn tray_menu_zh_cn_refined() -> tauri::SystemTrayMenu {
         recognition_tools: "\u{8BC6}\u{522B}\u{5DE5}\u{5177}",
         ocr_recognize: "\u{6587}\u{5B57}\u{8BC6}\u{522B}",
         ocr_translate: "\u{622A}\u{56FE}\u{7FFB}\u{8BD1}",
-        clipboard: "\u{526A}\u{8D34}\u{677F}",
-        clipboard_monitor: "\u{76D1}\u{542C}\u{526A}\u{5207}\u{677F}",
-        auto_copy: "\u{81EA}\u{52A8}\u{590D}\u{5236}",
-        copy_source: "\u{539F}\u{6587}",
-        copy_target: "\u{8BD1}\u{6587}",
-        copy_source_target: "\u{539F}\u{6587}+\u{8BD1}\u{6587}",
-        copy_disable: "\u{5173}\u{95ED}",
+        copy_actions: "\u{590D}\u{5236}\u{540E}\u{64CD}\u{4F5C}",
+        copy_action_translate: "\u{81EA}\u{52A8}\u{7FFB}\u{8BD1}",
+        copy_action_light_ai: "AI\u{6DA6}\u{8272}",
+        copy_action_off: "\u{5173}\u{95ED}",
         text_selection: "\u{5212}\u{8BCD}\u{884C}\u{4E3A}",
         text_selection_toolbar: "\u{663E}\u{793A}\u{5DE5}\u{5177}\u{680F}",
         text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8BD1}",
@@ -464,13 +414,10 @@ fn tray_menu_zh_tw_refined() -> tauri::SystemTrayMenu {
         recognition_tools: "\u{8B58}\u{5225}\u{5DE5}\u{5177}",
         ocr_recognize: "\u{6587}\u{5B57}\u{8B58}\u{5225}",
         ocr_translate: "\u{622A}\u{5716}\u{7FFB}\u{8B6F}",
-        clipboard: "\u{526A}\u{8CBC}\u{7C3F}",
-        clipboard_monitor: "\u{76E3}\u{807D}\u{526A}\u{8CBC}\u{7C3F}",
-        auto_copy: "\u{81EA}\u{52D5}\u{8907}\u{88FD}",
-        copy_source: "\u{539F}\u{6587}",
-        copy_target: "\u{8B6F}\u{6587}",
-        copy_source_target: "\u{539F}\u{6587}+\u{8B6F}\u{6587}",
-        copy_disable: "\u{95DC}\u{9589}",
+        copy_actions: "\u{8907}\u{88FD}\u{5F8C}\u{64CD}\u{4F5C}",
+        copy_action_translate: "\u{81EA}\u{52D5}\u{7FFB}\u{8B6F}",
+        copy_action_light_ai: "AI\u{6F64}\u{8272}",
+        copy_action_off: "\u{95DC}\u{9589}",
         text_selection: "\u{5283}\u{8A5E}\u{884C}\u{70BA}",
         text_selection_toolbar: "\u{986F}\u{793A}\u{5DE5}\u{5177}\u{5217}",
         text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8B6F}",
