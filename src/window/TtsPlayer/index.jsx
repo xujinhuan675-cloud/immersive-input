@@ -1,9 +1,8 @@
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/tauri';
-import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useRef } from 'react';
 
-import { useVoice } from '../../hooks';
+import { useStopVoiceOnUnmount, useVoice } from '../../hooks';
 import { synthesizeBuiltInTts } from '../../services/tts/runtime';
 import detect from '../../utils/lang_detect';
 import { normalizeLanguageKey } from '../../utils/language';
@@ -17,6 +16,7 @@ async function resolveLanguageKey(text) {
 }
 
 export default function TtsPlayer() {
+    useStopVoiceOnUnmount();
     const speak = useVoice();
     const playTimeoutRef = useRef(null);
 
@@ -42,10 +42,6 @@ export default function TtsPlayer() {
         },
         [speak]
     );
-
-    useEffect(() => {
-        appWindow.hide().catch(() => {});
-    }, []);
 
     useEffect(() => {
         let disposed = false;

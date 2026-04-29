@@ -14,13 +14,12 @@ import { useAtomValue } from 'jotai';
 import { nanoid } from 'nanoid';
 
 import { sourceLanguageAtom, targetLanguageAtom } from '../LanguageArea';
-import { useConfig, useToastStyle, useVoice } from '../../../../hooks';
+import { useConfig, useReadAloud, useToastStyle, useVoice } from '../../../../hooks';
 import { sourceTextAtom, detectLanguageAtom } from '../SourceArea';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import AiProviderIcon from '../../../../components/AiProviderIcon';
 import * as builtinServices from '../../../../services/translate';
-import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
 
 import { info, error as logError } from 'tauri-plugin-log-api';
 import { getAiProviderId, getMergedAiApiConfig } from '../../../../utils/aiConfig';
@@ -111,6 +110,7 @@ export default function TargetArea(props) {
     const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
     const speak = useVoice();
+    const readAloud = useReadAloud();
     const copyActionModeReady = copyActionMode !== null;
     const isCopyActionEnabled = copyActionModeReady && copyActionMode !== 'off';
 
@@ -559,8 +559,7 @@ export default function TargetArea(props) {
     }
 
     const handleSpeak = async () => {
-        const data = await synthesizeBuiltInTts(result, targetLanguage);
-        speak(data);
+        await readAloud(result, targetLanguage);
     };
 
     const handleTranslateBack = async () => {

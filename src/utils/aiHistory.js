@@ -36,7 +36,7 @@ function now() {
 
 /**
  * Save one AI interaction record.
- * @param {'lightai'|'explain'|'chat'} type
+ * @param {'lightai'|'explain'} type
  * @param {string} source  - original text / user message
  * @param {string} result  - AI output
  * @param {object} [extra] - any additional JSON data
@@ -55,7 +55,7 @@ export async function saveHistory(type, source, result, extra = null) {
 
 /**
  * Get recent records for a given type.
- * @param {'lightai'|'explain'|'chat'|'all'} type
+ * @param {'lightai'|'explain'|'all'} type
  * @param {number} limit
  */
 export async function getHistory(type, limit = 50) {

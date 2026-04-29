@@ -1,7 +1,5 @@
 use crate::config::set;
 use crate::window::*;
-use crate::PendingChatHttpTextWrapper;
-use crate::PendingTtsTextWrapper;
 use crate::StringWrapper;
 use crate::APP;
 use log::{debug, info, warn};
@@ -131,8 +129,7 @@ fn handle_light_ai(mut request: Request) {
 
 fn handle_explain(mut request: Request) {
     let content = read_request_body(&mut request);
-    set_shared_text(&content);
-    explain_window();
+    chat_explain_window_with_text(content);
     response_ok(request);
 }
 
@@ -145,16 +142,7 @@ fn handle_chat(mut request: Request) {
 
     if let Some(content) = maybe_text {
         if !content.trim().is_empty() {
-            let app_handle = APP.get().unwrap();
-            let had_window = app_handle.get_window("chat").is_some();
-            let state: tauri::State<PendingChatHttpTextWrapper> = app_handle.state();
-            *state.0.lock().unwrap() = content.clone();
-            chat_window();
-            if had_window {
-                if let Some(window) = app_handle.get_window("chat") {
-                    window.emit("http_chat_text", content).unwrap_or_default();
-                }
-            }
+            chat_window_with_text(content);
             response_ok(request);
             return;
         }
@@ -171,22 +159,16 @@ fn handle_tts(mut request: Request) {
         return;
     }
 
-    let app_handle = APP.get().unwrap();
-    let had_window = app_handle.get_window("tts_player").is_some();
-    let state: tauri::State<PendingTtsTextWrapper> = app_handle.state();
-    *state.0.lock().unwrap() = content.clone();
-    tts_player_window();
-    if had_window {
-        if let Some(window) = app_handle.get_window("tts_player") {
-            window.emit("http_tts_text", content).unwrap_or_default();
-        }
-    }
+    enqueue_tts_text(content);
     response_ok(request);
 }
 
 fn read_request_body(request: &mut Request) -> String {
     let mut content = String::new();
-    request.as_reader().read_to_string(&mut content).unwrap_or_default();
+    request
+        .as_reader()
+        .read_to_string(&mut content)
+        .unwrap_or_default();
     content
 }
 

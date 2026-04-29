@@ -12,11 +12,10 @@ import { invoke } from '@tauri-apps/api';
 import { atom, useAtom } from 'jotai';
 
 import { getServiceName, getServiceSouceType, ServiceSourceType } from '../../../../utils/service_instance';
-import { useConfig, useSyncAtom, useToastStyle, useVoice } from '../../../../hooks';
+import { useConfig, useReadAloud, useSyncAtom, useToastStyle } from '../../../../hooks';
 import { invoke_plugin } from '../../../../utils/invoke_plugin';
 import { DEFAULT_APP_FONT_SIZE } from '../../../../utils/appFont';
 import * as recognizeServices from '../../../../services/recognize';
-import { synthesizeBuiltInTts } from '../../../../services/tts/runtime';
 import { RECOGNIZE_DEFAULT_VISIBLE } from '../../../Config/pages/Service/servicePriority';
 import detect from '../../../../utils/lang_detect';
 
@@ -42,12 +41,12 @@ export default function SourceArea(props) {
     const [recognizeServiceList] = useConfig('recognize_service_list', RECOGNIZE_DEFAULT_VISIBLE);
     const [windowType, setWindowType] = useState('[SELECTION_TRANSLATE]');
     const toastStyle = useToastStyle();
+    const readAloud = useReadAloud();
     const { t } = useTranslation();
     const textAreaRef = useRef(null);
     const sourceTextChangeTimerRef = useRef(null);
     const handleNewTextRef = useRef(null);
     const hasHydratedInitialTextRef = useRef(false);
-    const speak = useVoice();
     const hasSourceText = sourceText.trim() !== '';
 
     const appendIncrementalText = useCallback((previousText, incomingText) => {
@@ -227,13 +226,7 @@ export default function SourceArea(props) {
     );
 
     const handleSpeak = async () => {
-        let detected = detectLanguage;
-        if (detected === '') {
-            detected = await detect(sourceText);
-            setDetectLanguage(detected);
-        }
-        const data = await synthesizeBuiltInTts(sourceText, detected);
-        speak(data);
+        await readAloud(sourceText, detectLanguage || 'auto');
     };
 
     useEffect(() => {

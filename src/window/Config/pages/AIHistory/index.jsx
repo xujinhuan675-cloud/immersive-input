@@ -8,7 +8,7 @@ import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../.
 import { useToastStyle } from '../../../../hooks';
 import { getActiveAiApiConfig } from '../../../../utils/aiConfig';
 
-const TYPE_LABELS = { lightai: 'AI 润色', explain: '解析', chat: '对话' };
+const TYPE_LABELS = { lightai: 'AI 润色', explain: '解析' };
 
 async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
@@ -64,7 +64,7 @@ export default function AIHistory() {
     const toastStyle = useToastStyle();
     const [tab, setTab] = useState('lightai');
     const [records, setRecords] = useState([]);
-    const [counts, setCounts] = useState({ lightai: 0, explain: 0, chat: 0 });
+    const [counts, setCounts] = useState({ lightai: 0, explain: 0 });
     const [report, setReport] = useState('');
     const [generating, setGenerating] = useState(false);
     const abortRef = React.useRef(null);

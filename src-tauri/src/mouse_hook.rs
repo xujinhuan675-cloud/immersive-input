@@ -1,6 +1,9 @@
 use crate::config::{get, reload};
 use crate::crash_log;
-use crate::window::{direct_translate_selection, float_toolbar_window, save_foreground_window};
+use crate::window::{
+    chat_explain_window_with_text, direct_translate_selection, float_toolbar_window,
+    save_foreground_window,
+};
 use crate::StringWrapper;
 use crate::APP;
 use log::{debug, warn};
@@ -44,7 +47,7 @@ fn point_inside_float_toolbar(x: i64, y: i64) -> bool {
 
 /// Start the global mouse hook in a background thread.
 /// Detects left-button drag → release events and triggers the configured behavior
-/// (show toolbar / direct translate / disabled) based on `text_select_behavior` config.
+/// (show toolbar / direct translate / direct explain / disabled) based on `text_select_behavior` config.
 pub fn start_mouse_hook() {
     crash_log::record("mouse_hook", "starting hook thread");
     std::thread::Builder::new()
@@ -172,12 +175,19 @@ fn handle_event(event: Event) {
                 }
 
                 let text_len = trimmed.len();
-                if behavior == "direct_translate" {
-                    crash_log::record("mouse_hook", "opening direct translate");
-                    direct_translate_selection(trimmed);
-                } else {
-                    crash_log::record("mouse_hook", "opening float toolbar");
-                    float_toolbar_window();
+                match behavior.as_str() {
+                    "direct_translate" => {
+                        crash_log::record("mouse_hook", "opening direct translate");
+                        direct_translate_selection(trimmed);
+                    }
+                    "direct_explain" => {
+                        crash_log::record("mouse_hook", "opening direct explain");
+                        chat_explain_window_with_text(trimmed);
+                    }
+                    _ => {
+                        crash_log::record("mouse_hook", "opening float toolbar");
+                        float_toolbar_window();
+                    }
                 }
                 debug!("Auto-select toolbar triggered ({}chars)", text_len);
             });

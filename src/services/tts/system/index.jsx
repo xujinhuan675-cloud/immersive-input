@@ -1,8 +1,9 @@
 export async function tts(text, lang, options = {}) {
     const { config = {} } = options;
+    const hasTauriIpc = typeof window !== 'undefined' && typeof window.__TAURI_IPC__ === 'function';
 
     return {
-        type: 'system_speech',
+        type: hasTauriIpc ? 'native_speech' : 'system_speech',
         text,
         lang: lang === 'auto' ? '' : lang,
         voiceURI: String(config.voiceURI || '').trim(),

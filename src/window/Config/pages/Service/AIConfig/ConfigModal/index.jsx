@@ -151,7 +151,7 @@ function AIApiConfigForm(props) {
                 <ConfigSection
                     title={t('ai_config.text_section_title', { defaultValue: 'Text Model' })}
                     description={t('ai_config.text_section_desc', {
-                        defaultValue: 'This configuration is used by AI chat, explain, and light AI features.',
+                        defaultValue: 'This configuration is used by AI explain and light AI features.',
                     })}
                 >
                     <div className='config-item'>

@@ -5,14 +5,18 @@ use std::fs;
 use crate::config::get;
 use crate::config::set;
 use crate::crash_log;
+use crate::ExplainExcerptModeWrapper;
 use crate::LightAiTargetWrapper;
+use crate::PendingChatDraftTextWrapper;
+use crate::PendingChatHttpTextWrapper;
+use crate::PendingTtsTextWrapper;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::TranslateExcerptModeWrapper;
 use crate::APP;
 #[cfg(target_os = "macos")]
 use dirs::cache_dir;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use once_cell::sync::Lazy;
 #[cfg(target_os = "windows")]
 use once_cell::sync::OnceCell;
@@ -29,6 +33,14 @@ use windows::Win32::{
     Foundation::{HINSTANCE, LPARAM, WPARAM},
     UI::WindowsAndMessaging::{CreateIcon, SendMessageW, HICON, ICON_BIG, ICON_SMALL, WM_SETICON},
 };
+
+#[cfg(target_os = "windows")]
+static NATIVE_TTS_PROCESS: Lazy<Mutex<Option<std::process::Child>>> =
+    Lazy::new(|| Mutex::new(None));
+
+#[cfg(target_os = "windows")]
+static NATIVE_TTS_OWNER_LABEL: Lazy<Mutex<Option<String>>> =
+    Lazy::new(|| Mutex::new(None));
 
 #[cfg(all(
     target_os = "windows",
@@ -620,6 +632,35 @@ pub fn set_translate_excerpt_mode(enabled: bool) {
     *state.0.lock().unwrap() = enabled;
 }
 
+fn is_explain_excerpt_mode_enabled() -> bool {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<ExplainExcerptModeWrapper> = app_handle.state();
+    let enabled = *state.0.lock().unwrap();
+    enabled
+}
+
+fn is_explain_excerpt_mode_default_enabled() -> bool {
+    get("incremental_explain")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn should_open_explain_as_draft() -> bool {
+    let app_handle = APP.get().unwrap();
+    if app_handle.get_window("chat").is_some() {
+        return is_explain_excerpt_mode_enabled();
+    }
+
+    is_explain_excerpt_mode_enabled() || is_explain_excerpt_mode_default_enabled()
+}
+
+#[tauri::command]
+pub fn set_explain_excerpt_mode(enabled: bool) {
+    let app_handle = APP.get().unwrap();
+    let state: tauri::State<ExplainExcerptModeWrapper> = app_handle.state();
+    *state.0.lock().unwrap() = enabled;
+}
+
 // Save the currently focused window handle
 pub fn save_foreground_window() {
     #[cfg(target_os = "windows")]
@@ -667,17 +708,23 @@ pub fn selection_translate() {
             return;
         }
     }
-    // Check config: show floating toolbar or go directly to translate window
+    // Check config: show floating toolbar or go directly to the configured action.
     crate::config::reload();
     let behavior = match get("text_select_behavior") {
         Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
         None => "toolbar".to_string(),
     };
-    if behavior == "toolbar" && !text.trim().is_empty() {
-        float_toolbar_window();
-    } else {
-        let window = translate_window();
-        window.emit("new_text", text).unwrap();
+    match behavior.as_str() {
+        "toolbar" if !text.trim().is_empty() => {
+            float_toolbar_window();
+        }
+        "direct_explain" => {
+            chat_explain_window_with_text(text);
+        }
+        _ => {
+            let window = translate_window();
+            window.emit("new_text", text).unwrap();
+        }
     }
 }
 
@@ -1108,60 +1155,6 @@ pub fn light_ai_window_from_input_handle() {
 }
 
 // ─────────────────────────────
-// Explain Window
-// ─────────────────────────────────────────────
-pub fn explain_window() {
-    use mouse_position::mouse_position::{Mouse, Position};
-    let mouse_pos = match Mouse::get_mouse_position() {
-        Mouse::Position { x, y } => Position { x, y },
-        Mouse::Error => Position { x: 0, y: 0 },
-    };
-    let app_handle = APP.get().unwrap();
-    let text = {
-        let state: tauri::State<StringWrapper> = app_handle.state();
-        let guard = state.0.lock().unwrap();
-        let s = guard.clone();
-        drop(guard);
-        s
-    };
-    let (window, exists) = build_window("explain", "Explain");
-    window.set_skip_taskbar(true).unwrap_or_default();
-    if exists {
-        show_app_window(&window);
-        window.set_focus().unwrap_or_default();
-        window.emit("new_text", text).unwrap_or_default();
-        return;
-    }
-    let monitor = get_window_monitor(&window);
-    let dpi = monitor.scale_factor();
-    let monitor_size = monitor.size();
-    let monitor_pos = monitor.position();
-    let (saved_width, saved_height) = apply_saved_window_size(&window, "explain", 400, 500);
-    let w_width = saved_width as f64;
-    let w_height = saved_height as f64;
-    let mut x = mouse_pos.x;
-    let mut y = mouse_pos.y;
-    if x as f64 + w_width * dpi > (monitor_pos.x + monitor_size.width as i32) as f64 {
-        x -= (w_width * dpi) as i32;
-    }
-    if y as f64 + w_height * dpi > (monitor_pos.y + monitor_size.height as i32) as f64 {
-        y -= (w_height * dpi) as i32;
-    }
-    if x < monitor_pos.x {
-        x = monitor_pos.x;
-    }
-    if y < monitor_pos.y {
-        y = monitor_pos.y;
-    }
-    window
-        .set_position(tauri::PhysicalPosition::new(x, y))
-        .unwrap_or_default();
-    show_app_window(&window);
-    window.set_focus().unwrap_or_default();
-    window.emit("new_text", text).unwrap_or_default();
-}
-
-// ─────────────────────────────
 // Tauri commands for frontend to open windows
 // ─────────────────────────────────────────────
 #[tauri::command]
@@ -1175,12 +1168,6 @@ pub fn open_light_ai_window() {
         light_ai_window();
     });
 }
-#[tauri::command]
-pub fn open_explain_window() {
-    std::thread::spawn(|| {
-        explain_window();
-    });
-}
 // ─────────────────────────────────────────────
 // Chat Window
 // ─────────────────────────────────────────────
@@ -1191,7 +1178,7 @@ pub fn chat_window() {
         w.set_focus().unwrap_or_default();
         return;
     }
-    let (window, _) = build_window("chat", "AI 对话");
+    let (window, _) = build_window("chat", "\u{89E3}\u{6790}");
     window
         .set_min_size(Some(tauri::LogicalSize::new(400, 300)))
         .unwrap_or_default();
@@ -1200,10 +1187,87 @@ pub fn chat_window() {
     show_app_window(&window);
 }
 
-pub fn tts_player_window() -> Window {
+pub fn chat_window_with_text(text: String) {
+    let content = text.trim().to_string();
+    if content.is_empty() {
+        chat_window();
+        return;
+    }
+
+    let app_handle = APP.get().unwrap();
+    let had_window = app_handle.get_window("chat").is_some();
+    if !had_window {
+        let state: tauri::State<PendingChatHttpTextWrapper> = app_handle.state();
+        *state.0.lock().unwrap() = content.clone();
+    }
+
+    chat_window();
+
+    if had_window {
+        if let Some(window) = app_handle.get_window("chat") {
+            window.emit("http_chat_text", content).unwrap_or_default();
+        }
+    }
+}
+
+pub fn chat_window_with_draft_text(text: String) {
+    let content = text.trim().to_string();
+    if content.is_empty() {
+        chat_window();
+        return;
+    }
+
+    let app_handle = APP.get().unwrap();
+    let had_window = app_handle.get_window("chat").is_some();
+    if !had_window {
+        let state: tauri::State<PendingChatDraftTextWrapper> = app_handle.state();
+        *state.0.lock().unwrap() = content.clone();
+    }
+
+    chat_window();
+
+    if had_window {
+        if let Some(window) = app_handle.get_window("chat") {
+            window.emit("chat_draft_text", content).unwrap_or_default();
+        }
+    }
+}
+
+pub fn chat_explain_window_with_text(text: String) {
+    if should_open_explain_as_draft() {
+        chat_window_with_draft_text(text);
+    } else {
+        chat_window_with_text(text);
+    }
+}
+
+pub fn enqueue_tts_text(text: String) {
+    let content = text.trim().to_string();
+    if content.is_empty() {
+        return;
+    }
+
+    let app_handle = APP.get().unwrap();
+    let had_window = app_handle.get_window("tts_player").is_some();
+    let state: tauri::State<PendingTtsTextWrapper> = app_handle.state();
+    *state.0.lock().unwrap() = content.clone();
+    let tts_window = match tts_player_window() {
+        Some(window) => window,
+        None => return,
+    };
+
+    if had_window {
+        tts_window
+            .emit("http_tts_text", content)
+            .unwrap_or_default();
+    }
+}
+
+pub fn tts_player_window() -> Option<Window> {
     let app_handle = APP.get().unwrap();
     if let Some(window) = app_handle.get_window("tts_player") {
-        return window;
+        window.show().unwrap_or_default();
+        return Some(window);
     }
 
     let mut builder = with_dev_webview_data_directory(tauri::WindowBuilder::new(
@@ -1212,13 +1276,13 @@ pub fn tts_player_window() -> Window {
         tauri::WindowUrl::App("index.html".into()),
     ))
     .title("TTS Player")
-    .visible(false)
+    .visible(true)
     .focused(false)
     .skip_taskbar(true)
     .resizable(false)
-    .inner_size(1.0, 1.0)
+    .inner_size(120.0, 80.0)
     .position(-10000.0, -10000.0)
-    .additional_browser_args("--disable-web-security");
+    .additional_browser_args("--disable-web-security --autoplay-policy=no-user-gesture-required");
 
     #[cfg(target_os = "macos")]
     {
@@ -1228,23 +1292,169 @@ pub fn tts_player_window() -> Window {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        builder = builder.transparent(true).decorations(false);
+        builder = builder.decorations(false);
     }
 
     if let Some(icon) = default_window_icon() {
         builder = builder.icon(icon).unwrap();
     }
 
-    let window = builder.build().unwrap();
+    let window = match builder.build() {
+        Ok(window) => window,
+        Err(error_value) => {
+            error!("failed to create tts_player window: {}", error_value);
+            return None;
+        }
+    };
     apply_default_window_icon(&window);
-    window.hide().unwrap_or_default();
-    window
+    Some(window)
 }
 
 #[tauri::command]
 pub fn open_chat_window() {
     std::thread::spawn(|| {
         chat_window();
+    });
+}
+
+#[tauri::command]
+pub fn speak_tts_text(text: String) {
+    std::thread::spawn(move || {
+        enqueue_tts_text(text);
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn stop_native_tts_process() {
+    let mut guard = NATIVE_TTS_PROCESS.lock().unwrap();
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    *NATIVE_TTS_OWNER_LABEL.lock().unwrap() = None;
+}
+
+#[cfg(not(target_os = "windows"))]
+fn stop_native_tts_process() {}
+
+#[tauri::command]
+pub fn stop_native_speech() {
+    stop_native_tts_process();
+}
+
+#[cfg(target_os = "windows")]
+pub fn stop_native_speech_if_owned_by(window_label: &str) {
+    let is_owner = NATIVE_TTS_OWNER_LABEL
+        .lock()
+        .unwrap()
+        .as_deref()
+        .map(|label| label == window_label)
+        .unwrap_or(false);
+
+    if is_owner {
+        debug!("stopping native speech because window closed: {}", window_label);
+        stop_native_tts_process();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn stop_native_speech_if_owned_by(_window_label: &str) {}
+
+#[cfg(target_os = "windows")]
+fn map_native_speech_rate(rate: f64) -> i32 {
+    (((rate.clamp(0.5, 2.0) - 1.0) * 6.0).round() as i32).clamp(-10, 10)
+}
+
+#[cfg(target_os = "windows")]
+fn map_native_speech_volume(volume: f64) -> i32 {
+    ((volume.clamp(0.0, 1.0) * 100.0).round() as i32).clamp(0, 100)
+}
+
+#[tauri::command]
+pub fn speak_native_text(
+    text: String,
+    rate: Option<f64>,
+    volume: Option<f64>,
+    owner_label: Option<String>,
+) -> Result<(), String> {
+    let content = text.trim().to_string();
+    if content.is_empty() {
+        stop_native_tts_process();
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        use std::process::{Command, Stdio};
+
+        stop_native_tts_process();
+
+        let script = r#"
+Add-Type -AssemblyName System.Speech
+$text = [Environment]::GetEnvironmentVariable('IMMERSIVE_INPUT_TTS_TEXT', 'Process')
+$rate = [int]([Environment]::GetEnvironmentVariable('IMMERSIVE_INPUT_TTS_RATE', 'Process'))
+$volume = [int]([Environment]::GetEnvironmentVariable('IMMERSIVE_INPUT_TTS_VOLUME', 'Process'))
+$speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$speaker.Rate = $rate
+$speaker.Volume = $volume
+$speaker.Speak($text)
+$speaker.Dispose()
+"#;
+
+        let child = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ])
+            .env("IMMERSIVE_INPUT_TTS_TEXT", content)
+            .env(
+                "IMMERSIVE_INPUT_TTS_RATE",
+                map_native_speech_rate(rate.unwrap_or(1.0)).to_string(),
+            )
+            .env(
+                "IMMERSIVE_INPUT_TTS_VOLUME",
+                map_native_speech_volume(volume.unwrap_or(1.0)).to_string(),
+            )
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|error_value| error_value.to_string())?;
+
+        *NATIVE_TTS_PROCESS.lock().unwrap() = Some(child);
+        *NATIVE_TTS_OWNER_LABEL.lock().unwrap() = owner_label;
+        debug!("native speech started");
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = rate;
+        let _ = volume;
+        let _ = owner_label;
+        Err("Native speech is only available on Windows".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn open_chat_explain_from_toolbar() {
+    let app_handle = APP.get().unwrap();
+    let text = {
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        let guard = state.0.lock().unwrap();
+        let s = guard.clone();
+        drop(guard);
+        s
+    };
+
+    std::thread::spawn(move || {
+        chat_explain_window_with_text(text);
     });
 }
 

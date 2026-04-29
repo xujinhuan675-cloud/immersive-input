@@ -1,17 +1,47 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
+import { appWindow } from '@tauri-apps/api/window';
+import { error as logError, info as logInfo } from 'tauri-plugin-log-api';
 
 const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-let audioContext = AudioContextConstructor ? new AudioContextConstructor() : null;
+let audioContext = null;
 let source = null;
 let currentUtterance = null;
+let nativeSpeechActive = false;
+let nativeSpeechTimer = null;
+
+function logPlaybackError(message, error) {
+    const detail = error?.message || String(error);
+    console.error(message, error);
+    void logError(`[tts] ${message}: ${detail}`).catch(() => {});
+}
+
+function hasActivePlayback() {
+    if (source || currentUtterance || nativeSpeechActive) {
+        return true;
+    }
+
+    if (typeof window === 'undefined' || typeof window.speechSynthesis === 'undefined') {
+        return false;
+    }
+
+    return Boolean(window.speechSynthesis.speaking || window.speechSynthesis.pending);
+}
 
 function stopAudioPlayback() {
     if (!source) {
         return;
     }
 
-    source.stop();
-    source.disconnect();
+    try {
+        source.stop();
+    } catch (_) {}
+
+    try {
+        source.disconnect();
+    } catch (_) {}
+
     source = null;
 }
 
@@ -24,13 +54,31 @@ function stopSystemSpeech() {
     currentUtterance = null;
 }
 
+function stopNativeSpeech() {
+    nativeSpeechActive = false;
+    if (nativeSpeechTimer) {
+        clearTimeout(nativeSpeechTimer);
+        nativeSpeechTimer = null;
+    }
+    void invoke('stop_native_speech').catch(() => {});
+}
+
 function stopCurrentPlayback() {
     stopAudioPlayback();
     stopSystemSpeech();
+    stopNativeSpeech();
+}
+
+export function stopAllVoicePlayback() {
+    stopCurrentPlayback();
 }
 
 function isSystemSpeechPayload(data) {
     return Boolean(data && typeof data === 'object' && data.type === 'system_speech');
+}
+
+function isNativeSpeechPayload(data) {
+    return Boolean(data && typeof data === 'object' && data.type === 'native_speech');
 }
 
 function clamp(value, min, max, fallback) {
@@ -75,7 +123,33 @@ function resolveSystemVoice(voiceURI, lang) {
     );
 }
 
-function speakWithSystemVoice(data) {
+function waitForSystemVoices(timeoutMs = 600) {
+    if (typeof window === 'undefined' || typeof window.speechSynthesis === 'undefined') {
+        return Promise.resolve([]);
+    }
+
+    const currentVoices = window.speechSynthesis.getVoices();
+    if (currentVoices.length > 0) {
+        return Promise.resolve(currentVoices);
+    }
+
+    return new Promise((resolve) => {
+        const finalize = () => {
+            cleanup();
+            resolve(window.speechSynthesis.getVoices());
+        };
+
+        const cleanup = () => {
+            clearTimeout(timer);
+            window.speechSynthesis.removeEventListener?.('voiceschanged', finalize);
+        };
+
+        const timer = setTimeout(finalize, timeoutMs);
+        window.speechSynthesis.addEventListener?.('voiceschanged', finalize);
+    });
+}
+
+async function speakWithSystemVoice(data) {
     if (
         typeof window === 'undefined' ||
         typeof window.speechSynthesis === 'undefined' ||
@@ -84,6 +158,7 @@ function speakWithSystemVoice(data) {
         throw new Error('System speech synthesis is not supported');
     }
 
+    await waitForSystemVoices();
     const utterance = new window.SpeechSynthesisUtterance(data.text || '');
     utterance.lang = data.lang || '';
     utterance.rate = clamp(data.rate, 0.5, 2, 1);
@@ -111,25 +186,89 @@ function speakWithSystemVoice(data) {
     };
 
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.resume?.();
+    window.setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+    }, 20);
 }
 
-function decodeAudioData(buffer) {
-    return new Promise((resolve, reject) => {
-        audioContext.decodeAudioData(buffer, resolve, reject);
+async function speakWithNativeVoice(data) {
+    const text = String(data.text || '').trim();
+    if (!text) {
+        return;
+    }
+
+    stopNativeSpeech();
+    nativeSpeechActive = true;
+    const estimatedDurationMs = Math.min(Math.max(text.length * 180, 1500), 120000);
+    nativeSpeechTimer = setTimeout(() => {
+        nativeSpeechActive = false;
+        nativeSpeechTimer = null;
+    }, estimatedDurationMs);
+
+    await logInfo(`[tts] native speech start (${text.length} chars)`).catch(() => {});
+    await invoke('speak_native_text', {
+        text,
+        rate: clamp(data.rate, 0.5, 2, 1),
+        volume: clamp(data.volume, 0, 1, 1),
+        ownerLabel: appWindow.label,
     });
 }
 
+function getAudioContext() {
+    if (!AudioContextConstructor) {
+        return null;
+    }
+
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new AudioContextConstructor();
+    }
+
+    return audioContext;
+}
+
+function toArrayBuffer(data) {
+    if (data instanceof ArrayBuffer) {
+        return data.slice(0);
+    }
+
+    if (ArrayBuffer.isView(data)) {
+        return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    }
+
+    return new Uint8Array(data).buffer.slice(0);
+}
+
+function decodeAudioData(context, buffer) {
+    return new Promise((resolve, reject) => {
+        context.decodeAudioData(buffer, resolve, reject);
+    });
+}
+
+function primePlayback() {
+    const context = getAudioContext();
+    if (context) {
+        void context.resume?.().catch(() => {});
+    }
+
+    if (typeof window !== 'undefined' && typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.resume?.();
+    }
+
+    void invoke('stop_native_speech').catch(() => {});
+}
+
 async function playAudioBytes(data) {
-    if (!audioContext) {
+    const context = getAudioContext();
+    if (!context) {
         throw new Error('Web Audio API is not supported');
     }
 
-    await audioContext.resume?.();
-    const audioBuffer = await decodeAudioData(new Uint8Array(data).buffer.slice(0));
-    const nextSource = audioContext.createBufferSource();
+    await context.resume?.();
+    const audioBuffer = await decodeAudioData(context, toArrayBuffer(data));
+    const nextSource = context.createBufferSource();
     nextSource.buffer = audioBuffer;
-    nextSource.connect(audioContext.destination);
+    nextSource.connect(context.destination);
     source = nextSource;
     nextSource.start();
     nextSource.onended = () => {
@@ -142,26 +281,60 @@ async function playAudioBytes(data) {
 
 export const useVoice = () => {
     const playOrStop = useCallback((data) => {
-        const speechSynthesis = typeof window !== 'undefined' ? window.speechSynthesis : null;
-
-        if (source || speechSynthesis?.speaking || speechSynthesis?.pending) {
+        const activePlayback = hasActivePlayback();
+        if (activePlayback) {
             stopCurrentPlayback();
-            return;
         }
 
         if (!data) {
+            primePlayback();
             return;
         }
 
         if (isSystemSpeechPayload(data)) {
-            speakWithSystemVoice(data);
+            void speakWithSystemVoice(data).catch((error) => {
+                stopSystemSpeech();
+                logPlaybackError('system speech playback failed', error);
+            });
             return;
         }
 
-        playAudioBytes(data).catch(() => {
+        if (isNativeSpeechPayload(data)) {
+            void speakWithNativeVoice(data).catch((error) => {
+                stopNativeSpeech();
+                logPlaybackError('native speech playback failed', error);
+            });
+            return;
+        }
+
+        const play = () =>
+            playAudioBytes(data).catch((error) => {
+                logPlaybackError('audio playback failed', error);
+                stopAudioPlayback();
+            });
+
+        if (activePlayback) {
+            window.setTimeout(play, 40);
+            return;
+        }
+
+        play().catch(() => {
             stopAudioPlayback();
         });
     }, []);
 
     return playOrStop;
+};
+
+export const useStopVoiceOnUnmount = () => {
+    useEffect(() => {
+        const unlistenCloseRequested = listen('tauri://close-requested', () => {
+            stopCurrentPlayback();
+        });
+
+        return () => {
+            stopCurrentPlayback();
+            void unlistenCloseRequested.then((off) => off()).catch(() => {});
+        };
+    }, []);
 };

@@ -1,13 +1,16 @@
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/tauri';
+import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
+import { HiOutlineDocumentSearch, HiOutlineVolumeUp } from 'react-icons/hi';
+import { MdDeleteOutline, MdOutlineNoteAdd } from 'react-icons/md';
 import remarkGfm from 'remark-gfm';
-import { HiDotsHorizontal, HiOutlineChatAlt2, HiOutlineVolumeUp } from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
+    WindowHeaderPinButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
 import {
@@ -19,18 +22,20 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
-import { useToastStyle, useVoice } from '../../hooks';
-import { synthesizeBuiltInTts } from '../../services/tts/runtime';
+import { useConfig, useReadAloud, useStopVoiceOnUnmount, useToastStyle } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { saveHistory } from '../../utils/aiHistory';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
-import detect from '../../utils/lang_detect';
-import { normalizeLanguageKey } from '../../utils/language';
+import { saveHistory } from '../../utils/aiHistory';
+
+const DEFAULT_TEXTAREA_HEIGHT = 40;
+const MAX_TEXTAREA_HEIGHT = 132;
+const SYSTEM_PROMPT =
+    '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u6790\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
 
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
     if (!apiUrl || !apiKey) {
-        onError('请先在 AI 设置中配置 API URL 和 API Key。');
+        onError('\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API URL \u548C API Key\u3002');
         return;
     }
 
@@ -56,7 +61,7 @@ async function streamChat(messages, apiConfig, onChunk, onComplete, onError, sig
         });
 
         if (!response.ok) {
-            onError(`[错误] HTTP ${response.status}: ${await response.text()}`);
+            onError(`[\u9519\u8BEF] HTTP ${response.status}: ${await response.text()}`);
             return;
         }
 
@@ -96,11 +101,9 @@ async function streamChat(messages, apiConfig, onChunk, onComplete, onError, sig
 
         onComplete(full);
     } catch (error) {
-        onError(error.name === 'AbortError' ? null : `[错误] ${error.message}`);
+        onError(error.name === 'AbortError' ? null : `[\u9519\u8BEF] ${error.message}`);
     }
 }
-
-const SYSTEM_PROMPT = '你是一个有帮助的 AI 助手。请根据用户的问题提供准确、有用的回答。';
 
 function getMessageSpeechText(content = '') {
     return String(content || '')
@@ -113,6 +116,61 @@ function getMessageSpeechText(content = '') {
         .replace(/[*_~>#]/g, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+}
+
+function resizeTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = `${DEFAULT_TEXTAREA_HEIGHT}px`;
+    textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+}
+
+function appendExplainDraft(previousText, incomingText) {
+    const nextText = String(incomingText || '').trim();
+    if (!nextText) {
+        return String(previousText || '');
+    }
+
+    const currentText = String(previousText || '').trimEnd();
+    return currentText ? `${currentText}\n\n${nextText}` : nextText;
+}
+
+function normalizeMarkdownForDisplay(content = '') {
+    const normalized = String(content || '').replace(/\r\n?/g, '\n');
+    const segments = normalized.split(/(```[\s\S]*?```)/g);
+
+    return segments
+        .map((segment) => {
+            if (segment.startsWith('```')) {
+                return segment;
+            }
+
+            return segment
+                .replace(/\n{3,}/g, '\n\n')
+                .replace(/\n{2,}((?:[-*+]|\d+\.)\s)/g, '\n$1')
+                .replace(/(^|\n)(#{1,6}[^\n]+)\n{2,}/g, '$1$2\n')
+                .trim();
+        })
+        .join('\n\n')
+        .trim();
+}
+
+function compactMarkdownChildren(children, paragraphStyle = { margin: 0 }) {
+    return React.Children.map(children, (child) => {
+        if (!React.isValidElement(child)) {
+            return child;
+        }
+
+        if (child.type === 'p') {
+            return React.cloneElement(child, {
+                style: {
+                    ...(child.props.style || {}),
+                    ...paragraphStyle,
+                },
+            });
+        }
+
+        return child;
+    });
 }
 
 const styles = {
@@ -130,13 +188,15 @@ const styles = {
         alignSelf: isUser ? 'flex-end' : 'flex-start',
         padding: '10px 13px',
         borderRadius: isUser ? '14px 14px 6px 14px' : '14px 14px 14px 6px',
-        border: isUser ? '1px solid rgba(15, 23, 42, 0.84)' : '1px solid rgba(226, 232, 240, 0.9)',
-        background: isUser ? '#0f172a' : 'rgba(248, 250, 252, 0.94)',
-        color: isUser ? '#ffffff' : '#0f172a',
+        border: isUser
+            ? '1px solid rgba(191, 219, 254, 0.95)'
+            : '1px solid rgba(226, 232, 240, 0.9)',
+        background: isUser ? 'rgba(239, 246, 255, 0.96)' : 'rgba(248, 250, 252, 0.96)',
+        color: '#0f172a',
         lineHeight: 1.65,
-        whiteSpace: 'pre-wrap',
+        whiteSpace: isUser ? 'pre-wrap' : 'normal',
         wordBreak: 'break-word',
-        boxShadow: '0 10px 24px -22px rgba(15, 23, 42, 0.35)',
+        boxShadow: '0 10px 24px -22px rgba(15, 23, 42, 0.2)',
     }),
     bubbleRow: (isUser) => ({
         display: 'flex',
@@ -181,8 +241,8 @@ const styles = {
     },
     input: {
         flex: 1,
-        minHeight: '40px',
-        maxHeight: '132px',
+        minHeight: `${DEFAULT_TEXTAREA_HEIGHT}px`,
+        maxHeight: `${MAX_TEXTAREA_HEIGHT}px`,
         resize: 'none',
         outline: 'none',
         border: '1px solid rgba(203, 213, 225, 0.9)',
@@ -194,23 +254,31 @@ const styles = {
         lineHeight: 1.5,
         color: '#0f172a',
     },
+    footerTools: {
+        display: 'flex',
+        gap: '8px',
+        alignSelf: 'flex-end',
+        flexShrink: 0,
+    },
     footerMenuWrap: {
         position: 'relative',
         alignSelf: 'flex-end',
         flexShrink: 0,
     },
-    footerIconButton: {
+    footerIconButton: (active = false) => ({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         width: '40px',
         height: '40px',
         borderRadius: '10px',
-        border: '1px solid rgba(226, 232, 240, 0.9)',
-        background: 'rgba(255, 255, 255, 0.84)',
-        color: '#475569',
+        border: active
+            ? '1px solid rgba(96, 165, 250, 0.45)'
+            : '1px solid rgba(226, 232, 240, 0.9)',
+        background: active ? 'rgba(219, 234, 254, 0.92)' : 'rgba(255, 255, 255, 0.84)',
+        color: active ? '#2563eb' : '#475569',
         cursor: 'pointer',
-    },
+    }),
     footerMenu: {
         position: 'absolute',
         right: 0,
@@ -250,6 +318,7 @@ const styles = {
         fontSize: '13px',
         fontWeight: 600,
         cursor: 'pointer',
+        opacity: primary ? 1 : 1,
     }),
     codeInline: {
         background: 'rgba(226, 232, 240, 0.7)',
@@ -264,22 +333,70 @@ const styles = {
         overflow: 'auto',
         fontSize: '12px',
     },
+    markdownParagraph: {
+        margin: '0 0 4px 0',
+    },
+    markdownHeading: {
+        margin: '8px 0 4px 0',
+        fontSize: '14px',
+        fontWeight: 700,
+        lineHeight: 1.45,
+        color: '#0f172a',
+    },
+    markdownList: (ordered = false) => ({
+        margin: '0 0 6px 0',
+        paddingLeft: '18px',
+        listStyleType: ordered ? 'decimal' : 'disc',
+    }),
+    markdownListItem: {
+        margin: '0 0 2px 0',
+    },
+    markdownBlockquote: {
+        margin: '4px 0 8px 0',
+        padding: '4px 0 4px 12px',
+        borderLeft: '3px solid rgba(191, 219, 254, 1)',
+        color: '#1e293b',
+        background: 'rgba(248, 250, 252, 0.72)',
+        borderRadius: '0 10px 10px 0',
+    },
+    markdownHr: {
+        margin: '8px 0',
+        border: 'none',
+        borderTop: '1px solid rgba(226, 232, 240, 0.9)',
+    },
+    markdownStrong: {
+        fontWeight: 700,
+        color: '#0f172a',
+    },
 };
 
 export default function Chat() {
+    useStopVoiceOnUnmount();
     const toastStyle = useToastStyle();
-    const speak = useVoice();
+    const readAloud = useReadAloud();
+    const [excerptExplainDefault] = useConfig('incremental_explain', false);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [apiConfig, setApiConfig] = useState(null);
-    const [menuOpen, setMenuOpen] = useState(false);
+    const [pined, setPined] = useState(false);
+    const [excerptMode, setExcerptMode] = useState(false);
     const abortRef = useRef(null);
     const bottomRef = useRef(null);
     const textareaRef = useRef(null);
     const messageIdRef = useRef(0);
-    const menuRef = useRef(null);
-    const menuButtonRef = useRef(null);
+    const messagesRef = useRef([]);
+    const hasHydratedExcerptMode = useRef(false);
+    const hasContentToClear = messages.length > 0 || input.trim().length > 0;
+
+    useEffect(() => {
+        messagesRef.current = messages;
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    useEffect(() => {
+        resizeTextarea(textareaRef.current);
+    }, [input]);
 
     useEffect(() => {
         let mounted = true;
@@ -299,37 +416,38 @@ export default function Chat() {
     }, []);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (excerptExplainDefault === null || hasHydratedExcerptMode.current) {
+            return;
+        }
+
+        setExcerptMode(Boolean(excerptExplainDefault));
+        hasHydratedExcerptMode.current = true;
+    }, [excerptExplainDefault]);
 
     useEffect(() => {
-        if (!menuOpen) return undefined;
+        invoke('set_explain_excerpt_mode', { enabled: excerptMode }).catch(() => {});
+    }, [excerptMode]);
 
-        const handlePointerDown = (event) => {
-            const target = event.target;
-            if (menuRef.current?.contains(target) || menuButtonRef.current?.contains(target)) {
-                return;
-            }
-            setMenuOpen(false);
-        };
-
-        document.addEventListener('pointerdown', handlePointerDown);
+    useEffect(() => {
         return () => {
-            document.removeEventListener('pointerdown', handlePointerDown);
+            invoke('set_explain_excerpt_mode', { enabled: false }).catch(() => {});
         };
-    }, [menuOpen]);
+    }, []);
 
     const stop = useCallback(() => {
         try {
             abortRef.current?.abort();
         } catch {}
+        abortRef.current = null;
         setLoading(false);
     }, []);
 
     const clearMessages = useCallback(() => {
         if (loading) return;
         setMessages([]);
-        setMenuOpen(false);
+        messagesRef.current = [];
+        setInput('');
+        resizeTextarea(textareaRef.current);
     }, [loading]);
 
     const handleSpeakMessage = useCallback(
@@ -337,82 +455,126 @@ export default function Chat() {
             const text = getMessageSpeechText(message?.content);
             if (!text) return;
 
-            let languageKey = 'auto';
-            try {
-                languageKey = normalizeLanguageKey(await detect(text)) || 'auto';
-            } catch {}
-
-            const data = await synthesizeBuiltInTts(text, languageKey);
-            speak(data);
+            await readAloud(text);
         },
-        [speak]
+        [readAloud]
     );
 
-    const sendText = useCallback(async (rawText) => {
+    const appendDraftText = useCallback((rawText) => {
         const text = String(rawText || '').trim();
-        if (!text || loading || !apiConfig) return;
+        if (!text) return;
 
-        setMenuOpen(false);
-        setInput('');
-        if (textareaRef.current) {
-            textareaRef.current.style.height = '40px';
-        }
+        setInput((previousText) => appendExplainDraft(previousText, text));
 
-        const userMessage = {
-            role: 'user',
-            content: text,
-            id: messageIdRef.current++,
-        };
-        const assistantId = messageIdRef.current++;
+        window.requestAnimationFrame(() => {
+            resizeTextarea(textareaRef.current);
+            textareaRef.current?.focus();
+        });
+    }, []);
 
-        setMessages((prev) => [
-            ...prev,
-            userMessage,
-            { role: 'assistant', content: '', id: assistantId, pending: true },
-        ]);
-        setLoading(true);
+    const sendText = useCallback(
+        async (rawText) => {
+            const text = String(rawText || '').trim();
+            if (!text || loading || !apiConfig) return;
 
-        const history = [...messages, userMessage].map(({ role, content }) => ({ role, content }));
-        const apiMessages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
-        const controller = new AbortController();
-        abortRef.current = controller;
+            setInput('');
+            resizeTextarea(textareaRef.current);
 
-        await streamChat(
-            apiMessages,
-            apiConfig,
-            (chunk) => {
-                setMessages((prev) =>
-                    prev.map((item) =>
-                        item.id === assistantId ? { ...item, content: item.content + chunk, pending: true } : item
-                    )
-                );
-            },
-            (full) => {
-                setMessages((prev) =>
-                    prev.map((item) => (item.id === assistantId ? { ...item, pending: false } : item))
-                );
-                setLoading(false);
-                try {
-                    saveHistory('chat', text, full, getAiHistoryServiceMeta(apiConfig));
-                } catch {}
-            },
-            (error) => {
-                if (error) {
-                    setMessages((prev) =>
-                        prev.map((item) =>
-                            item.id === assistantId ? { ...item, content: error, pending: false, error: true } : item
-                        )
-                    );
-                }
-                setLoading(false);
-            },
-            controller.signal
-        );
-    }, [apiConfig, loading, messages]);
+            const userMessage = {
+                role: 'user',
+                content: text,
+                id: messageIdRef.current++,
+            };
+            const assistantId = messageIdRef.current++;
+            const pendingAssistantMessage = {
+                role: 'assistant',
+                content: '',
+                id: assistantId,
+                pending: true,
+            };
+
+            const history = [...messagesRef.current, userMessage].map(({ role, content }) => ({
+                role,
+                content,
+            }));
+            const apiMessages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
+            const controller = new AbortController();
+            abortRef.current = controller;
+
+            setMessages((previousMessages) => {
+                const nextMessages = [...previousMessages, userMessage, pendingAssistantMessage];
+                messagesRef.current = nextMessages;
+                return nextMessages;
+            });
+            setLoading(true);
+
+            await streamChat(
+                apiMessages,
+                apiConfig,
+                (chunk) => {
+                    setMessages((previousMessages) => {
+                        const nextMessages = previousMessages.map((item) =>
+                            item.id === assistantId
+                                ? { ...item, content: item.content + chunk, pending: true }
+                                : item
+                        );
+                        messagesRef.current = nextMessages;
+                        return nextMessages;
+                    });
+                },
+                (full) => {
+                    setMessages((previousMessages) => {
+                        const nextMessages = previousMessages.map((item) =>
+                            item.id === assistantId ? { ...item, pending: false } : item
+                        );
+                        messagesRef.current = nextMessages;
+                        return nextMessages;
+                    });
+                    abortRef.current = null;
+                    setLoading(false);
+                    try {
+                        saveHistory('explain', text, full, getAiHistoryServiceMeta(apiConfig));
+                    } catch {}
+                },
+                (error) => {
+                    setMessages((previousMessages) => {
+                        const nextMessages = error
+                            ? previousMessages.map((item) =>
+                                  item.id === assistantId
+                                      ? {
+                                            ...item,
+                                            content: error,
+                                            pending: false,
+                                            error: true,
+                                        }
+                                      : item
+                              )
+                            : previousMessages
+                                  .map((item) =>
+                                      item.id === assistantId ? { ...item, pending: false } : item
+                                  )
+                                  .filter((item) => !(item.id === assistantId && !item.content));
+                        messagesRef.current = nextMessages;
+                        return nextMessages;
+                    });
+                    abortRef.current = null;
+                    setLoading(false);
+                },
+                controller.signal
+            );
+        },
+        [apiConfig, loading]
+    );
 
     const send = useCallback(async () => {
         await sendText(input);
     }, [input, sendText]);
+
+    const togglePin = useCallback(async () => {
+        const nextPinned = !pined;
+        await appWindow.setAlwaysOnTop(nextPinned).catch(() => {});
+        setPined(nextPinned);
+    }, [pined]);
 
     useEffect(() => {
         if (!apiConfig) {
@@ -421,18 +583,27 @@ export default function Chat() {
 
         let disposed = false;
 
-        async function consumePendingText() {
+        async function hydratePendingContent() {
+            const pendingDraftText = await invoke('take_pending_chat_draft_text').catch(() => '');
+            if (!disposed && pendingDraftText.trim()) {
+                appendDraftText(pendingDraftText);
+            }
+
             const pendingText = await invoke('take_pending_chat_http_text').catch(() => '');
-            if (disposed || !pendingText) {
+            if (disposed || !pendingText.trim()) {
                 return;
             }
 
             await sendText(pendingText);
         }
 
-        void consumePendingText();
+        void hydratePendingContent();
 
-        const unlisten = listen('http_chat_text', (event) => {
+        const draftUnlisten = listen('chat_draft_text', (event) => {
+            appendDraftText(String(event.payload || ''));
+        });
+
+        const sendUnlisten = listen('http_chat_text', (event) => {
             const payload = String(event.payload || '');
             if (!payload.trim()) {
                 return;
@@ -444,9 +615,10 @@ export default function Chat() {
 
         return () => {
             disposed = true;
-            void unlisten.then((off) => off());
+            void draftUnlisten.then((off) => off());
+            void sendUnlisten.then((off) => off());
         };
-    }, [apiConfig, sendText]);
+    }, [apiConfig, appendDraftText, sendText]);
 
     return (
         <TrayWindow>
@@ -455,14 +627,19 @@ export default function Chat() {
                 style={TRAY_WINDOW_HEADER_STYLE}
                 center={
                     <WindowHeaderTitle
-                        icon={<HiOutlineChatAlt2 className='text-[15px] text-default-500' />}
+                        icon={<HiOutlineDocumentSearch className='text-[15px] text-default-500' />}
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        AI 对话
+                        {'\u89E3\u6790'}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
+                        <WindowHeaderCloseButton />
+                    </div>
+                }
             />
 
             <TrayWindowBody>
@@ -470,10 +647,12 @@ export default function Chat() {
                     <div style={styles.messageList}>
                         {messages.length === 0 ? (
                             <div style={styles.empty}>
-                                开始和 AI 对话吧
+                                {'\u53D1\u9001\u6587\u672C\u5F00\u59CB\u89E3\u6790'}
                                 <br />
                                 <span style={{ fontSize: '11px' }}>
-                                    {!apiConfig?.apiKey ? '请先在 AI 设置中配置 API Key' : ''}
+                                    {!apiConfig?.apiKey
+                                        ? '\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API Key'
+                                        : ''}
                                 </span>
                             </div>
                         ) : null}
@@ -488,12 +667,12 @@ export default function Chat() {
                                 }}
                             >
                                 <div style={styles.roleTag(message.role === 'user')}>
-                                    {message.role === 'user' ? '你' : 'AI'}
+                                    {message.role === 'user' ? '\u4F60' : 'AI'}
                                 </div>
                                 <div style={styles.bubbleRow(message.role === 'user')}>
                                     <button
                                         type='button'
-                                        title='朗读'
+                                        title={'\u6717\u8BFB'}
                                         style={styles.bubbleActionButton(!getMessageSpeechText(message.content))}
                                         disabled={!getMessageSpeechText(message.content)}
                                         onClick={() => {
@@ -509,18 +688,60 @@ export default function Chat() {
                                     <div
                                         style={{
                                             ...styles.bubble(message.role === 'user'),
-                                            color: message.error ? '#dc2626' : undefined,
+                                            ...(message.error ? { color: '#dc2626' } : {}),
                                         }}
                                     >
                                         {message.role === 'user' ? (
                                             message.content || ''
                                         ) : message.content ? (
-                                            <div style={{ lineHeight: 1.65 }}>
+                                            <div style={{ lineHeight: 1.65, whiteSpace: 'normal' }}>
                                                 <ReactMarkdown
                                                     remarkPlugins={[remarkGfm]}
                                                     components={{
                                                         p: ({ children }) => (
-                                                            <p style={{ margin: '0 0 6px 0' }}>{children}</p>
+                                                            <p style={styles.markdownParagraph}>{children}</p>
+                                                        ),
+                                                        h1: ({ children }) => (
+                                                            <h1 style={styles.markdownHeading}>{children}</h1>
+                                                        ),
+                                                        h2: ({ children }) => (
+                                                            <h2 style={styles.markdownHeading}>{children}</h2>
+                                                        ),
+                                                        h3: ({ children }) => (
+                                                            <h3 style={styles.markdownHeading}>{children}</h3>
+                                                        ),
+                                                        h4: ({ children }) => (
+                                                            <h4 style={styles.markdownHeading}>{children}</h4>
+                                                        ),
+                                                        h5: ({ children }) => (
+                                                            <h5 style={styles.markdownHeading}>{children}</h5>
+                                                        ),
+                                                        h6: ({ children }) => (
+                                                            <h6 style={styles.markdownHeading}>{children}</h6>
+                                                        ),
+                                                        ul: ({ children }) => (
+                                                            <ul style={styles.markdownList(false)}>{children}</ul>
+                                                        ),
+                                                        ol: ({ children }) => (
+                                                            <ol style={styles.markdownList(true)}>{children}</ol>
+                                                        ),
+                                                        li: ({ children }) => (
+                                                            <li style={styles.markdownListItem}>
+                                                                {compactMarkdownChildren(children)}
+                                                            </li>
+                                                        ),
+                                                        blockquote: ({ children }) => (
+                                                            <blockquote style={styles.markdownBlockquote}>
+                                                                {compactMarkdownChildren(children, {
+                                                                    margin: '0 0 2px 0',
+                                                                })}
+                                                            </blockquote>
+                                                        ),
+                                                        hr: () => <hr style={styles.markdownHr} />,
+                                                        strong: ({ children }) => (
+                                                            <strong style={styles.markdownStrong}>
+                                                                {children}
+                                                            </strong>
                                                         ),
                                                         code: ({ inline, children }) =>
                                                             inline ? (
@@ -532,11 +753,13 @@ export default function Chat() {
                                                             ),
                                                     }}
                                                 >
-                                                    {message.content}
+                                                    {normalizeMarkdownForDisplay(message.content)}
                                                 </ReactMarkdown>
                                             </div>
                                         ) : message.pending ? (
-                                            <span style={{ color: '#94a3b8' }}>正在生成...</span>
+                                            <span style={{ color: '#94a3b8' }}>
+                                                {'\u6B63\u5728\u751F\u6210...'}
+                                            </span>
                                         ) : (
                                             ''
                                         )}
@@ -551,13 +774,13 @@ export default function Chat() {
                         <textarea
                             ref={textareaRef}
                             style={styles.input}
-                            placeholder='输入消息，Enter 发送，Shift+Enter 换行'
+                            placeholder={
+                                '\u8F93\u5165\u8981\u89E3\u6790\u7684\u6587\u672C\uFF0CEnter \u53D1\u9001\uFF0CShift+Enter \u6362\u884C'
+                            }
                             value={input}
                             rows={1}
                             onChange={(event) => {
                                 setInput(event.target.value);
-                                event.target.style.height = '40px';
-                                event.target.style.height = `${Math.min(event.target.scrollHeight, 132)}px`;
                             }}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -566,36 +789,37 @@ export default function Chat() {
                                 }
                             }}
                         />
-                        <div style={styles.footerMenuWrap}>
-                            {menuOpen ? (
-                                <div ref={menuRef} style={styles.footerMenu}>
-                                    <button
-                                        type='button'
-                                        style={styles.footerMenuItem(true, loading || messages.length === 0)}
-                                        onClick={clearMessages}
-                                        disabled={loading || messages.length === 0}
-                                    >
-                                        清空对话
-                                    </button>
-                                </div>
-                            ) : null}
+                        <div style={styles.footerTools}>
                             <button
-                                ref={menuButtonRef}
                                 type='button'
-                                title='更多'
-                                style={styles.footerIconButton}
-                                onClick={() => setMenuOpen((prev) => !prev)}
+                                title={'\u6458\u5F55\u89E3\u6790'}
+                                style={styles.footerIconButton(excerptMode)}
+                                onClick={() => {
+                                    setExcerptMode((previous) => !previous);
+                                }}
                             >
-                                <HiDotsHorizontal className='text-[18px]' />
+                                <MdOutlineNoteAdd className='text-[18px]' />
+                            </button>
+                            <button
+                                type='button'
+                                title={'\u6E05\u7A7A\u89E3\u6790'}
+                                style={{
+                                    ...styles.footerIconButton(false),
+                                    border: '1px solid rgba(254, 202, 202, 0.95)',
+                                    background: 'rgba(254, 242, 242, 0.92)',
+                                    color: '#dc2626',
+                                    opacity: loading || !hasContentToClear ? 0.45 : 1,
+                                    cursor: loading || !hasContentToClear ? 'default' : 'pointer',
+                                }}
+                                onClick={clearMessages}
+                                disabled={loading || !hasContentToClear}
+                            >
+                                <MdDeleteOutline className='text-[18px]' />
                             </button>
                         </div>
                         {loading ? (
-                            <button
-                                type='button'
-                                style={styles.footerButton(false)}
-                                onClick={stop}
-                            >
-                                停止
+                            <button type='button' style={styles.footerButton(false)} onClick={stop}>
+                                {'\u505C\u6B62'}
                             </button>
                         ) : (
                             <button
@@ -609,7 +833,7 @@ export default function Chat() {
                                 }}
                                 disabled={!input.trim() || !apiConfig}
                             >
-                                发送
+                                {'\u53D1\u9001'}
                             </button>
                         )}
                     </div>

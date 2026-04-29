@@ -85,7 +85,7 @@ const BUTTON_ACTIONS = {
     },
 
     explain: async (_text, { hide }) => {
-        invoke('open_explain_window').catch(() => {});
+        invoke('open_chat_explain_from_toolbar').catch(() => {});
         await delay(80);
         hide();
     },

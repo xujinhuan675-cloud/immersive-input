@@ -1,6 +1,7 @@
 use crate::clipboard::remember_internal_clipboard_write;
 use crate::config::StoreWrapper;
 use crate::error::Error;
+use crate::PendingChatDraftTextWrapper;
 use crate::PendingChatHttpTextWrapper;
 use crate::PendingTtsTextWrapper;
 use crate::PrevForegroundWindow;
@@ -14,6 +15,14 @@ use tauri::Manager;
 #[tauri::command]
 pub fn get_text(state: tauri::State<StringWrapper>) -> String {
     return state.0.lock().unwrap().to_string();
+}
+
+#[tauri::command]
+pub fn take_pending_chat_draft_text(state: tauri::State<PendingChatDraftTextWrapper>) -> String {
+    let mut guard = state.0.lock().unwrap();
+    let text = guard.clone();
+    guard.clear();
+    text
 }
 
 #[tauri::command]

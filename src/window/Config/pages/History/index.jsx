@@ -154,7 +154,6 @@ export default function History() {
     const AI_TYPE_LABELS = {
         lightai: t('history.ai_lightai'),
         explain: t('history.ai_explain'),
-        chat: t('history.ai_chat'),
     };
 
     useEffect(() => {

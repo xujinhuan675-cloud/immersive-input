@@ -28,6 +28,7 @@ function SettingSection({ title, description, action, children, bordered = false
 export default function AIFeatures() {
     const { t, i18n } = useTranslation();
     const [inputAiHandleEnabled, setInputAiHandleEnabled] = useConfig('input_ai_handle_enabled', true);
+    const [incrementalExplain, setIncrementalExplain] = useConfig('incremental_explain', false);
     const [userPref, setUserPref] = useConfig('ai_user_preference', '');
     const [promptStrict, setPromptStrict] = useConfig('ai_prompt_strict', '');
     const [promptStructured, setPromptStructured] = useConfig('ai_prompt_structured', '');
@@ -103,6 +104,18 @@ export default function AIFeatures() {
                                             size='sm'
                                             isSelected={inputAiHandleEnabled ?? true}
                                             onValueChange={setInputAiHandleEnabled}
+                                        />
+                                    }
+                                />
+
+                                <SettingSection
+                                    title={t('config.ai.incremental_explain')}
+                                    description={t('config.ai.incremental_explain_desc')}
+                                    action={
+                                        <Switch
+                                            size='sm'
+                                            isSelected={incrementalExplain ?? false}
+                                            onValueChange={setIncrementalExplain}
                                         />
                                     }
                                 />

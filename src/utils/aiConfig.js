@@ -221,13 +221,14 @@ export function getActiveReadAloudProviderId(config = {}) {
 
 export function getResolvedSystemSpeechConfig(config = {}) {
     const mergedConfig = getMergedBuiltInTtsConfig(config);
+    const hasTauriIpc = typeof window !== 'undefined' && typeof window.__TAURI_IPC__ === 'function';
     const hasSpeechSynthesis =
         typeof window !== 'undefined' &&
         typeof window.speechSynthesis !== 'undefined' &&
         typeof window.SpeechSynthesisUtterance !== 'undefined';
 
     return {
-        supported: hasSpeechSynthesis,
+        supported: hasTauriIpc || hasSpeechSynthesis,
         voiceURI: mergedConfig.speechSystemVoiceURI || '',
         rate: Number(mergedConfig.speechSystemRate ?? SYSTEM_TTS_DEFAULT_RATE),
         pitch: Number(mergedConfig.speechSystemPitch ?? SYSTEM_TTS_DEFAULT_PITCH),

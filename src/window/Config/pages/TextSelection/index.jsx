@@ -60,6 +60,8 @@ export default function TextSelection() {
     const behaviorLabelKey =
         behavior === 'direct_translate'
             ? 'behavior_direct'
+            : behavior === 'direct_explain'
+              ? 'behavior_direct_explain'
             : behavior === 'disabled'
               ? 'behavior_disabled'
               : 'behavior_toolbar';
@@ -121,6 +123,9 @@ export default function TextSelection() {
                                 </DropdownItem>
                                 <DropdownItem key='direct_translate'>
                                     {t('config.text_selection.behavior_direct')}
+                                </DropdownItem>
+                                <DropdownItem key='direct_explain'>
+                                    {t('config.text_selection.behavior_direct_explain')}
                                 </DropdownItem>
                                 <DropdownItem key='disabled'>
                                     {t('config.text_selection.behavior_disabled')}

@@ -18,7 +18,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
-import { useToastStyle, useVoice } from '../../hooks';
+import { useReadAloud, useStopVoiceOnUnmount, useToastStyle } from '../../hooks';
 import { useConfig } from '../../hooks/useConfig';
 import {
     STYLE_KEYS,
@@ -26,7 +26,6 @@ import {
     lightAiStream,
     translateTextStream,
 } from '../../services/light_ai/openai';
-import { synthesizeBuiltInTts } from '../../services/tts/runtime';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
@@ -355,9 +354,10 @@ function getLanguageLabelZh(key) {
 }
 
 export default function LightAI() {
+    useStopVoiceOnUnmount();
     const apiConfig = useApiConfig();
     const toastStyle = useToastStyle();
-    const speak = useVoice();
+    const readAloud = useReadAloud();
     const [activeTab, setActiveTab] = useState('style');
     const [sourceText, setSourceText] = useState('');
     const [targetMode, setTargetMode] = useState('selection');
@@ -585,17 +585,9 @@ export default function LightAI() {
             const nextText = String(text || '').trim();
             if (!nextText) return;
 
-            let nextLanguageKey = normalizeLanguageKey(languageKey) || 'auto';
-            if (nextLanguageKey === 'auto') {
-                try {
-                    nextLanguageKey = normalizeLanguageKey(await detect(nextText)) || 'auto';
-                } catch {}
-            }
-
-            const data = await synthesizeBuiltInTts(nextText, nextLanguageKey);
-            speak(data);
+            await readAloud(nextText, languageKey);
         },
-        [speak]
+        [readAloud]
     );
 
     const handleSpeakSource = useCallback(async () => {

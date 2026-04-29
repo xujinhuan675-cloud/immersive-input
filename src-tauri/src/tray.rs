@@ -95,6 +95,10 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
             .get_item("text_select_behavior_direct")
             .set_selected(true)
             .unwrap(),
+        "direct_explain" => tray_handle
+            .get_item("text_select_behavior_direct_explain")
+            .set_selected(true)
+            .unwrap(),
         "disabled" => tray_handle
             .get_item("text_select_behavior_disabled")
             .set_selected(true)
@@ -118,6 +122,9 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
             "copy_action_off" => on_copy_action_mode_click(app, COPY_ACTION_MODE_OFF),
             "text_select_behavior_toolbar" => on_text_select_behavior_click(app, "toolbar"),
             "text_select_behavior_direct" => on_text_select_behavior_click(app, "direct_translate"),
+            "text_select_behavior_direct_explain" => {
+                on_text_select_behavior_click(app, "direct_explain")
+            }
             "text_select_behavior_disabled" => on_text_select_behavior_click(app, "disabled"),
             "ocr_recognize" => on_ocr_recognize_click(),
             "ocr_translate" => on_ocr_translate_click(),
@@ -275,6 +282,7 @@ struct TrayMenuLabels<'a> {
     text_selection: &'a str,
     text_selection_toolbar: &'a str,
     text_selection_direct: &'a str,
+    text_selection_direct_explain: &'a str,
     text_selection_disabled: &'a str,
     more: &'a str,
     config: &'a str,
@@ -306,6 +314,10 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
     );
     let text_select_behavior_direct =
         CustomMenuItem::new("text_select_behavior_direct", labels.text_selection_direct);
+    let text_select_behavior_direct_explain = CustomMenuItem::new(
+        "text_select_behavior_direct_explain",
+        labels.text_selection_direct_explain,
+    );
     let text_select_behavior_disabled = CustomMenuItem::new(
         "text_select_behavior_disabled",
         labels.text_selection_disabled,
@@ -325,6 +337,7 @@ fn build_tray_menu(labels: TrayMenuLabels<'_>) -> tauri::SystemTrayMenu {
             SystemTrayMenu::new()
                 .add_item(text_select_behavior_toolbar)
                 .add_item(text_select_behavior_direct)
+                .add_item(text_select_behavior_direct_explain)
                 .add_item(text_select_behavior_disabled),
         ))
         .add_native_item(SystemTrayMenuItem::Separator)
@@ -356,7 +369,7 @@ fn tray_menu_en_refined() -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "Input Translate",
         light_ai: "AI Polish",
-        chat: "AI Chat",
+        chat: "Explain",
         phrases: "Phrases",
         vault: "Vault",
         recognition_tools: "Recognition Tools",
@@ -369,6 +382,7 @@ fn tray_menu_en_refined() -> tauri::SystemTrayMenu {
         text_selection: "Text Selection Behavior",
         text_selection_toolbar: "Show Toolbar",
         text_selection_direct: "Direct Translate",
+        text_selection_direct_explain: "Direct Explain",
         text_selection_disabled: "Disabled",
         more: "More",
         config: "Config",
@@ -382,7 +396,7 @@ fn tray_menu_zh_cn_refined() -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{8F93}\u{5165}\u{7FFB}\u{8BD1}",
         light_ai: "AI \u{6DA6}\u{8272}",
-        chat: "AI \u{5BF9}\u{8BDD}",
+        chat: "\u{89E3}\u{6790}",
         phrases: "\u{5E38}\u{7528}\u{8BED}",
         vault: "\u{5BC6}\u{7801}\u{672C}",
         recognition_tools: "\u{8BC6}\u{522B}\u{5DE5}\u{5177}",
@@ -395,6 +409,7 @@ fn tray_menu_zh_cn_refined() -> tauri::SystemTrayMenu {
         text_selection: "\u{5212}\u{8BCD}\u{884C}\u{4E3A}",
         text_selection_toolbar: "\u{663E}\u{793A}\u{5DE5}\u{5177}\u{680F}",
         text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8BD1}",
+        text_selection_direct_explain: "\u{76F4}\u{63A5}\u{89E3}\u{6790}",
         text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8BBE}\u{7F6E}",
@@ -408,7 +423,7 @@ fn tray_menu_zh_tw_refined() -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{8F38}\u{5165}\u{7FFB}\u{8B6F}",
         light_ai: "AI \u{6F64}\u{8272}",
-        chat: "AI \u{5C0D}\u{8A71}",
+        chat: "\u{89E3}\u{6790}",
         phrases: "\u{5E38}\u{7528}\u{8A9E}",
         vault: "\u{5BC6}\u{78BC}\u{672C}",
         recognition_tools: "\u{8B58}\u{5225}\u{5DE5}\u{5177}",
@@ -421,6 +436,7 @@ fn tray_menu_zh_tw_refined() -> tauri::SystemTrayMenu {
         text_selection: "\u{5283}\u{8A5E}\u{884C}\u{70BA}",
         text_selection_toolbar: "\u{986F}\u{793A}\u{5DE5}\u{5177}\u{5217}",
         text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8B6F}",
+        text_selection_direct_explain: "\u{76F4}\u{63A5}\u{89E3}\u{6790}",
         text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8A2D}\u{5B9A}",

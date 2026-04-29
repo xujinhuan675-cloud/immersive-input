@@ -24,7 +24,7 @@ import {
 import LanguageArea from './components/LanguageArea';
 import SourceArea from './components/SourceArea';
 import TargetArea from './components/TargetArea';
-import { useConfig } from '../../hooks';
+import { useConfig, useStopVoiceOnUnmount } from '../../hooks';
 import { AI_API_SERVICE_LIST_KEY } from '../../utils/aiConfig';
 import {
     ensureAiTranslateBindings,
@@ -94,6 +94,7 @@ void listen('tauri://move', () => {
 });
 
 export default function Translate() {
+    useStopVoiceOnUnmount();
     const { t } = useTranslation();
     const [translateServiceInstanceList, setTranslateServiceInstanceList] = useConfig(
         'translate_service_list',

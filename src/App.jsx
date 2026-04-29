@@ -10,7 +10,6 @@ import Screenshot from './window/Screenshot';
 import FloatToolbar from './window/FloatToolbar';
 import InputAiHandle from './window/InputAiHandle';
 import LightAI from './window/LightAI';
-import Explain from './window/Explain';
 import Chat from './window/Chat';
 import TtsPlayer from './window/TtsPlayer';
 import Translate from './window/Translate';
@@ -29,14 +28,13 @@ import './style.css';
 import './i18n';
 
 // 需要认证的窗口列表
-const authRequiredWindows = ['config', 'translate', 'light_ai', 'explain', 'chat', 'recognize', 'vault', 'phrases'];
+const authRequiredWindows = ['config', 'translate', 'light_ai', 'chat', 'recognize', 'vault', 'phrases'];
 
 const windowMap = {
     translate: <Translate />,
     float_toolbar: <FloatToolbar />,
     input_ai_handle: <InputAiHandle />,
     light_ai: <LightAI />,
-    explain: <Explain />,
     chat: <Chat />,
     tts_player: <TtsPlayer />,
     screenshot: <Screenshot />,
@@ -81,7 +79,6 @@ const WINDOW_SIZE_MEMORY = {
     translate: { width: true, height: true },
     recognize: { width: true, height: true },
     light_ai: { width: true, height: true },
-    explain: { width: true, height: true },
     chat: { width: true, height: true },
     vault: { width: true, height: true },
     updater: { width: true, height: true, minWidth: 480, minHeight: 320 },

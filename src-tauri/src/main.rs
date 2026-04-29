@@ -27,6 +27,7 @@ mod window;
 use backup::*;
 use clipboard::*;
 use cmd::paste_result;
+use cmd::take_pending_chat_draft_text;
 use cmd::take_pending_chat_http_text;
 use cmd::take_pending_tts_text;
 use cmd::write_clipboard;
@@ -50,11 +51,16 @@ use tray::*;
 use updater::check_update;
 use vault::*;
 use window::config_window;
+use window::open_chat_explain_from_toolbar;
 use window::open_chat_window;
-use window::open_explain_window;
 use window::open_login_window;
 use window::open_translate_from_toolbar;
+use window::set_explain_excerpt_mode;
 use window::set_translate_excerpt_mode;
+use window::speak_native_text;
+use window::speak_tts_text;
+use window::stop_native_speech_if_owned_by;
+use window::stop_native_speech;
 use window::updater_window;
 
 // Global AppHandle
@@ -65,7 +71,9 @@ pub struct StringWrapper(pub Mutex<String>);
 // Previous foreground window handle (raw isize, Windows HWND)
 pub struct PrevForegroundWindow(pub Mutex<isize>);
 pub struct TranslateExcerptModeWrapper(pub Mutex<bool>);
+pub struct ExplainExcerptModeWrapper(pub Mutex<bool>);
 pub struct LightAiTargetWrapper(pub Mutex<String>);
+pub struct PendingChatDraftTextWrapper(pub Mutex<String>);
 pub struct PendingChatHttpTextWrapper(pub Mutex<String>);
 pub struct PendingTtsTextWrapper(pub Mutex<String>);
 
@@ -188,7 +196,9 @@ fn main() {
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
             app.manage(TranslateExcerptModeWrapper(Mutex::new(false)));
+            app.manage(ExplainExcerptModeWrapper(Mutex::new(false)));
             app.manage(LightAiTargetWrapper(Mutex::new("selection".to_string())));
+            app.manage(PendingChatDraftTextWrapper(Mutex::new(String::new())));
             app.manage(PendingChatHttpTextWrapper(Mutex::new(String::new())));
             app.manage(PendingTtsTextWrapper(Mutex::new(String::new())));
             app.manage(FocusedInputSnapshotWrapper(Mutex::new(
@@ -254,7 +264,7 @@ fn main() {
             fill_autotab,
             phrase_inline::phrase_inline_fill,
             phrase_inline::phrase_inline_dismiss,
-            open_explain_window,
+            open_chat_explain_from_toolbar,
             open_translate_from_toolbar,
             open_light_ai_from_input_handle,
             collapse_light_ai_from_input_handle,
@@ -265,9 +275,14 @@ fn main() {
             open_vault_quick_fill,
             get_vault_mode,
             get_light_ai_target,
+            take_pending_chat_draft_text,
             take_pending_chat_http_text,
             take_pending_tts_text,
+            set_explain_excerpt_mode,
             set_translate_excerpt_mode,
+            speak_native_text,
+            speak_tts_text,
+            stop_native_speech,
             save_prev_window,
             open_login_window
         ])
@@ -276,8 +291,18 @@ fn main() {
         .expect("error while running tauri application")
         // 窗口关闭不退出
         .run(|_app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                api.prevent_exit();
+            match event {
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    stop_native_speech();
+                    api.prevent_exit();
+                }
+                tauri::RunEvent::WindowEvent { label, event, .. } => match event {
+                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed => {
+                        stop_native_speech_if_owned_by(&label);
+                    }
+                    _ => {}
+                },
+                _ => {}
             }
         });
 }
