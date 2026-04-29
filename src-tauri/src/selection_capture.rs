@@ -1,3 +1,4 @@
+use crate::crash_log;
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use rdev::Key;
@@ -86,16 +87,40 @@ fn internal_copy_active() -> bool {
 #[cfg(target_os = "windows")]
 fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
     if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
+        crash_log::record(
+            "selection_capture",
+            format!("user clipboard text chars={}", text.len()),
+        );
         return text;
     }
 
+    crash_log::record("selection_capture", "automation capture start");
     match get_text_by_automation() {
-        Ok(text) if !text.is_empty() => return text,
-        Ok(_) => debug!("get_text_by_automation is empty"),
-        Err(err) => error!("get_text_by_automation error: {}", err),
+        Ok(text) if !text.is_empty() => {
+            crash_log::record(
+                "selection_capture",
+                format!("automation capture chars={}", text.len()),
+            );
+            return text;
+        }
+        Ok(_) => {
+            crash_log::record("selection_capture", "automation capture empty");
+            debug!("get_text_by_automation is empty");
+        }
+        Err(err) => {
+            crash_log::record(
+                "selection_capture",
+                format!("automation capture error={}", err),
+            );
+            error!("get_text_by_automation error: {}", err);
+        }
     }
 
     if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
+        crash_log::record(
+            "selection_capture",
+            format!("late user clipboard text chars={}", text.len()),
+        );
         return text;
     }
 
@@ -110,13 +135,25 @@ fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
     }
 
     debug!("fallback to clipboard capture");
+    crash_log::record("selection_capture", "clipboard fallback start");
     match get_text_by_clipboard(user_copy_priority_marker) {
-        Ok(text) if !text.is_empty() => text,
+        Ok(text) if !text.is_empty() => {
+            crash_log::record(
+                "selection_capture",
+                format!("clipboard fallback chars={}", text.len()),
+            );
+            text
+        }
         Ok(_) => {
+            crash_log::record("selection_capture", "clipboard fallback empty");
             debug!("get_text_by_clipboard is empty");
             String::new()
         }
         Err(err) => {
+            crash_log::record(
+                "selection_capture",
+                format!("clipboard fallback error={}", err),
+            );
             error!("get_text_by_clipboard error: {}", err);
             String::new()
         }

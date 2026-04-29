@@ -48,6 +48,7 @@
                 "label": "通用",
                 "title": "通用",
                 "auto_start": "开机时启动应用",
+                "auto_start_background": "开机后台启动",
                 "check_update": "后台自动更新",
                 "server_port": "监听端口",
                 "server_port_change": "监听端口已更改，重启应用生效",

@@ -1,4 +1,5 @@
 use crate::config::{get, reload};
+use crate::crash_log;
 use crate::window::{
     hide_input_ai_handle_window, hide_light_ai_window, is_light_ai_opened_from_input_handle,
     is_light_ai_window_visible, light_ai_window_from_input_handle, restore_foreground_window,
@@ -190,15 +191,33 @@ pub fn handle_key_press(key: Key) {
     }
 
     if matches!(key, Key::Return | Key::KpReturn) && SHIFT_DOWN.load(Ordering::SeqCst) {
-        reload();
-        if !is_input_ai_handle_enabled() {
-            return;
-        }
-        save_foreground_window();
         HANDLE_SUPPRESSED.store(false, Ordering::SeqCst);
         LAST_SHIFT_ENTER_TRIGGER_MS.store(current_marker(), Ordering::SeqCst);
-        *LAST_SHIFT_ENTER_SNAPSHOT.lock().unwrap() =
-            capture_focused_input_snapshot_detailed().or_else(capture_focused_input_snapshot_basic);
+        // Avoid COM/UI Automation and foreground-window calls on the low-level
+        // keyboard hook thread. The monitor thread can react to the trigger
+        // immediately, and we opportunistically fill in a detailed snapshot here.
+        std::thread::spawn(|| {
+            crash_log::record("focused_input", "shift-enter worker start");
+            reload();
+            if !is_input_ai_handle_enabled() {
+                crash_log::record("focused_input", "input ai handle disabled");
+                return;
+            }
+            save_foreground_window();
+            let snapshot = capture_focused_input_snapshot_detailed()
+                .or_else(capture_focused_input_snapshot_basic);
+            crash_log::record(
+                "focused_input",
+                format!(
+                    "shift-enter snapshot available={}",
+                    snapshot
+                        .as_ref()
+                        .map(|value| value.available)
+                        .unwrap_or(false)
+                ),
+            );
+            *LAST_SHIFT_ENTER_SNAPSHOT.lock().unwrap() = snapshot;
+        });
     }
 }
 

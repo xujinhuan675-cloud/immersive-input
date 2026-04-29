@@ -43,6 +43,7 @@ const BADGE_FONT_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe U
 export default function GeneralSettings() {
     const [autoStart, setAutoStart] = useState(false);
     const [fontList, setFontList] = useState(null);
+    const [autoStartBackground, setAutoStartBackground] = useConfig('auto_start_background', false);
     const [checkUpdate, setCheckUpdate] = useConfig('check_update', true);
     const [appLanguage, setAppLanguage] = useConfig('app_language', 'en');
     const [appTheme, setAppTheme] = useConfig('app_theme', 'system');
@@ -91,6 +92,17 @@ export default function GeneralSettings() {
                                 }
                             }}
                         />
+                    </div>
+                    <div className='config-item'>
+                        <h3>{t('config.general.auto_start_background')}</h3>
+                        {autoStartBackground !== null && (
+                            <Switch
+                                isSelected={autoStartBackground}
+                                onValueChange={(value) => {
+                                    setAutoStartBackground(value);
+                                }}
+                            />
+                        )}
                     </div>
                     <div className='config-item'>
                         <h3>{t('config.general.check_update')}</h3>

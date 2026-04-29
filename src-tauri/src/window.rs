@@ -4,6 +4,7 @@ use std::fs;
 
 use crate::config::get;
 use crate::config::set;
+use crate::crash_log;
 use crate::LightAiTargetWrapper;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
@@ -308,9 +309,16 @@ pub fn restore_foreground_window() {
         let state: tauri::State<PrevForegroundWindow> = app_handle.state();
         let prev_hwnd = *state.0.lock().unwrap();
         if prev_hwnd != 0 {
-            unsafe {
-                let _ = SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void));
-            }
+            crash_log::record(
+                "window",
+                format!("restore foreground start hwnd={:#x}", prev_hwnd),
+            );
+            let ok =
+                unsafe { SetForegroundWindow(HWND(prev_hwnd as *mut core::ffi::c_void)).as_bool() };
+            crash_log::record(
+                "window",
+                format!("restore foreground done hwnd={:#x} ok={}", prev_hwnd, ok),
+            );
             std::thread::sleep(std::time::Duration::from_millis(80));
         }
     }
@@ -624,15 +632,22 @@ pub fn save_foreground_window() {
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd.0.is_null() {
+                crash_log::record("window", "save foreground skipped null hwnd");
                 return;
             }
             let mut process_id = 0u32;
             let _ = GetWindowThreadProcessId(hwnd, Some(&mut process_id));
             if process_id == std::process::id() {
+                crash_log::record("window", "save foreground skipped own process");
                 return;
             }
             // HWND inner type is *mut c_void; cast to isize for storage
-            *state.0.lock().unwrap() = hwnd.0 as isize;
+            let raw_hwnd = hwnd.0 as isize;
+            *state.0.lock().unwrap() = raw_hwnd;
+            crash_log::record(
+                "window",
+                format!("save foreground hwnd={:#x} pid={}", raw_hwnd, process_id),
+            );
         }
     }
 }

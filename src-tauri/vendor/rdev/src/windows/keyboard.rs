@@ -33,6 +33,7 @@ impl Keyboard {
         })
     }
 
+    #[allow(dead_code)]
     pub(crate) unsafe fn get_name(&mut self, lpdata: LPARAM) -> Option<String> {
         // https://gist.github.com/akimsko/2011327
         // https://www.experts-exchange.com/questions/23453780/LowLevel-Keystroke-Hook-removes-Accents-on-French-Keyboard.html
@@ -43,6 +44,7 @@ impl Keyboard {
         self.get_code_name(code, scan_code)
     }
 
+    #[allow(dead_code)]
     pub(crate) unsafe fn set_global_state(&mut self) -> Option<()> {
         let mut state = [0_u8; 256];
         let state_ptr = state.as_mut_ptr();

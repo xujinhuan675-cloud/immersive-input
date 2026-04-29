@@ -5,6 +5,7 @@ mod backup;
 mod clipboard;
 mod cmd;
 mod config;
+mod crash_log;
 mod doubletap_hook;
 mod error;
 mod focused_input;
@@ -84,6 +85,20 @@ fn build_log_level() -> LevelFilter {
     }
 }
 
+fn is_autostart_launch() -> bool {
+    std::env::args().any(|arg| arg == "--autostart")
+}
+
+fn should_open_config_on_startup() -> bool {
+    if !is_autostart_launch() {
+        return true;
+    }
+
+    !get("auto_start_background")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
 #[cfg(target_os = "windows")]
 fn configure_windows_app_id(app_id: &str) {
     use windows::core::HSTRING;
@@ -102,6 +117,8 @@ fn configure_windows_app_id(app_id: &str) {
 fn configure_windows_app_id(_app_id: &str) {}
 
 fn main() {
+    crash_log::install_panic_hook();
+    crash_log::record("startup", "main entry");
     let context = tauri::generate_context!();
     configure_windows_app_id(&context.config().tauri.bundle.identifier);
 
@@ -141,7 +158,7 @@ fn main() {
         )
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec![]),
+            Some(vec!["--autostart"]),
         ))
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -149,6 +166,7 @@ fn main() {
         .system_tray(tauri::SystemTray::new())
         .setup(|app| {
             info!("============== Start App ==============");
+            crash_log::record("startup", "tauri setup start");
             #[cfg(target_os = "macos")]
             {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -161,9 +179,12 @@ fn main() {
             // Init Config
             debug!("Init Config Store");
             init_config(app);
-            // Always open Config Window on startup (for login check)
-            debug!("Opening config window for authentication");
-            config_window();
+            if should_open_config_on_startup() {
+                debug!("Opening config window on startup");
+                config_window();
+            } else {
+                debug!("Autostart background launch detected, skip config window");
+            }
             app.manage(StringWrapper(Mutex::new("".to_string())));
             app.manage(PrevForegroundWindow(Mutex::new(0)));
             app.manage(TranslateExcerptModeWrapper(Mutex::new(false)));
@@ -205,6 +226,7 @@ fn main() {
             mouse_hook::start_mouse_hook();
             // Start Windows editable-input monitor for the floating AI handle
             start_input_ai_handle_monitor();
+            crash_log::record("startup", "tauri setup complete");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

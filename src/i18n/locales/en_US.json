@@ -48,6 +48,7 @@
                 "label": "General",
                 "title": "General Settings",
                 "auto_start": "Auto Startup",
+                "auto_start_background": "Start In Background On Login",
                 "check_update": "Check Update",
                 "server_port": "Listening Port",
                 "server_port_change": "The listening port has been changed, Please restart the application for the changes to take effect",

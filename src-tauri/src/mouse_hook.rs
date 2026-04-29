@@ -1,4 +1,5 @@
 use crate::config::{get, reload};
+use crate::crash_log;
 use crate::window::{direct_translate_selection, float_toolbar_window, save_foreground_window};
 use crate::StringWrapper;
 use crate::APP;
@@ -45,14 +46,18 @@ fn point_inside_float_toolbar(x: i64, y: i64) -> bool {
 /// Detects left-button drag → release events and triggers the configured behavior
 /// (show toolbar / direct translate / disabled) based on `text_select_behavior` config.
 pub fn start_mouse_hook() {
+    crash_log::record("mouse_hook", "starting hook thread");
     std::thread::Builder::new()
         .name("mouse_hook".to_string())
         .spawn(|| {
+            crash_log::record("mouse_hook", "listen start");
             if let Err(e) = listen(handle_event) {
+                crash_log::record("mouse_hook", format!("listen stopped error={:?}", e));
                 warn!("Mouse hook stopped with error: {:?}", e);
             }
         })
         .expect("Failed to spawn mouse_hook thread");
+    crash_log::record("mouse_hook", "hook thread spawned");
     debug!("Mouse hook thread started");
 }
 
@@ -77,67 +82,78 @@ fn handle_event(event: Event) {
                 return;
             }
 
-            // Reload config from disk so we always see the latest JS-side settings.
-            reload();
-
-            // Check text_select_behavior (default: "toolbar").
-            // Do NOT write a default value here — that would overwrite the user's setting.
-            let behavior = match get("text_select_behavior") {
-                Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
-                None => "toolbar".to_string(),
-            };
-            if behavior == "disabled" {
-                return;
-            }
-
             // Calculate drag distance (squared, avoid sqrt for perf)
             let dx = LAST_X.load(Ordering::Relaxed) - PRESS_X.load(Ordering::SeqCst);
             let dy = LAST_Y.load(Ordering::Relaxed) - PRESS_Y.load(Ordering::SeqCst);
             let drag_sq = dx * dx + dy * dy;
             const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
-            if drag_sq < MIN_DRAG_SQ {
-                // Single click (no drag): hide the floating toolbar if it is visible.
-                // Clicking inside the toolbar should be handled by the toolbar itself.
-                // Clicking outside still dismisses it.
-                if behavior == "toolbar" {
-                    let click_x = LAST_X.load(Ordering::Relaxed);
-                    let click_y = LAST_Y.load(Ordering::Relaxed);
-                    if point_inside_float_toolbar(click_x, click_y) {
-                        return;
-                    }
+            let click_x = LAST_X.load(Ordering::Relaxed);
+            let click_y = LAST_Y.load(Ordering::Relaxed);
+            let selection_marker = crate::selection_capture::current_marker();
 
-                    std::thread::spawn(|| {
+            // Keep the low-level hook callback minimal. Window queries, config I/O,
+            // and selection capture all happen after we return control to USER32.
+            std::thread::spawn(move || {
+                // Reload config from disk so we always see the latest JS-side settings.
+                reload();
+
+                // Check text_select_behavior (default: "toolbar").
+                // Do NOT write a default value here — that would overwrite the user's setting.
+                let behavior = match get("text_select_behavior") {
+                    Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
+                    None => "toolbar".to_string(),
+                };
+                if behavior == "disabled" {
+                    return;
+                }
+
+                if drag_sq < MIN_DRAG_SQ {
+                    // Single click (no drag): hide the floating toolbar if it is visible.
+                    // Clicking inside the toolbar should be handled by the toolbar itself.
+                    // Clicking outside still dismisses it.
+                    if behavior == "toolbar" {
+                        if point_inside_float_toolbar(click_x, click_y) {
+                            return;
+                        }
+
                         std::thread::sleep(std::time::Duration::from_millis(50));
                         if let Some(app) = APP.get() {
                             if let Some(w) = app.get_window("float_toolbar") {
                                 let _ = w.hide();
                             }
                         }
-                    });
+                    }
+                    return;
                 }
-                return;
-            }
 
-            // Read timing config
-            let delay_ms: u64 = match get("text_select_delay_ms") {
-                Some(v) => v.as_i64().unwrap_or(300).clamp(50, 3000) as u64,
-                None => 300,
-            };
-            let min_len: usize = match get("text_select_min_length") {
-                Some(v) => v.as_i64().unwrap_or(2).max(1) as usize,
-                None => 2,
-            };
+                crash_log::record(
+                    "mouse_hook",
+                    format!(
+                        "drag worker start drag_sq={} behavior={}",
+                        drag_sq, behavior
+                    ),
+                );
 
-            let selection_marker = crate::selection_capture::current_marker();
-            // Save foreground window BEFORE showing toolbar so paste_result can restore it
-            save_foreground_window();
+                // Read timing config.
+                let delay_ms: u64 = match get("text_select_delay_ms") {
+                    Some(v) => v.as_i64().unwrap_or(300).clamp(50, 3000) as u64,
+                    None => 300,
+                };
+                let min_len: usize = match get("text_select_min_length") {
+                    Some(v) => v.as_i64().unwrap_or(2).max(1) as usize,
+                    None => 2,
+                };
 
-            // Off-load the slow selection.get_text() to a thread so we don't block rdev
-            std::thread::spawn(move || {
+                // Save foreground window BEFORE showing toolbar so paste_result can restore it.
+                save_foreground_window();
                 std::thread::sleep(std::time::Duration::from_millis(delay_ms));
 
                 let text = crate::selection_capture::get_text(Some(selection_marker));
                 let trimmed = text.trim().to_string();
+                crash_log::record(
+                    "mouse_hook",
+                    format!("selection captured chars={}", trimmed.len()),
+                );
 
                 // Vault quick add capture: consume this selection and skip normal toolbar flow.
                 // Deliberately placed before min_len check so short passwords are also accepted.
@@ -149,7 +165,7 @@ fn handle_event(event: Event) {
                     return;
                 }
 
-                // Write text into shared state
+                // Write text into shared state.
                 if let Some(app) = APP.get() {
                     let state: tauri::State<StringWrapper> = app.state();
                     state.0.lock().unwrap().replace_range(.., &trimmed);
@@ -157,8 +173,10 @@ fn handle_event(event: Event) {
 
                 let text_len = trimmed.len();
                 if behavior == "direct_translate" {
+                    crash_log::record("mouse_hook", "opening direct translate");
                     direct_translate_selection(trimmed);
                 } else {
+                    crash_log::record("mouse_hook", "opening float toolbar");
                     float_toolbar_window();
                 }
                 debug!("Auto-select toolbar triggered ({}chars)", text_len);
