@@ -1,5 +1,5 @@
 use crate::config::{get, set};
-use crate::window::{light_ai_window, set_light_ai_target, text_translate};
+use crate::window::{chat_explain_window_with_text, light_ai_window, set_light_ai_target, text_translate};
 use crate::{StringWrapper, APP};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -7,6 +7,7 @@ use tauri::{AppHandle, ClipboardManager, Manager};
 
 pub const COPY_ACTION_MODE_TRANSLATE: &str = "translate";
 pub const COPY_ACTION_MODE_LIGHT_AI: &str = "light_ai";
+pub const COPY_ACTION_MODE_EXPLAIN: &str = "explain";
 pub const COPY_ACTION_MODE_OFF: &str = "off";
 
 const CLIPBOARD_ACTION_MODE_KEY: &str = "clipboard_action_mode";
@@ -25,7 +26,10 @@ pub struct ClipboardWriteGuardWrapper(pub Mutex<ClipboardWriteGuard>);
 
 fn normalize_clipboard_action_mode(mode: &str) -> &str {
     match mode {
-        COPY_ACTION_MODE_TRANSLATE | COPY_ACTION_MODE_LIGHT_AI | COPY_ACTION_MODE_OFF => mode,
+        COPY_ACTION_MODE_TRANSLATE
+        | COPY_ACTION_MODE_LIGHT_AI
+        | COPY_ACTION_MODE_EXPLAIN
+        | COPY_ACTION_MODE_OFF => mode,
         _ => COPY_ACTION_MODE_OFF,
     }
 }
@@ -122,6 +126,15 @@ fn open_light_ai_for_text(handle: &AppHandle, text: &str, target: &str) {
     light_ai_window();
 }
 
+fn open_explain_for_text(text: &str) {
+    let clean = text.trim();
+    if clean.is_empty() {
+        return;
+    }
+
+    chat_explain_window_with_text(clean.to_string());
+}
+
 pub fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut pre_text = String::new();
@@ -146,6 +159,9 @@ pub fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
                         match mode.as_str() {
                             COPY_ACTION_MODE_LIGHT_AI => {
                                 open_light_ai_for_text(&handle, &text, "clipboard");
+                            }
+                            COPY_ACTION_MODE_EXPLAIN => {
+                                open_explain_for_text(&text);
                             }
                             _ => {
                                 let hash_trigger = match get("light_ai_hash_trigger") {

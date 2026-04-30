@@ -52,15 +52,15 @@ const BUTTON_STYLE = {
 const HANDLE_MARK_STYLE = {
     position: 'relative',
     width: '14px',
-    height: '13px',
+    height: '14px',
     color: '#697586',
     pointerEvents: 'none',
 };
 
 const HANDLE_SPARKLE_STYLE = {
     position: 'absolute',
-    top: '1px',
-    left: '2px',
+    top: '0px',
+    left: '1px',
     width: '4px',
     height: '4px',
     color: '#697586',
@@ -69,8 +69,8 @@ const HANDLE_SPARKLE_STYLE = {
 
 const HANDLE_SPARKLE_DOT_STYLE = {
     position: 'absolute',
-    top: '5px',
-    left: '1px',
+    top: '4px',
+    left: '0px',
     width: '2px',
     height: '2px',
     color: '#697586',
@@ -79,14 +79,16 @@ const HANDLE_SPARKLE_DOT_STYLE = {
 
 const HANDLE_TEXT_STYLE = {
     position: 'absolute',
-    right: '0',
-    bottom: '0',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     color: '#697586',
     fontFamily: 'ui-sans-serif, system-ui, sans-serif',
     fontWeight: 700,
     fontSize: '9.5px',
     lineHeight: 1,
-    letterSpacing: '-0.02em',
+    letterSpacing: 0,
     pointerEvents: 'none',
 };
 

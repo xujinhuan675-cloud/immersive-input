@@ -1047,6 +1047,9 @@ pub fn selection_light_ai() {
         state.0.lock().unwrap().replace_range(.., &text);
         debug!("Text saved to state");
     } else {
+        let app_handle = APP.get().unwrap();
+        let state: tauri::State<StringWrapper> = app_handle.state();
+        state.0.lock().unwrap().clear();
         debug!("No text selected or text is empty");
     }
     // Open light AI window

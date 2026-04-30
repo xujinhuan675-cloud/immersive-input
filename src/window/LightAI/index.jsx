@@ -79,6 +79,14 @@ const LANGUAGE_LABELS_ZH = {
     he: '希伯来语',
 };
 
+function getSourceModeLabel(targetMode, sourceText) {
+    if (targetMode === 'focused_input') return '整个输入框';
+    if (targetMode === 'clipboard') return '剪贴板文本';
+    if (targetMode === 'http') return '传入文本';
+    if (!String(sourceText || '').trim()) return '手动输入';
+    return '选中文本';
+}
+
 const styles = {
     topSection: {
         display: 'flex',
@@ -236,6 +244,21 @@ const styles = {
         wordBreak: 'break-word',
         fontFamily: APP_FONT_FAMILY_VAR,
     },
+    sourceInput: {
+        display: 'block',
+        width: '100%',
+        minHeight: '90px',
+        padding: 0,
+        border: 'none',
+        outline: 'none',
+        resize: 'none',
+        background: 'transparent',
+        color: '#0f172a',
+        fontSize: '13px',
+        lineHeight: 1.75,
+        fontFamily: APP_FONT_FAMILY_VAR,
+        boxSizing: 'border-box',
+    },
     emptyText: {
         color: '#94a3b8',
     },
@@ -380,6 +403,7 @@ export default function LightAI() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const abortRef = useRef(null);
+    const autoRunRef = useRef(false);
     const resolvedSelectedStyle = STYLE_KEYS.includes(selectedStyle)
         ? selectedStyle
         : STYLE_KEYS[0];
@@ -413,6 +437,7 @@ export default function LightAI() {
                 invoke('get_text'),
                 invoke('get_light_ai_target'),
             ]);
+            autoRunRef.current = Boolean(String(text || '').trim());
             setSourceText(text || '');
             setTargetMode(nextTargetMode || 'selection');
         } catch (nextError) {
@@ -423,7 +448,16 @@ export default function LightAI() {
     useEffect(() => {
         void loadInitialContext();
         const unlisten = listen('new_text', (event) => {
-            setSourceText(event.payload || '');
+            const nextText = event.payload || '';
+            autoRunRef.current = Boolean(String(nextText).trim());
+            setSourceText(nextText);
+            invoke('get_light_ai_target')
+                .then((nextTargetMode) => {
+                    setTargetMode(nextTargetMode || 'selection');
+                })
+                .catch((nextError) => {
+                    console.error('refreshTargetMode error:', nextError);
+                });
         });
 
         return () => {
@@ -466,13 +500,17 @@ export default function LightAI() {
         setLoading(false);
     }, []);
 
+    const clearResults = useCallback(() => {
+        setStyleResult('');
+        setTranslateResult('');
+        setFixResult('');
+    }, []);
+
     const runCurrentTab = useCallback(
         async (overridePrompt = extraPrompt) => {
             const text = sourceText.trim();
             if (!text) {
-                setStyleResult('');
-                setTranslateResult('');
-                setFixResult('');
+                clearResults();
                 setError('');
                 return;
             }
@@ -542,6 +580,7 @@ export default function LightAI() {
         [
             activeTab,
             apiConfig,
+            clearResults,
             currentLanguageLabel,
             extraPrompt,
             resolvedSelectedStyle,
@@ -552,16 +591,27 @@ export default function LightAI() {
     );
 
     useEffect(() => {
-        if (!sourceText.trim()) return;
+        if (!sourceText.trim() || !autoRunRef.current) return;
+        autoRunRef.current = false;
         void runCurrentTab('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
-        activeTab,
-        resolvedSelectedStyle,
-        sourceLanguage,
         sourceText,
-        resolvedTargetLanguage,
     ]);
+
+    useEffect(() => {
+        if (sourceText.trim()) return;
+        autoRunRef.current = false;
+        stop();
+        clearResults();
+        setError('');
+    }, [clearResults, sourceText, stop]);
+
+    useEffect(() => {
+        if (!sourceText.trim()) return;
+        void runCurrentTab('');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, resolvedSelectedStyle, resolvedTargetLanguage]);
 
     useEffect(() => {
         setSelectedStyles([resolvedSelectedStyle]);
@@ -579,6 +629,17 @@ export default function LightAI() {
         if (!currentResult) return;
         await invoke('write_clipboard', { text: currentResult }).catch(() => {});
     };
+
+    const handleSourceTextChange = useCallback(
+        (nextValue) => {
+            autoRunRef.current = false;
+            stop();
+            clearResults();
+            setError('');
+            setSourceText(nextValue);
+        },
+        [clearResults, stop]
+    );
 
     const speakText = useCallback(
         async (text, languageKey = 'auto') => {
@@ -743,9 +804,7 @@ export default function LightAI() {
                                 <span>原文</span>
                                 <div style={styles.cardHeaderActions}>
                                     <span style={styles.cardMeta}>
-                                        {targetMode === 'focused_input'
-                                            ? '整个输入框'
-                                            : '选中文本'}
+                                        {getSourceModeLabel(targetMode, sourceText)}
                                     </span>
                                     <button
                                         type='button'
@@ -765,9 +824,29 @@ export default function LightAI() {
                                 </div>
                             </div>
                             <div style={styles.cardBody}>
-                                {sourceText || (
-                                    <span style={styles.emptyText}>等待文本内容...</span>
-                                )}
+                                <textarea
+                                    autoFocus
+                                    spellCheck={false}
+                                    style={styles.sourceInput}
+                                    placeholder='输入需要润色的文本'
+                                    value={sourceText}
+                                    onChange={(event) => {
+                                        handleSourceTextChange(event.target.value);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (
+                                            (event.ctrlKey || event.metaKey) &&
+                                            event.key === 'Enter'
+                                        ) {
+                                            event.preventDefault();
+                                            if (loading) {
+                                                stop();
+                                            } else {
+                                                void runCurrentTab();
+                                            }
+                                        }
+                                    }}
+                                />
                             </div>
                         </div>
 
