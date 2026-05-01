@@ -11,12 +11,19 @@ import {
     LuTextCursorInput,
 } from 'react-icons/lu';
 
+export const TOOLBAR_BUTTON_ACTION_BEHAVIORS = {
+    WINDOW: 'window',
+    APPLY: 'apply',
+    STREAM_APPLY: 'stream_apply',
+};
+
 export const BASE_TOOLBAR_BUTTONS = [
     {
         id: 'translate',
         cfgKey: 'toolbar_btn_translate',
         labelKey: 'config.text_selection.btn_translate',
         fallbackLabel: 'Translate',
+        actionBehaviorKey: 'toolbar_btn_translate_behavior',
         Icon: LuLanguages,
     },
     {
@@ -24,6 +31,7 @@ export const BASE_TOOLBAR_BUTTONS = [
         cfgKey: 'toolbar_btn_explain',
         labelKey: 'config.text_selection.btn_explain',
         fallbackLabel: 'Explain',
+        actionBehaviorKey: 'toolbar_btn_explain_behavior',
         Icon: LuFileSearch,
     },
     {
@@ -38,6 +46,7 @@ export const BASE_TOOLBAR_BUTTONS = [
         cfgKey: 'toolbar_btn_lightai',
         labelKey: 'config.text_selection.btn_lightai',
         fallbackLabel: 'AI',
+        actionBehaviorKey: 'toolbar_btn_lightai_behavior',
         Icon: LuSparkles,
     },
 ];

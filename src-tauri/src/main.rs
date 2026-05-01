@@ -53,6 +53,7 @@ use vault::*;
 use window::config_window;
 use window::open_chat_explain_from_toolbar;
 use window::open_chat_window;
+use window::open_light_ai_window;
 use window::open_login_window;
 use window::open_translate_from_toolbar;
 use window::set_explain_excerpt_mode;
@@ -260,12 +261,14 @@ fn main() {
             aliyun,
             paste_result,
             replace_input_text,
+            stream_input_text,
             write_clipboard,
             fill_autotab,
             phrase_inline::phrase_inline_fill,
             phrase_inline::phrase_inline_dismiss,
             open_chat_explain_from_toolbar,
             open_translate_from_toolbar,
+            open_light_ai_window,
             open_light_ai_from_input_handle,
             collapse_light_ai_from_input_handle,
             open_chat_window,

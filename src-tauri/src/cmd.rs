@@ -287,6 +287,51 @@ fn send_windows_key_chord(keys: &[windows::Win32::UI::Input::KeyboardAndMouse::V
     }
 }
 
+#[cfg(target_os = "windows")]
+fn send_windows_unicode_text(text: &str) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        KEYEVENTF_UNICODE, VIRTUAL_KEY,
+    };
+
+    let encoded: Vec<u16> = text.encode_utf16().collect();
+    if encoded.is_empty() {
+        return;
+    }
+
+    let mut inputs = Vec::with_capacity(encoded.len() * 2);
+    for unit in encoded {
+        inputs.push(INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VIRTUAL_KEY(0),
+                    wScan: unit,
+                    dwFlags: KEYEVENTF_UNICODE,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        });
+        inputs.push(INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VIRTUAL_KEY(0),
+                    wScan: unit,
+                    dwFlags: KEYBD_EVENT_FLAGS(KEYEVENTF_UNICODE.0 | KEYEVENTF_KEYUP.0),
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        });
+    }
+
+    unsafe {
+        SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
 /// Write text to clipboard, restore previous window focus, then simulate Ctrl+V
 #[tauri::command]
 pub fn paste_result(text: String, state: tauri::State<PrevForegroundWindow>) -> Result<(), String> {
@@ -326,6 +371,42 @@ pub fn replace_input_text(
 
     #[cfg(not(target_os = "windows"))]
     {
+        paste_result(text, state)?;
+    }
+
+    Ok(())
+}
+
+/// Stream text into the previous foreground input, like user typing.
+#[tauri::command]
+pub fn stream_input_text(
+    text: String,
+    restore_focus: Option<bool>,
+    select_all_first: Option<bool>,
+    state: tauri::State<PrevForegroundWindow>,
+) -> Result<(), String> {
+    if text.is_empty() {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_CONTROL};
+
+        if restore_focus.unwrap_or(false) {
+            restore_previous_window(&state);
+        }
+        if select_all_first.unwrap_or(false) {
+            send_windows_key_chord(&[VK_CONTROL, VK_A]);
+            std::thread::sleep(std::time::Duration::from_millis(60));
+        }
+        send_windows_unicode_text(&text);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = restore_focus;
+        let _ = select_all_first;
         paste_result(text, state)?;
     }
 

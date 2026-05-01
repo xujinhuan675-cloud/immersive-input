@@ -155,8 +155,8 @@ export default function InputAiHandle() {
             <div style={CARD_STYLE}>
                 <button
                     type='button'
-                    title='AI'
-                    aria-label='AI'
+                    title='AI 编辑器'
+                    aria-label='AI 编辑器'
                     style={BUTTON_STYLE}
                     onMouseDown={(event) => {
                         event.preventDefault();

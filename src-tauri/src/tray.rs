@@ -388,7 +388,7 @@ fn tray_menu_en_refined(
 ) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "Input Translate",
-        light_ai: "Input Polish",
+        light_ai: "AI Editor",
         chat: "Explain",
         phrases: "Phrases",
         vault: "Vault",
@@ -419,7 +419,7 @@ fn tray_menu_zh_cn_refined(
 ) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{8F93}\u{5165}\u{7FFB}\u{8BD1}",
-        light_ai: "\u{8F93}\u{5165}\u{6DA6}\u{8272}",
+        light_ai: "\u{0041}\u{0049} \u{7F16}\u{8F91}\u{5668}",
         chat: "\u{89E3}\u{6790}",
         phrases: "\u{5E38}\u{7528}\u{8BED}",
         vault: "\u{5BC6}\u{7801}\u{672C}",
@@ -450,7 +450,7 @@ fn tray_menu_zh_tw_refined(
 ) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{8F38}\u{5165}\u{7FFB}\u{8B6F}",
-        light_ai: "\u{8F38}\u{5165}\u{6F64}\u{8272}",
+        light_ai: "\u{0041}\u{0049} \u{7DE8}\u{8F2F}\u{5668}",
         chat: "\u{89E3}\u{6790}",
         phrases: "\u{5E38}\u{7528}\u{8A9E}",
         vault: "\u{5BC6}\u{78BC}\u{672C}",

@@ -1,3 +1,4 @@
+import { BaseDirectory, exists, readTextFile } from '@tauri-apps/api/fs';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/api/shell';
 import { invoke } from '@tauri-apps/api/tauri';
@@ -6,14 +7,41 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuClipboardCopy } from 'react-icons/lu';
 
+import { useConfig } from '../../hooks/useConfig';
+import * as builtinTranslateServices from '../../services/translate';
+import { STYLE_KEYS, lightAiStream, streamOpenAiMessages } from '../../services/light_ai/openai';
+import {
+    AI_API_SERVICE_LIST_KEY,
+    getActiveAiApiConfig,
+    getAiHistoryServiceMeta,
+} from '../../utils/aiConfig';
+import { saveHistory } from '../../utils/aiHistory';
+import {
+    ensureAiTranslateBindings,
+    getAiTranslateLanguageEnum,
+    getLinkedAiServiceInstanceKey,
+    getMergedAiTranslateConfig,
+    isAiTranslateServiceKey,
+    translateWithAiBinding,
+} from '../../utils/aiTranslate';
 import { formatText } from '../../utils/formatter';
+import { invoke_plugin } from '../../utils/invoke_plugin';
+import detect from '../../utils/lang_detect';
+import { getServiceName, whetherPluginService } from '../../utils/service_instance';
 import { store } from '../../utils/store';
+import {
+    createCumulativeStreamInputAdapter,
+    createPartialAppliedError,
+    createStreamInputWriter,
+} from '../../utils/streamInput';
 import {
     BASE_TOOLBAR_BUTTONS,
     getToolbarButtonLabel,
     SMART_TOOLBAR_BUTTON_MAP,
+    TOOLBAR_BUTTON_ACTION_BEHAVIORS,
 } from '../../utils/textSelectionToolbar';
 import { calculateExpr, detectType } from '../../utils/textAnalyzer';
+import { TRANSLATE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
 
 const DEFAULT_HIDE_MS = 5000;
 const BUTTON_SIZE = 34;
@@ -35,6 +63,9 @@ const RESULT_PANEL_STYLE = {
     borderTop: '1px solid rgba(148, 163, 184, 0.18)',
     background: 'rgba(248, 250, 252, 0.72)',
 };
+const EXPLAIN_SYSTEM_PROMPT =
+    '你是一位知识渊博、表达清晰的解析助手。请围绕用户提供的文本或问题，解释核心含义、关键概念、上下文和实际用法。回答要准确、简洁、易懂。';
+const translatePluginInfoCache = new Map();
 
 function getFormulaResultText(text, calcResult) {
     const expression = (text || '').trim().replace(/=+\s*$/, '').trim();
@@ -77,20 +108,585 @@ function applyButtonVisualState(element, palette, state) {
     element.style.color = palette.color;
 }
 
+function normalizeQuickTextResult(value, fallbackErrorMessage) {
+    if (typeof value === 'string') {
+        const text = value.trim();
+        if (text) {
+            return text;
+        }
+    }
+
+    throw new Error(fallbackErrorMessage);
+}
+
+function resolveTranslateSourceLanguageKey(configuredLanguage, detectedLanguage, languageEnum) {
+    const preferredLanguage = configuredLanguage || 'auto';
+
+    if (preferredLanguage in languageEnum) {
+        return preferredLanguage;
+    }
+    if (preferredLanguage === 'auto' && detectedLanguage && detectedLanguage in languageEnum) {
+        return detectedLanguage;
+    }
+    if ('auto' in languageEnum) {
+        return 'auto';
+    }
+    if (detectedLanguage && detectedLanguage in languageEnum) {
+        return detectedLanguage;
+    }
+
+    return preferredLanguage;
+}
+
+async function getTranslatePluginInfo(serviceName) {
+    if (translatePluginInfoCache.has(serviceName)) {
+        return translatePluginInfoCache.get(serviceName);
+    }
+
+    const infoPath = `plugins/translate/${serviceName}/info.json`;
+    const hasInfo = await exists(infoPath, { dir: BaseDirectory.AppConfig }).catch(
+        () => false
+    );
+
+    if (!hasInfo) {
+        translatePluginInfoCache.set(serviceName, null);
+        return null;
+    }
+
+    const info = await readTextFile(infoPath, {
+        dir: BaseDirectory.AppConfig,
+    })
+        .then((value) => JSON.parse(value))
+        .catch(() => null);
+
+    translatePluginInfoCache.set(serviceName, info);
+    return info;
+}
+
+async function resolveLightAiQuickResult(text, styleKey) {
+    const sourceText = String(text || '').trim();
+    if (!sourceText) {
+        return '';
+    }
+
+    const apiConfig = await getActiveAiApiConfig();
+    if (!apiConfig) {
+        throw new Error('No active AI API configuration');
+    }
+
+    const resolvedStyle = STYLE_KEYS.includes(styleKey) ? styleKey : STYLE_KEYS[0];
+    let streamedText = '';
+    let finalText = '';
+    let requestError = null;
+
+    await lightAiStream(
+        sourceText,
+        resolvedStyle,
+        '',
+        apiConfig,
+        (chunk) => {
+            streamedText += chunk;
+        },
+        (result) => {
+            finalText = result || streamedText;
+        },
+        (error) => {
+            if (error) {
+                requestError = error;
+            }
+        }
+    );
+
+    if (requestError) {
+        throw new Error(requestError);
+    }
+
+    const resultText = normalizeQuickTextResult(
+        finalText || streamedText,
+        'Empty AI polish result'
+    );
+
+    await saveHistory('lightai', sourceText, resultText, {
+        mode: 'style',
+        style: resolvedStyle,
+        applyTarget: 'selection',
+        launchSource: 'toolbar_quick_apply',
+        ...getAiHistoryServiceMeta(apiConfig),
+    });
+    return resultText;
+}
+
+async function streamLightAiQuickResult(text, styleKey) {
+    const sourceText = String(text || '').trim();
+    if (!sourceText) {
+        return '';
+    }
+
+    const apiConfig = await getActiveAiApiConfig();
+    if (!apiConfig) {
+        throw new Error('No active AI API configuration');
+    }
+
+    const resolvedStyle = STYLE_KEYS.includes(styleKey) ? styleKey : STYLE_KEYS[0];
+    const writer = createStreamInputWriter();
+    let streamedText = '';
+    let finalText = '';
+    let requestError = null;
+
+    await lightAiStream(
+        sourceText,
+        resolvedStyle,
+        '',
+        apiConfig,
+        (chunk) => {
+            streamedText += chunk;
+            writer.enqueue(chunk);
+        },
+        (result) => {
+            finalText = result || streamedText;
+        },
+        (error) => {
+            if (error) {
+                requestError = error;
+            }
+        }
+    );
+
+    try {
+        await writer.finish();
+    } catch (error) {
+        throw createPartialAppliedError(error, writer);
+    }
+
+    if (requestError) {
+        throw createPartialAppliedError(new Error(requestError), writer);
+    }
+
+    const resultText = normalizeQuickTextResult(
+        finalText || streamedText,
+        'Empty AI polish result'
+    );
+
+    await saveHistory('lightai', sourceText, resultText, {
+        mode: 'style',
+        style: resolvedStyle,
+        applyTarget: 'selection_stream',
+        launchSource: 'toolbar_stream_apply',
+        ...getAiHistoryServiceMeta(apiConfig),
+    });
+    return resultText;
+}
+
+async function resolveExplainQuickResult(text) {
+    const sourceText = String(text || '').trim();
+    if (!sourceText) {
+        return '';
+    }
+
+    const apiConfig = await getActiveAiApiConfig();
+    if (!apiConfig) {
+        throw new Error('No active AI API configuration');
+    }
+
+    let streamedText = '';
+    let finalText = '';
+    let requestError = null;
+
+    await streamOpenAiMessages(
+        [
+            { role: 'system', content: EXPLAIN_SYSTEM_PROMPT },
+            { role: 'user', content: sourceText },
+        ],
+        apiConfig,
+        (chunk) => {
+            streamedText += chunk;
+        },
+        (result) => {
+            finalText = result || streamedText;
+        },
+        (error) => {
+            if (error) {
+                requestError = error;
+            }
+        }
+    );
+
+    if (requestError) {
+        throw new Error(requestError);
+    }
+
+    const resultText = normalizeQuickTextResult(
+        finalText || streamedText,
+        'Empty explain result'
+    );
+
+    await saveHistory('explain', sourceText, resultText, getAiHistoryServiceMeta(apiConfig));
+    return resultText;
+}
+
+async function streamExplainQuickResult(text) {
+    const sourceText = String(text || '').trim();
+    if (!sourceText) {
+        return '';
+    }
+
+    const apiConfig = await getActiveAiApiConfig();
+    if (!apiConfig) {
+        throw new Error('No active AI API configuration');
+    }
+
+    const writer = createStreamInputWriter();
+    let streamedText = '';
+    let finalText = '';
+    let requestError = null;
+
+    await streamOpenAiMessages(
+        [
+            { role: 'system', content: EXPLAIN_SYSTEM_PROMPT },
+            { role: 'user', content: sourceText },
+        ],
+        apiConfig,
+        (chunk) => {
+            streamedText += chunk;
+            writer.enqueue(chunk);
+        },
+        (result) => {
+            finalText = result || streamedText;
+        },
+        (error) => {
+            if (error) {
+                requestError = error;
+            }
+        }
+    );
+
+    try {
+        await writer.finish();
+    } catch (error) {
+        throw createPartialAppliedError(error, writer);
+    }
+
+    if (requestError) {
+        throw createPartialAppliedError(new Error(requestError), writer);
+    }
+
+    const resultText = normalizeQuickTextResult(
+        finalText || streamedText,
+        'Empty explain result'
+    );
+
+    await saveHistory('explain', sourceText, resultText, {
+        applyTarget: 'selection_stream',
+        launchSource: 'toolbar_stream_apply',
+        ...getAiHistoryServiceMeta(apiConfig),
+    });
+    return resultText;
+}
+
+async function resolveTranslateQuickResult(text, options = {}) {
+    const sourceText = String(text || '').trim();
+    if (!sourceText) {
+        return '';
+    }
+
+    await store.load();
+    const [
+        storedTranslateServices,
+        storedAiApiServices,
+        configuredSourceLanguage,
+        configuredTargetLanguage,
+    ] = await Promise.all([
+        store.get('translate_service_list'),
+        store.get(AI_API_SERVICE_LIST_KEY),
+        store.get('translate_source_language'),
+        store.get('translate_target_language'),
+    ]);
+
+    const translateServiceInstanceList =
+        Array.isArray(storedTranslateServices) && storedTranslateServices.length > 0
+            ? storedTranslateServices
+            : TRANSLATE_DEFAULT_VISIBLE;
+    const aiApiServiceInstanceList = Array.isArray(storedAiApiServices)
+        ? storedAiApiServices
+        : [];
+    const { nextList } = await ensureAiTranslateBindings(
+        translateServiceInstanceList,
+        aiApiServiceInstanceList,
+        { legacySourceList: translateServiceInstanceList }
+    );
+    const detectedLanguage = await detect(sourceText).catch(() => '');
+    const detectedOrAuto = detectedLanguage || 'auto';
+    const targetLanguage = configuredTargetLanguage || 'zh_cn';
+    const preferredSourceLanguage = configuredSourceLanguage || 'auto';
+    const serviceInstanceConfigMap = {};
+    const onCumulativeResult =
+        typeof options.onCumulativeResult === 'function'
+            ? options.onCumulativeResult
+            : () => {};
+
+    for (const serviceInstanceKey of nextList) {
+        const serviceInstanceConfig = (await store.get(serviceInstanceKey)) ?? {};
+        serviceInstanceConfigMap[serviceInstanceKey] = serviceInstanceConfig;
+
+        if (isAiTranslateServiceKey(serviceInstanceKey)) {
+            const linkedAiServiceInstanceKey = getLinkedAiServiceInstanceKey(
+                serviceInstanceKey,
+                serviceInstanceConfig
+            );
+            if (linkedAiServiceInstanceKey) {
+                serviceInstanceConfigMap[linkedAiServiceInstanceKey] =
+                    (await store.get(linkedAiServiceInstanceKey)) ?? {};
+            }
+        }
+    }
+
+    let lastError = null;
+    for (const serviceInstanceKey of nextList) {
+        const instanceConfig = serviceInstanceConfigMap[serviceInstanceKey] ?? {};
+        if (instanceConfig.enable === false) {
+            continue;
+        }
+
+        try {
+            const serviceName = getServiceName(serviceInstanceKey);
+
+            if (isAiTranslateServiceKey(serviceInstanceKey)) {
+                const bindingConfig = getMergedAiTranslateConfig(
+                    instanceConfig,
+                    serviceInstanceKey
+                );
+                const linkedAiServiceInstanceKey = getLinkedAiServiceInstanceKey(
+                    serviceInstanceKey,
+                    bindingConfig
+                );
+                const aiConfig = linkedAiServiceInstanceKey
+                    ? serviceInstanceConfigMap[linkedAiServiceInstanceKey] ?? {}
+                    : null;
+                if (!linkedAiServiceInstanceKey || !aiConfig) {
+                    throw new Error('AI translate binding unavailable');
+                }
+
+                const languageEnum = getAiTranslateLanguageEnum();
+                const sourceLanguage = resolveTranslateSourceLanguageKey(
+                    preferredSourceLanguage,
+                    detectedLanguage,
+                    languageEnum
+                );
+                if (!(sourceLanguage in languageEnum) || !(targetLanguage in languageEnum)) {
+                    throw new Error('Language not supported');
+                }
+
+                const value = await translateWithAiBinding(
+                    sourceText,
+                    languageEnum[sourceLanguage],
+                    languageEnum[targetLanguage],
+                    bindingConfig,
+                    aiConfig,
+                    { detect: detectedOrAuto, setResult: onCumulativeResult }
+                );
+
+                return normalizeQuickTextResult(value, 'Empty translate result');
+            }
+
+            if (whetherPluginService(serviceInstanceKey)) {
+                const pluginInfo = await getTranslatePluginInfo(serviceName);
+                if (!pluginInfo?.language) {
+                    throw new Error('Translate plugin unavailable');
+                }
+
+                const sourceLanguage = resolveTranslateSourceLanguageKey(
+                    preferredSourceLanguage,
+                    detectedLanguage,
+                    pluginInfo.language
+                );
+                if (
+                    !(sourceLanguage in pluginInfo.language) ||
+                    !(targetLanguage in pluginInfo.language)
+                ) {
+                    throw new Error('Language not supported');
+                }
+
+                const [translatePluginFunc, utils] = await invoke_plugin(
+                    'translate',
+                    serviceName
+                );
+                const value = await translatePluginFunc(
+                    sourceText,
+                    pluginInfo.language[sourceLanguage],
+                    pluginInfo.language[targetLanguage],
+                    {
+                        config: { ...instanceConfig, enable: 'true' },
+                        detect: detectedOrAuto,
+                        setResult: onCumulativeResult,
+                        utils,
+                    }
+                );
+
+                return normalizeQuickTextResult(value, 'Empty translate result');
+            }
+
+            const builtinService = builtinTranslateServices[serviceName];
+            if (!builtinService?.translate || !builtinService?.Language) {
+                throw new Error('Translate service unavailable');
+            }
+
+            const sourceLanguage = resolveTranslateSourceLanguageKey(
+                preferredSourceLanguage,
+                detectedLanguage,
+                builtinService.Language
+            );
+            if (
+                !(sourceLanguage in builtinService.Language) ||
+                !(targetLanguage in builtinService.Language)
+            ) {
+                throw new Error('Language not supported');
+            }
+
+            const value = await builtinService.translate(
+                sourceText,
+                builtinService.Language[sourceLanguage],
+                builtinService.Language[targetLanguage],
+                {
+                    config: instanceConfig,
+                    detect: detectedOrAuto,
+                    setResult: onCumulativeResult,
+                }
+            );
+
+            return normalizeQuickTextResult(value, 'Empty translate result');
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError ?? new Error('No available translate service');
+}
+
+async function streamTranslateQuickResult(text) {
+    const writer = createStreamInputWriter();
+    const onCumulativeResult = createCumulativeStreamInputAdapter(writer);
+    let resultText = '';
+
+    try {
+        resultText = await resolveTranslateQuickResult(text, { onCumulativeResult });
+        if (resultText && !writer.hasTyped()) {
+            writer.enqueue(resultText);
+        }
+        await writer.finish();
+    } catch (error) {
+        throw createPartialAppliedError(error, writer);
+    }
+
+    return resultText;
+}
+
 const BUTTON_ACTIONS = {
-    translate: async (_text, { hide }) => {
+    translate: async (text, { hide, translateActionBehavior }) => {
+        if (translateActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                await streamTranslateQuickResult(text);
+            } catch (error) {
+                console.error('Stream translate failed:', error);
+                if (!error?.partialApplied) {
+                    invoke('open_translate_from_toolbar').catch(() => {});
+                }
+            }
+            return;
+        }
+
+        if (translateActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                const resultText = await resolveTranslateQuickResult(text);
+                if (resultText) {
+                    await invoke('paste_result', { text: resultText });
+                }
+            } catch (error) {
+                console.error('Quick translate failed:', error);
+                invoke('open_translate_from_toolbar').catch(() => {});
+            }
+            return;
+        }
+
         invoke('open_translate_from_toolbar').catch(() => {});
         await delay(80);
         hide();
     },
 
-    explain: async (_text, { hide }) => {
+    explain: async (text, { hide, explainActionBehavior }) => {
+        if (explainActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                await streamExplainQuickResult(text);
+            } catch (error) {
+                console.error('Stream explain failed:', error);
+                if (!error?.partialApplied) {
+                    invoke('open_chat_explain_from_toolbar').catch(() => {});
+                }
+            }
+            return;
+        }
+
+        if (explainActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                const resultText = await resolveExplainQuickResult(text);
+                if (resultText) {
+                    await invoke('paste_result', { text: resultText });
+                }
+            } catch (error) {
+                console.error('Quick explain failed:', error);
+                invoke('open_chat_explain_from_toolbar').catch(() => {});
+            }
+            return;
+        }
+
         invoke('open_chat_explain_from_toolbar').catch(() => {});
         await delay(80);
         hide();
     },
 
-    lightai: async (_text, { hide }) => {
+    lightai: async (text, { hide, lightAiActionBehavior, selectedStyle }) => {
+        if (lightAiActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                await streamLightAiQuickResult(text, selectedStyle);
+            } catch (error) {
+                console.error('Stream AI polish failed:', error);
+                if (!error?.partialApplied) {
+                    invoke('open_light_ai_window').catch(() => {});
+                }
+            }
+            return;
+        }
+
+        if (lightAiActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
+            hide();
+            await delay(80);
+
+            try {
+                const resultText = await resolveLightAiQuickResult(text, selectedStyle);
+                if (resultText) {
+                    await invoke('paste_result', { text: resultText });
+                }
+            } catch (error) {
+                console.error('Quick AI polish failed:', error);
+                invoke('open_light_ai_window').catch(() => {});
+            }
+            return;
+        }
+
         invoke('open_light_ai_window').catch(() => {});
         await delay(80);
         hide();
@@ -174,6 +770,19 @@ export default function FloatToolbar() {
     const { t } = useTranslation();
     const timerRef = useRef(null);
     const selectedText = useRef('');
+    const [translateActionBehavior] = useConfig(
+        'toolbar_btn_translate_behavior',
+        TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW
+    );
+    const [explainActionBehavior] = useConfig(
+        'toolbar_btn_explain_behavior',
+        TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW
+    );
+    const [lightAiActionBehavior] = useConfig(
+        'toolbar_btn_lightai_behavior',
+        TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW
+    );
+    const [selectedStyle] = useConfig('light_ai_selected_style', STYLE_KEYS[0]);
 
     const [autoHideMs, setAutoHideMs] = useState(DEFAULT_HIDE_MS);
     const [baseVisible, setBaseVisible] = useState(BASE_TOOLBAR_BUTTONS);
@@ -343,12 +952,25 @@ export default function FloatToolbar() {
                 setColorVal,
                 calcResult,
                 colorVal,
+                translateActionBehavior,
+                explainActionBehavior,
+                lightAiActionBehavior,
+                selectedStyle,
                 t,
             };
 
             await action(selectedText.current || '', ctx);
         },
-        [hide, resetTimer, calcResult, colorVal]
+        [
+            hide,
+            resetTimer,
+            calcResult,
+            colorVal,
+            translateActionBehavior,
+            explainActionBehavior,
+            lightAiActionBehavior,
+            selectedStyle,
+        ]
     );
 
     const renderToolbarButton = useCallback(

@@ -45,7 +45,7 @@ async function getUserPreference() {
     return '';
 }
 
-async function streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal) {
+export async function streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal) {
     const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig ?? {};
 
     if (!apiUrl || !apiKey) {

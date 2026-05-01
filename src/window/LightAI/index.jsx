@@ -32,6 +32,7 @@ import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { formatText } from '../../utils/formatter';
 import detect from '../../utils/lang_detect';
 import { languageList, normalizeLanguageKey } from '../../utils/language';
+import { streamTextToInput } from '../../utils/streamInput';
 
 const TAB_OPTIONS = [
     { key: 'translate', label: '翻译' },
@@ -686,9 +687,11 @@ export default function LightAI() {
 
         try {
             if (targetMode === 'focused_input') {
-                await invoke('replace_input_text', { text: currentResult });
+                await streamTextToInput(currentResult, {
+                    selectAllOnFirstWrite: true,
+                });
             } else {
-                await invoke('paste_result', { text: currentResult });
+                await streamTextToInput(currentResult);
             }
             await handleDismiss();
         } catch (nextError) {
