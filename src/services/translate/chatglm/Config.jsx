@@ -1,4 +1,3 @@
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { Input, Button, Textarea } from '@nextui-org/react';
 import { DropdownTrigger } from '@nextui-org/react';
 import { MdDeleteOutline } from 'react-icons/md';
@@ -23,7 +22,6 @@ export function Config(props) {
     const [serviceConfig, setServiceConfig] = useConfig(
         instanceKey,
         {
-            [INSTANCE_NAME_CONFIG_KEY]: t('services.translate.chatglm.title'),
             model: 'chatglm_turbo',
             apiKey: '',
             promptList: [
@@ -53,7 +51,7 @@ export function Config(props) {
                     translate('hello', Language.auto, Language.zh_cn, { config: serviceConfig }).then(
                         () => {
                             setIsLoading(false);
-                            setServiceConfig(serviceConfig, true);
+                            setServiceConfig({ ...serviceConfig, instanceName: undefined }, true);
                             updateServiceList(instanceKey);
                             onClose();
                         },
@@ -65,25 +63,6 @@ export function Config(props) {
                 }}
             >
                 <Toaster />
-                <div className='config-item'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={serviceConfig[INSTANCE_NAME_CONFIG_KEY]}
-                        variant='bordered'
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[50%]',
-                        }}
-                        onValueChange={(value) => {
-                            setServiceConfig({
-                                ...serviceConfig,
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
-                </div>
                 <div className='config-item'>
                     <h3 className='my-auto'>{t('services.translate.chatglm.model')}</h3>
                     <Dropdown>

@@ -9,6 +9,15 @@ import { PluginConfig } from '../../PluginConfig';
 import { ServiceSourceType, getServiceName, getServiceSouceType, whetherPluginService } from '../../../../../../utils/service_instance';
 import AiTranslateConfig from './AiTranslateConfig';
 
+function TranslatePluginConfig(props) {
+    return (
+        <PluginConfig
+            {...props}
+            hideInstanceName
+        />
+    );
+}
+
 export default function ConfigModal(props) {
     const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
 
@@ -25,7 +34,7 @@ export default function ConfigModal(props) {
     const ConfigComponent = aiTranslateService
         ? AiTranslateConfig
         : pluginServiceFlag
-          ? PluginConfig
+          ? TranslatePluginConfig
           : builtinServices[serviceName].Config;
 
     return pluginServiceFlag && !(serviceName in pluginList) ? (

@@ -13,6 +13,15 @@ import * as builtinServices from '../../../../../../services/recognize';
 import { osType } from '../../../../../../utils/env';
 import { PluginConfig } from '../../PluginConfig';
 
+function RecognizePluginConfig(props) {
+    return (
+        <PluginConfig
+            {...props}
+            hideInstanceName
+        />
+    );
+}
+
 export default function ConfigModal(props) {
     const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
 
@@ -21,7 +30,7 @@ export default function ConfigModal(props) {
     const serviceName = getServiceName(serviceInstanceKey);
 
     const { t } = useTranslation();
-    const ConfigComponent = pluginServiceFlag ? PluginConfig : builtinServices[serviceName].Config;
+    const ConfigComponent = pluginServiceFlag ? RecognizePluginConfig : builtinServices[serviceName].Config;
 
     return pluginServiceFlag && !(serviceName in pluginList) ? (
         <></>

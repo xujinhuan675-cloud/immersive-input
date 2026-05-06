@@ -9,7 +9,7 @@ import SettingsDropdown from '../../../../../components/SettingsDropdown';
 import { useConfig } from '../../../../../hooks';
 
 export function PluginConfig(props) {
-    const { instanceKey, updateServiceList, onClose, name, pluginList } = props;
+    const { instanceKey, updateServiceList, onClose, name, pluginList, hideInstanceName = false } = props;
     const [pluginConfig, setPluginConfig] = useConfig(instanceKey, {}, { sync: false });
     const { t } = useTranslation();
 
@@ -25,7 +25,7 @@ export function PluginConfig(props) {
                     {t('config.service.homepage')}
                 </Button>
             </div>
-            {pluginConfig && (
+            {!hideInstanceName && pluginConfig && (
                 <div className='config-item'>
                     <Input
                         label={t('services.instance_name')}
@@ -130,7 +130,14 @@ export function PluginConfig(props) {
                     fullWidth
                     color='primary'
                     onPress={() => {
-                        setPluginConfig(pluginConfig, true);
+                        const nextConfig = hideInstanceName
+                            ? Object.fromEntries(
+                                  Object.entries(pluginConfig ?? {}).filter(
+                                      ([key]) => key !== INSTANCE_NAME_CONFIG_KEY
+                                  )
+                              )
+                            : pluginConfig;
+                        setPluginConfig(nextConfig, true);
                         updateServiceList(instanceKey);
                         onClose();
                     }}

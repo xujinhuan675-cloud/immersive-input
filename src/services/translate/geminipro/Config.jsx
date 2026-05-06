@@ -1,4 +1,3 @@
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { Input, Button, Switch, Textarea } from '@nextui-org/react';
 import { MdDeleteOutline } from 'react-icons/md';
 import toast, { Toaster } from 'react-hot-toast';
@@ -16,7 +15,6 @@ export function Config(props) {
     const [serviceConfig, setServiceConfig] = useConfig(
         instanceKey,
         {
-            [INSTANCE_NAME_CONFIG_KEY]: t('services.translate.geminipro.title'),
             stream: true,
             apiKey: '',
             requestPath: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro',
@@ -78,7 +76,7 @@ export function Config(props) {
                     translate('hello', Language.auto, Language.zh_cn, { config: serviceConfig }).then(
                         () => {
                             setIsLoading(false);
-                            setServiceConfig(serviceConfig, true);
+                            setServiceConfig({ ...serviceConfig, instanceName: undefined }, true);
                             updateServiceList(instanceKey);
                             onClose();
                         },
@@ -90,25 +88,6 @@ export function Config(props) {
                 }}
             >
                 <Toaster />
-                <div className='config-item'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={serviceConfig[INSTANCE_NAME_CONFIG_KEY]}
-                        variant='bordered'
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[50%]',
-                        }}
-                        onValueChange={(value) => {
-                            setServiceConfig({
-                                ...serviceConfig,
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
-                </div>
                 <div className='config-item'>
                     <Switch
                         isSelected={serviceConfig['stream']}

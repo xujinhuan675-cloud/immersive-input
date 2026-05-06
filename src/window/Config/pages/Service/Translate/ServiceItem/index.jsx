@@ -13,16 +13,13 @@ import {
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
 import {
-    getAiTranslateDisplayName,
     getLinkedAiServiceInstanceKey,
     getMergedAiTranslateConfig,
     isAiTranslateServiceKey,
 } from '../../../../../../utils/aiTranslate';
 import {
-    getDisplayInstanceName,
     getServiceName,
     getServiceSouceType,
-    INSTANCE_NAME_CONFIG_KEY,
     ServiceSourceType,
 } from '../../../../../../utils/service_instance';
 import { store } from '../../../../../../utils/store';
@@ -88,11 +85,7 @@ export default function ServiceItem(props) {
         const providerTitle = t(`ai_config.providers.${providerId}`, {
             defaultValue: getAiProviderTitle(providerId),
         });
-        const displayName = getAiTranslateDisplayName(
-            mergedBindingConfig,
-            mergedAiConfig,
-            t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
-        );
+        const displayName = providerTitle;
 
         return (
             <SortableConfigRow
@@ -152,14 +145,8 @@ export default function ServiceItem(props) {
         ? !BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG.has(serviceName)
         : pluginNeeds.length > 0;
     const displayName = isBuiltin
-        ? getDisplayInstanceName(
-              serviceInstanceConfig[INSTANCE_NAME_CONFIG_KEY],
-              () => t(`services.translate.${serviceName}.title`)
-          )
-        : getDisplayInstanceName(
-              serviceInstanceConfig[INSTANCE_NAME_CONFIG_KEY],
-              () => pluginList[serviceName].display
-          );
+        ? t(`services.translate.${serviceName}.title`)
+        : pluginList[serviceName].display;
 
     return (
         <SortableConfigRow

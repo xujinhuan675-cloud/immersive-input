@@ -10,7 +10,6 @@ import { osType } from '../../../../../../utils/env';
 import {
     getServiceName,
     getServiceSouceType,
-    INSTANCE_NAME_CONFIG_KEY,
     ServiceSourceType,
 } from '../../../../../../utils/service_instance';
 
@@ -41,10 +40,8 @@ export default function ServiceItem(props) {
 
     const isBuiltin = serviceSourceType === ServiceSourceType.BUILDIN;
     const displayName = isBuiltin
-        ? serviceInstanceConfig[INSTANCE_NAME_CONFIG_KEY] ||
-          t(`services.recognize.${serviceName}.title`)
-        : serviceInstanceConfig[INSTANCE_NAME_CONFIG_KEY] ||
-          pluginList[serviceName].display;
+        ? t(`services.recognize.${serviceName}.title`)
+        : pluginList[serviceName].display;
 
     return (
         <SortableConfigRow

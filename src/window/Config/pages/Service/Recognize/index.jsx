@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { useToastStyle } from '../../../../../hooks';
 import { useConfig, deleteKey } from '../../../../../hooks';
 import { osType } from '../../../../../utils/env';
-import { getServiceName } from '../../../../../utils/service_instance';
+import { INSTANCE_NAME_CONFIG_KEY, getServiceName } from '../../../../../utils/service_instance';
 import * as builtinServices from '../../../../../services/recognize';
 import AddServiceModal from '../AddServiceModal';
 import {
@@ -21,6 +21,7 @@ import {
 } from '../servicePriority';
 import ServiceItem from './ServiceItem';
 import ConfigModal from './ConfigModal';
+import { store } from '../../../../../utils/store';
 
 const RECOGNIZE_SERVICE_CATALOG_VERSION_KEY = 'recognize_service_catalog_version';
 const RECOGNIZE_ACTIVE_SERVICE_INSTANCE_KEY = 'recognize_active_service_instance_key';
@@ -85,6 +86,41 @@ export default function Recognize(props) {
             setActiveServiceInstanceKey(recognizeServiceInstanceList[0], true);
         }
     }, [recognizeServiceInstanceList, activeServiceInstanceKey]);
+
+    useEffect(() => {
+        if (!Array.isArray(recognizeServiceInstanceList)) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const removeLegacyInstanceNames = async () => {
+            await store.load();
+            let changed = false;
+
+            for (const serviceInstanceKey of recognizeServiceInstanceList) {
+                const currentConfig = await store.get(serviceInstanceKey);
+                if (
+                    currentConfig &&
+                    typeof currentConfig === 'object' &&
+                    currentConfig[INSTANCE_NAME_CONFIG_KEY] !== undefined
+                ) {
+                    const { [INSTANCE_NAME_CONFIG_KEY]: _removed, ...nextConfig } = currentConfig;
+                    await store.set(serviceInstanceKey, nextConfig);
+                    changed = true;
+                }
+            }
+
+            if (!cancelled && changed) {
+                await store.save();
+            }
+        };
+
+        void removeLegacyInstanceNames();
+        return () => {
+            cancelled = true;
+        };
+    }, [recognizeServiceInstanceList]);
 
     const reorder = (list, startIndex, endIndex) => {
         const result = Array.from(list);

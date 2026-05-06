@@ -16,8 +16,6 @@ import {
     ServiceSourceType,
     getServiceSouceType,
     getServiceName,
-    INSTANCE_NAME_CONFIG_KEY,
-    getDisplayInstanceName,
 } from '../../../utils/service_instance';
 
 export const currentServiceInstanceKeyAtom = atom();
@@ -35,11 +33,6 @@ export default function ControlArea(props) {
     const [language, setLanguage] = useAtom(languageAtom);
     const text = useAtomValue(textAtom);
     const { t } = useTranslation();
-
-    function getInstanceName(instanceKey, serviceNameSupplier) {
-        const instanceConfig = serviceInstanceConfigMap[instanceKey] ?? {};
-        return getDisplayInstanceName(instanceConfig[INSTANCE_NAME_CONFIG_KEY], serviceNameSupplier);
-    }
 
     useEffect(() => {
         if (serviceInstanceList) {
@@ -78,13 +71,8 @@ export default function ControlArea(props) {
                             }
                         >
                             {getServiceSouceType(currentServiceInstanceKey) === ServiceSourceType.PLUGIN
-                                ? getInstanceName(
-                                      currentServiceInstanceKey,
-                                      () => pluginList[getServiceName(currentServiceInstanceKey)].display
-                                  )
-                                : getInstanceName(currentServiceInstanceKey, () =>
-                                      t(`services.recognize.${currentServiceInstanceKey}.title`)
-                                  )}
+                                ? pluginList[getServiceName(currentServiceInstanceKey)].display
+                                : t(`services.recognize.${getServiceName(currentServiceInstanceKey)}.title`)}
                         </Button>
                     </DropdownTrigger>
                     <DropdownMenu
@@ -113,13 +101,8 @@ export default function ControlArea(props) {
                                     }
                                 >
                                     {getServiceSouceType(instanceKey) === ServiceSourceType.PLUGIN
-                                        ? getInstanceName(
-                                              instanceKey,
-                                              () => pluginList[getServiceName(instanceKey)].display
-                                          )
-                                        : getInstanceName(instanceKey, () =>
-                                              t(`services.recognize.${instanceKey}.title`)
-                                          )}
+                                        ? pluginList[getServiceName(instanceKey)].display
+                                        : t(`services.recognize.${getServiceName(instanceKey)}.title`)}
                                 </DropdownItem>
                             );
                         })}

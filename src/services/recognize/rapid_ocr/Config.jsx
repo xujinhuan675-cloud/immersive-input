@@ -1,5 +1,4 @@
 import { Button, Input } from '@nextui-org/react';
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
@@ -16,7 +15,6 @@ export function Config(props) {
     const [config, setConfig] = useConfig(
         instanceKey,
         {
-            [INSTANCE_NAME_CONFIG_KEY]: t('services.recognize.rapid_ocr.title'),
         },
         { sync: false }
     );
@@ -32,7 +30,7 @@ export function Config(props) {
                     recognize(TEST_IMAGE_BASE64, Language.en, { config }).then(
                         () => {
                             setIsLoading(false);
-                            setConfig(config, true);
+                            setConfig({ ...config, instanceName: undefined }, true);
                             updateServiceList(instanceKey);
                             onClose();
                         },
@@ -44,25 +42,6 @@ export function Config(props) {
                 }}
             >
                 <Toaster />
-                <div className='config-item'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={config[INSTANCE_NAME_CONFIG_KEY]}
-                        variant='bordered'
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[50%]',
-                        }}
-                        onValueChange={(value) => {
-                            setConfig({
-                                ...config,
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
-                </div>
                 <Button
                     type='submit'
                     isLoading={isLoading}

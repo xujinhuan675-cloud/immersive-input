@@ -24,7 +24,6 @@ import {
     getMergedAiApiConfig,
 } from '../../../../utils/aiConfig';
 import {
-    getAiTranslateDisplayName,
     getLinkedAiServiceInstanceKey,
     isAiTranslateServiceKey,
 } from '../../../../utils/aiTranslate';
@@ -369,12 +368,10 @@ export default function History() {
         if (isAiTranslateServiceKey(serviceInstanceKey)) {
             const linkedAiInstanceKey = getLinkedAiServiceInstanceKey(serviceInstanceKey);
             const aiConfig = linkedAiInstanceKey ? aiApiConfigMap[linkedAiInstanceKey] ?? {} : {};
-
-            return getAiTranslateDisplayName(
-                {},
-                aiConfig,
-                t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
-            );
+            const providerId = getAiProviderId(getMergedAiApiConfig(aiConfig));
+            return t(`ai_config.providers.${providerId}`, {
+                defaultValue: getAiProviderTitle(providerId),
+            });
         }
 
         const serviceName = getServiceName(serviceInstanceKey);

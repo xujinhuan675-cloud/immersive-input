@@ -1,4 +1,4 @@
-import { Button, Input, Switch, Textarea } from '@nextui-org/react';
+import { Button, Switch, Textarea } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,17 +15,14 @@ import {
 import {
     AI_TRANSLATE_DEFAULT_PROMPT_LIST,
     AI_TRANSLATE_DEFAULT_REQUEST_ARGUMENTS,
-    getAiTranslateDisplayName,
     getAiTranslateLanguageEnum,
     getLinkedAiServiceInstanceKey,
     getMergedAiTranslateConfig,
     translateWithAiBinding,
 } from '../../../../../../utils/aiTranslate';
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../../utils/service_instance';
 import { store } from '../../../../../../utils/store';
 
 const AI_TRANSLATE_CONFIG_KEYS = [
-    INSTANCE_NAME_CONFIG_KEY,
     'linkedAiInstanceKey',
     'enable',
     'hidden',
@@ -97,11 +94,7 @@ export default function AiTranslateConfig(props) {
     const providerTitle = t(`ai_config.providers.${providerId}`, {
         defaultValue: getAiProviderTitle(providerId),
     });
-    const displayName = getAiTranslateDisplayName(
-        mergedAiTranslateConfig,
-        mergedAiConfig,
-        t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
-    );
+    const displayName = providerTitle;
 
     const updateConfig = (patch) => {
         setAiTranslateConfig({
@@ -199,28 +192,6 @@ export default function AiTranslateConfig(props) {
                             <div className='mt-1 text-xs text-default-500'>{providerTitle}</div>
                         </div>
                     </div>
-                </div>
-
-                <div className='config-item mt-4'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={aiTranslateConfig[INSTANCE_NAME_CONFIG_KEY] ?? ''}
-                        variant='bordered'
-                        description={t('ai_config.translate_display_name_desc', {
-                            defaultValue: 'Leave empty to reuse the AI service name above.',
-                        })}
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[55%]',
-                        }}
-                        onValueChange={(value) => {
-                            updateConfig({
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
                 </div>
             </SectionBlock>
 

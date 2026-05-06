@@ -24,7 +24,6 @@ import * as builtinServices from '../../../../services/translate';
 import { info, error as logError } from 'tauri-plugin-log-api';
 import { getAiProviderId, getMergedAiApiConfig } from '../../../../utils/aiConfig';
 import {
-    getAiTranslateDisplayName,
     getAiTranslateLanguageEnum,
     getLinkedAiServiceInstanceKey,
     getMergedAiTranslateConfig,
@@ -32,8 +31,6 @@ import {
     translateWithAiBinding,
 } from '../../../../utils/aiTranslate';
 import {
-    INSTANCE_NAME_CONFIG_KEY,
-    getDisplayInstanceName,
     getServiceName,
     whetherPluginService,
 } from '../../../../utils/service_instance';
@@ -168,24 +165,18 @@ export default function TargetArea(props) {
         }, RESULT_UPDATE_THROTTLE_MS);
     }
 
-    function getInstanceName(instanceKey, serviceNameSupplier) {
-        const instanceConfig = serviceInstanceConfigMap[instanceKey] ?? {};
-        return getDisplayInstanceName(instanceConfig[INSTANCE_NAME_CONFIG_KEY], serviceNameSupplier);
-    }
-
     function getServiceDisplayLabel(instanceKey) {
         if (isAiTranslateServiceKey(instanceKey)) {
-            const { bindingConfig, aiConfig } = getAiTranslateMeta(instanceKey);
-            return getAiTranslateDisplayName(
-                bindingConfig,
-                aiConfig,
-                t('ai_config.translate_service_title', { defaultValue: 'AI Translate' })
-            );
+            const { aiConfig } = getAiTranslateMeta(instanceKey);
+            const providerId = getAiProviderId(getMergedAiApiConfig(aiConfig));
+            return t(`ai_config.providers.${providerId}`, {
+                defaultValue: 'OpenAI Compatible API',
+            });
         }
 
         return whetherPluginService(instanceKey)
-            ? getInstanceName(instanceKey, () => pluginList['translate'][getServiceName(instanceKey)].display)
-            : getInstanceName(instanceKey, () => t(`services.translate.${getServiceName(instanceKey)}.title`));
+            ? pluginList['translate'][getServiceName(instanceKey)].display
+            : t(`services.translate.${getServiceName(instanceKey)}.title`);
     }
 
     function renderServiceIcon(instanceKey, className) {

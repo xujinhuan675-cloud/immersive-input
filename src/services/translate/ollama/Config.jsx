@@ -1,5 +1,4 @@
 import { Input, Button, Switch, Textarea, Card, CardBody, Link, Tooltip, Progress } from '@nextui-org/react';
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { MdDeleteOutline } from 'react-icons/md';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +16,6 @@ export function Config(props) {
     const [serviceConfig, setServiceConfig] = useConfig(
         instanceKey,
         {
-            [INSTANCE_NAME_CONFIG_KEY]: t('services.translate.ollama.title'),
             stream: true,
             model: 'gemma:2b',
             requestPath: 'http://localhost:11434',
@@ -88,7 +86,7 @@ export function Config(props) {
                     translate('hello', Language.auto, Language.zh_cn, { config: serviceConfig }).then(
                         () => {
                             setIsLoading(false);
-                            setServiceConfig(serviceConfig, true);
+                            setServiceConfig({ ...serviceConfig, instanceName: undefined }, true);
                             updateServiceList(instanceKey);
                             onClose();
                         },
@@ -100,25 +98,6 @@ export function Config(props) {
                 }}
             >
                 <Toaster />
-                <div className='config-item'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={serviceConfig[INSTANCE_NAME_CONFIG_KEY]}
-                        variant='bordered'
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[50%]',
-                        }}
-                        onValueChange={(value) => {
-                            setServiceConfig({
-                                ...serviceConfig,
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
-                </div>
                 {installedModels === null && (
                     <Card
                         isBlurred

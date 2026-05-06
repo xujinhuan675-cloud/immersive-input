@@ -1,11 +1,9 @@
 import { fetch, Body } from '@tauri-apps/api/http';
 import { requireAiGatewayConfig } from './aiGateway';
-import { getAiApiDisplayName, getMergedAiApiConfig } from './aiConfig';
+import { getMergedAiApiConfig } from './aiConfig';
 import {
-    getDisplayInstanceName,
     getServiceName,
     getServiceSouceType,
-    INSTANCE_NAME_CONFIG_KEY,
     ServiceSourceType,
 } from './service_instance';
 import { store } from './store';
@@ -66,7 +64,6 @@ export const AI_TRANSLATE_LANGUAGE = {
 };
 
 const AI_TRANSLATE_CONFIG_KEYS = [
-    INSTANCE_NAME_CONFIG_KEY,
     AI_TRANSLATE_LINKED_KEY,
     'enable',
     'hidden',
@@ -133,7 +130,6 @@ export function createDefaultAiTranslateConfig(aiServiceInstanceKey = '', overri
         '';
 
     return {
-        [INSTANCE_NAME_CONFIG_KEY]: '',
         [AI_TRANSLATE_LINKED_KEY]: resolvedLinkedKey,
         enable: true,
         hidden: false,
@@ -146,12 +142,6 @@ export function createDefaultAiTranslateConfig(aiServiceInstanceKey = '', overri
 
 export function getMergedAiTranslateConfig(config = {}, aiServiceInstanceKey = '') {
     return createDefaultAiTranslateConfig(aiServiceInstanceKey, config ?? {});
-}
-
-export function getAiTranslateDisplayName(bindingConfig = {}, aiConfig = {}, fallbackName = 'AI Translate') {
-    return getDisplayInstanceName(bindingConfig?.[INSTANCE_NAME_CONFIG_KEY], () =>
-        getAiApiDisplayName(aiConfig, fallbackName)
-    );
 }
 
 export function getAiTranslateRuntimeConfig(bindingConfig = {}, aiConfig = {}) {
@@ -322,7 +312,6 @@ export function getAiTranslateLanguageEnum() {
 
 function pickLegacyOpenAiTranslateOverrides(config = {}) {
     return {
-        [INSTANCE_NAME_CONFIG_KEY]: config?.[INSTANCE_NAME_CONFIG_KEY] ?? '',
         enable: config?.enable ?? true,
         stream: config?.stream ?? false,
         promptList: config?.promptList ?? AI_TRANSLATE_DEFAULT_PROMPT_LIST,
@@ -378,6 +367,7 @@ export async function ensureAiTranslateBindings(
         const needsRepair =
             storedConfig === null ||
             AI_TRANSLATE_CONFIG_KEYS.some((key) => storedConfig?.[key] === undefined) ||
+            storedConfig?.instanceName !== undefined ||
             storedConfig?.[AI_TRANSLATE_LINKED_KEY] !== linkedAiInstanceKey;
 
         if (needsRepair) {
@@ -405,6 +395,7 @@ export async function ensureAiTranslateBindings(
         const needsRepair =
             storedConfig === null ||
             AI_TRANSLATE_CONFIG_KEYS.some((key) => storedConfig?.[key] === undefined) ||
+            storedConfig?.instanceName !== undefined ||
             storedConfig?.[AI_TRANSLATE_LINKED_KEY] !== aiServiceInstanceKey;
 
         if (needsRepair) {

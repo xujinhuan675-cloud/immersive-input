@@ -1,4 +1,3 @@
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../utils/service_instance';
 import { DropdownTrigger } from '@nextui-org/react';
 import { Input, Button } from '@nextui-org/react';
 import { DropdownMenu } from '@nextui-org/react';
@@ -19,7 +18,6 @@ export function Config(props) {
     const [deeplConfig, setDeeplConfig] = useConfig(
         instanceKey,
         {
-            [INSTANCE_NAME_CONFIG_KEY]: t('services.translate.deepl.title'),
             type: 'free',
             authKey: '',
             customUrl: '',
@@ -32,7 +30,7 @@ export function Config(props) {
     const isFreeMode = deeplConfig?.type === 'free';
 
     function saveConfig() {
-        setDeeplConfig(deeplConfig, true);
+        setDeeplConfig({ ...deeplConfig, instanceName: undefined }, true);
         updateServiceList(instanceKey);
         onClose();
     }
@@ -62,25 +60,6 @@ export function Config(props) {
                 }}
             >
                 <Toaster />
-                <div className='config-item'>
-                    <Input
-                        label={t('services.instance_name')}
-                        labelPlacement='outside-left'
-                        value={deeplConfig[INSTANCE_NAME_CONFIG_KEY]}
-                        variant='bordered'
-                        classNames={{
-                            base: 'justify-between',
-                            label: 'text-[length:--nextui-font-size-medium]',
-                            mainWrapper: 'max-w-[50%]',
-                        }}
-                        onValueChange={(value) => {
-                            setDeeplConfig({
-                                ...deeplConfig,
-                                [INSTANCE_NAME_CONFIG_KEY]: value,
-                            });
-                        }}
-                    />
-                </div>
                 <div className='config-item'>
                     <h3 className='my-auto'>{t('services.translate.deepl.type')}</h3>
                     <Dropdown>

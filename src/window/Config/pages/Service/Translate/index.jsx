@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import AiProviderIcon from '../../../../../components/AiProviderIcon';
 import { useToastStyle } from '../../../../../hooks';
 import { useConfig, deleteKey } from '../../../../../hooks';
-import { getServiceName } from '../../../../../utils/service_instance';
+import { INSTANCE_NAME_CONFIG_KEY, getServiceName } from '../../../../../utils/service_instance';
 import {
     AI_API_SERVICE_LIST_KEY,
     getAiApiDisplayName,
@@ -124,6 +124,41 @@ export default function Translate(props) {
             cancelled = true;
         };
     }, [aiApiServiceInstanceList]);
+
+    useEffect(() => {
+        if (!Array.isArray(translateServiceInstanceList)) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const removeLegacyInstanceNames = async () => {
+            await store.load();
+            let changed = false;
+
+            for (const serviceInstanceKey of translateServiceInstanceList) {
+                const currentConfig = await store.get(serviceInstanceKey);
+                if (
+                    currentConfig &&
+                    typeof currentConfig === 'object' &&
+                    currentConfig[INSTANCE_NAME_CONFIG_KEY] !== undefined
+                ) {
+                    const { [INSTANCE_NAME_CONFIG_KEY]: _removed, ...nextConfig } = currentConfig;
+                    await store.set(serviceInstanceKey, nextConfig);
+                    changed = true;
+                }
+            }
+
+            if (!cancelled && changed) {
+                await store.save();
+            }
+        };
+
+        void removeLegacyInstanceNames();
+        return () => {
+            cancelled = true;
+        };
+    }, [translateServiceInstanceList]);
 
     const reorder = (list, startIndex, endIndex) => {
         const result = Array.from(list);
