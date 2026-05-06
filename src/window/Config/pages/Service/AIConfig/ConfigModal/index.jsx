@@ -6,6 +6,7 @@ import { LuBrainCircuit } from 'react-icons/lu';
 
 import { useConfig } from '../../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../../hooks';
+import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../../../../utils/aiGateway';
 import {
     AI_API_DEFAULT_MODEL,
     AI_API_DEFAULT_URL,
@@ -18,19 +19,13 @@ import {
 import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../../utils/service_instance';
 
 async function testAiConnection(config) {
-    let url = config.apiUrl;
-    if (!/https?:\/\/.+/.test(url)) {
-        url = `https://${url}`;
-    }
+    const resolvedConfig = await requireAiGatewayConfig(config);
 
-    const response = await window.fetch(url, {
+    const response = await window.fetch(resolvedConfig.apiUrl, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${config.apiKey}`,
-        },
+        headers: buildAiGatewayHeaders(resolvedConfig.apiKey),
         body: JSON.stringify({
-            model: config.model,
+            model: resolvedConfig.model,
             messages: [{ role: 'user', content: 'Reply with "OK"' }],
             temperature: 0.1,
             stream: false,
@@ -113,7 +108,7 @@ function AIApiConfigForm(props) {
 
     const handleTestConnection = async () => {
         const nextConfig = getMergedAiApiConfig(aiConfig);
-        if (!nextConfig.apiUrl || !nextConfig.apiKey || !nextConfig.model) {
+        if (!nextConfig.apiUrl || !nextConfig.model) {
             toast.error(t('ai_config.test_error_fields'), { style: toastStyle });
             return;
         }

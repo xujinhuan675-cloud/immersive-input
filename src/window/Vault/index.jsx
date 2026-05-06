@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FiDownload, FiEdit3, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-icons/fi';
+import { FiEdit3, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-icons/fi';
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
@@ -19,7 +19,6 @@ import {
     TrayWindowSurface,
 } from '../../components/TrayWindow';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { exportTableCsv } from '../../utils/exportTable';
 import { getRecords, addRecord, updateRecord, deleteRecord, getAllTags } from './vaultDb';
 
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
@@ -892,36 +891,6 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
 
     const selectedRecord = records.find((r) => r.id === selectedId) ?? null;
 
-    const handleExport = async () => {
-        if (filtered.length === 0) {
-            showToast(t('vault.export_empty'));
-            return;
-        }
-
-        try {
-            const date = new Date().toISOString().slice(0, 10);
-            const exported = await exportTableCsv({
-                defaultFileName: `${t('vault.export_filename')}-${date}.csv`,
-                columns: [
-                    { header: t('vault.account_label'), value: (row) => row.account },
-                    { header: t('vault.password_label'), value: (row) => row.password },
-                    { header: t('vault.website_label'), value: (row) => row.website },
-                    { header: t('vault.notes_label'), value: (row) => row.notes },
-                    { header: t('vault.tags_label'), value: (row) => row.tags.join(' / ') },
-                    { header: t('vault.export_created_at'), value: (row) => row.created_at },
-                    { header: t('vault.export_modified_at'), value: (row) => row.modified_at },
-                ],
-                rows: filtered,
-            });
-
-            if (exported) {
-                showToast(t('vault.export_success'));
-            }
-        } catch (error) {
-            showToast(t('vault.export_failed') + (error?.message ?? error));
-        }
-    };
-
     const copyText = async (text, label) => {
         if (!text) return;
         await invoke('write_clipboard', { text });
@@ -1026,17 +995,6 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                     <span style={S.buttonContent}>
                         <FiKey size={14} />
                         <span>{showGenStandalone ? t('vault.collapse_gen') : t('vault.password_gen')}</span>
-                    </span>
-                </button>
-                <button
-                    style={S.btn()}
-                    onClick={() => {
-                        void handleExport();
-                    }}
-                >
-                    <span style={S.buttonContent}>
-                        <FiDownload size={14} />
-                        <span>{t('vault.export')}</span>
                     </span>
                 </button>
                 {selectedRecord && (

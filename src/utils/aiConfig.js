@@ -1,9 +1,15 @@
 import { createServiceInstanceKey, getDisplayInstanceName, INSTANCE_NAME_CONFIG_KEY } from './service_instance';
+import { getAccessToken } from './auth';
+import {
+    getFlowGuideAudioSpeechUrl,
+    getFlowGuideChatCompletionsUrl,
+    isFlowGuideUrl,
+} from './flowguide';
 import { store } from './store';
 
 export const AI_API_SERVICE_LIST_KEY = 'ai_api_service_list';
 export const AI_API_SERVICE_NAME = 'ai_api';
-export const AI_API_DEFAULT_URL = 'https://api.openai.com/v1/chat/completions';
+export const AI_API_DEFAULT_URL = getFlowGuideChatCompletionsUrl();
 export const AI_API_DEFAULT_MODEL = 'gpt-4o-mini';
 export const AI_API_PROVIDER_TITLE = 'OpenAI Compatible API';
 
@@ -21,7 +27,7 @@ export const BUILTIN_TTS_PROVIDER_OPTIONS = [
 export const SYSTEM_TTS_DEFAULT_RATE = 1;
 export const SYSTEM_TTS_DEFAULT_PITCH = 1;
 export const SYSTEM_TTS_DEFAULT_VOLUME = 1;
-export const OPENAI_TTS_DEFAULT_URL = 'https://api.openai.com/v1/audio/speech';
+export const OPENAI_TTS_DEFAULT_URL = getFlowGuideAudioSpeechUrl();
 export const OPENAI_TTS_DEFAULT_MODEL = 'gpt-4o-mini-tts';
 export const OPENAI_TTS_DEFAULT_VOICE = 'alloy';
 export const OPENAI_TTS_VOICE_OPTIONS = [
@@ -76,13 +82,13 @@ export const AI_PROVIDER_PRESETS = {
     [AI_PROVIDER_IDS.CLAUDE]: {
         key: AI_PROVIDER_IDS.CLAUDE,
         label: 'Claude',
-        apiUrl: 'https://api.anthropic.com/v1/chat/completions',
+        apiUrl: AI_API_DEFAULT_URL,
         model: 'claude-sonnet-4-6',
     },
     [AI_PROVIDER_IDS.GEMINI]: {
         key: AI_PROVIDER_IDS.GEMINI,
         label: 'Gemini',
-        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        apiUrl: AI_API_DEFAULT_URL,
         model: 'gemini-2.5-flash',
     },
 };
@@ -109,6 +115,11 @@ const BUILTIN_TTS_CONFIG_KEYS = [
     'speechVolcengineSpeed',
     'speechVolcengineEncoding',
 ];
+const DIRECT_AI_GATEWAY_HOSTS = new Set([
+    'api.openai.com',
+    'api.anthropic.com',
+    'generativelanguage.googleapis.com',
+]);
 
 function pickConfigKeys(config = {}, keys = []) {
     return keys.reduce((result, key) => {
@@ -121,6 +132,45 @@ function pickConfigKeys(config = {}, keys = []) {
 
 function hasLegacySpeechConfig(config = {}) {
     return BUILTIN_TTS_CONFIG_KEYS.some((key) => config?.[key] !== undefined);
+}
+
+function shouldCentralizeAiUrl(apiUrl) {
+    const raw = String(apiUrl || '').trim();
+    if (!raw || isFlowGuideUrl(raw)) return false;
+
+    try {
+        const resolved = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+        return DIRECT_AI_GATEWAY_HOSTS.has(new URL(resolved).hostname);
+    } catch {
+        return false;
+    }
+}
+
+function centralizeAiConfigIfNeeded(config = {}) {
+    if (!shouldCentralizeAiUrl(config?.apiUrl)) {
+        return { config, changed: false };
+    }
+
+    return {
+        changed: true,
+        config: {
+            ...config,
+            apiUrl: AI_API_DEFAULT_URL,
+            apiKey: '',
+        },
+    };
+}
+
+function centralizeBuiltInTtsConfigIfNeeded(config = {}) {
+    if (!shouldCentralizeAiUrl(config?.speechOpenaiApiUrl)) {
+        return config;
+    }
+
+    return {
+        ...config,
+        speechOpenaiApiUrl: OPENAI_TTS_DEFAULT_URL,
+        speechOpenaiApiKey: '',
+    };
 }
 
 function getLegacySpeechConfig(config = {}) {
@@ -354,11 +404,41 @@ export function getAiHistoryServiceMeta(config = {}) {
     };
 }
 
+async function withFlowGuideAuthFallback(config = {}) {
+    const mergedConfig = getMergedAiApiConfig(config);
+    if (String(mergedConfig.apiKey || '').trim() || !isFlowGuideUrl(mergedConfig.apiUrl)) {
+        return mergedConfig;
+    }
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+        return mergedConfig;
+    }
+
+    return {
+        ...mergedConfig,
+        apiKey: accessToken,
+    };
+}
+
 export async function ensureAiApiConfigMigration() {
     await store.load();
 
     const instanceList = await store.get(AI_API_SERVICE_LIST_KEY);
     if (Array.isArray(instanceList) && instanceList.length > 0) {
+        let changed = false;
+        for (const instanceKey of instanceList) {
+            const config = await store.get(instanceKey);
+            if (!config) continue;
+            const centralized = centralizeAiConfigIfNeeded(config);
+            if (centralized.changed) {
+                await store.set(instanceKey, centralized.config);
+                changed = true;
+            }
+        }
+        if (changed) {
+            await store.save();
+        }
         return instanceList;
     }
 
@@ -370,14 +450,17 @@ export async function ensureAiApiConfigMigration() {
     ]);
 
     const instanceKey = createAiApiInstanceKey();
-    await store.set(
-        instanceKey,
+    const migratedAiConfig = centralizeAiConfigIfNeeded(
         createDefaultAiApiConfig({
             apiUrl: legacyUrl ?? AI_API_DEFAULT_URL,
             apiKey: legacyKey ?? '',
             model: legacyModel ?? AI_API_DEFAULT_MODEL,
             temperature: legacyTemperature ?? 0.7,
         })
+    ).config;
+    await store.set(
+        instanceKey,
+        migratedAiConfig
     );
     await store.set(AI_API_SERVICE_LIST_KEY, [instanceKey]);
     await store.save();
@@ -390,7 +473,13 @@ export async function ensureBuiltInTtsConfigMigration() {
 
     const storedConfig = await store.get(BUILTIN_TTS_CONFIG_KEY);
     if (storedConfig !== null) {
-        return getMergedBuiltInTtsConfig(storedConfig);
+        const mergedConfig = getMergedBuiltInTtsConfig(storedConfig);
+        const centralizedConfig = centralizeBuiltInTtsConfigIfNeeded(mergedConfig);
+        if (centralizedConfig !== mergedConfig) {
+            await store.set(BUILTIN_TTS_CONFIG_KEY, centralizedConfig);
+            await store.save();
+        }
+        return centralizedConfig;
     }
 
     const instanceList = await ensureAiApiConfigMigration();
@@ -405,7 +494,7 @@ export async function ensureBuiltInTtsConfigMigration() {
         break;
     }
 
-    const nextConfig = getMergedBuiltInTtsConfig(migratedConfig ?? {});
+    const nextConfig = centralizeBuiltInTtsConfigIfNeeded(getMergedBuiltInTtsConfig(migratedConfig ?? {}));
     await store.set(BUILTIN_TTS_CONFIG_KEY, nextConfig);
     await store.save();
 
@@ -432,12 +521,12 @@ export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) 
             firstConfig = instanceConfig;
         }
         if ((mergedConfig.enable ?? true) || includeDisabled) {
-            return instanceConfig;
+            return withFlowGuideAuthFallback(instanceConfig);
         }
     }
 
     if (firstConfig) {
-        return firstConfig;
+        return withFlowGuideAuthFallback(firstConfig);
     }
 
     return null;

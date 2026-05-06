@@ -1,4 +1,5 @@
 import { fetch, Body } from '@tauri-apps/api/http';
+import { requireAiGatewayConfig } from './aiGateway';
 import { getAiApiDisplayName, getMergedAiApiConfig } from './aiConfig';
 import {
     getDisplayInstanceName,
@@ -187,6 +188,16 @@ export async function translateWithAiBinding(text, from, to, bindingConfig = {},
     if (service === 'openai' && !apiUrl.pathname.endsWith('/chat/completions')) {
         apiUrl.pathname += apiUrl.pathname.endsWith('/') ? '' : '/';
         apiUrl.pathname += 'v1/chat/completions';
+    }
+
+    if (service === 'openai') {
+        const resolvedGatewayConfig = await requireAiGatewayConfig({
+            apiUrl: apiUrl.href,
+            apiKey,
+            model,
+        });
+        apiUrl.href = resolvedGatewayConfig.apiUrl;
+        apiKey = resolvedGatewayConfig.apiKey;
     }
 
     promptList = (promptList ?? AI_TRANSLATE_DEFAULT_PROMPT_LIST).map((item) => ({

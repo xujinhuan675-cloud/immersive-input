@@ -1,7 +1,8 @@
 import { getAccessToken } from './auth';
+import { getFlowGuideApiBase } from './flowguide';
 
 function getApiBase() {
-    const base = String(import.meta.env.VITE_AUTH_API_BASE || '').trim();
+    const base = String(import.meta.env.VITE_FLOWGUIDE_API_BASE || '').trim() || getFlowGuideApiBase();
     if (!base) return '';
     return base.replace(/\/+$/, '');
 }

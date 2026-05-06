@@ -351,7 +351,7 @@ const surfaceStyle = {
 };
 
 function useApiConfig() {
-    const [config, setConfig] = useState(null);
+    const [config, setConfig] = useState(undefined);
 
     useEffect(() => {
         let mounted = true;
@@ -524,6 +524,10 @@ export default function LightAI() {
                 return;
             }
 
+            if (apiConfig === undefined) {
+                return;
+            }
+
             if (!apiConfig) {
                 setError('请先在配置里填写可用的 AI 接口。');
                 return;
@@ -593,12 +597,10 @@ export default function LightAI() {
 
     useEffect(() => {
         if (!sourceText.trim() || !autoRunRef.current) return;
+        if (activeTab !== 'fix' && apiConfig === undefined) return;
         autoRunRef.current = false;
         void runCurrentTab('');
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        sourceText,
-    ]);
+    }, [activeTab, apiConfig, runCurrentTab, sourceText]);
 
     useEffect(() => {
         if (sourceText.trim()) return;

@@ -1,11 +1,9 @@
 import { appWindow, currentMonitor, LogicalPosition, LogicalSize } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { AiOutlineClose } from 'react-icons/ai';
 import { HiOutlineCollection, HiOutlinePencilAlt, HiOutlineTag, HiOutlineTrash } from 'react-icons/hi';
-import { FiDownload } from 'react-icons/fi';
 
 import WindowHeader, { WindowHeaderCloseButton, WindowHeaderTitle } from '../../components/WindowHeader';
 import {
@@ -17,9 +15,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
-import { useToastStyle } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { exportTableCsv } from '../../utils/exportTable';
 import {
     addPhrase,
     addTag,
@@ -374,6 +370,7 @@ const styles = {
         alignItems: 'center',
         gap: '8px',
         flexShrink: 0,
+        marginLeft: 'auto',
     },
     primaryButton: {
         height: '38px',
@@ -955,7 +952,6 @@ function EditView({ phrase, allTags, onSaved, onCancel, onClose }) {
 
 export default function PhrasesInline() {
     const { t } = useTranslation();
-    const toastStyle = useToastStyle();
     const [view, setView] = useState('quick');
     const [editPhrase, setEditPhrase] = useState(null);
     const [tags, setTags] = useState([]);
@@ -1136,34 +1132,6 @@ export default function PhrasesInline() {
     );
 
     const activeTag = tags.find((tag) => tag.id === selectedTagId) ?? null;
-    const handleExport = useCallback(async () => {
-        if (managePhrases.length === 0) {
-            toast.error(t('phrases.export_empty'), { style: toastStyle });
-            return;
-        }
-
-        try {
-            const date = new Date().toISOString().slice(0, 10);
-            const exported = await exportTableCsv({
-                defaultFileName: `${t('phrases.export_filename')}-${date}.csv`,
-                columns: [
-                    { header: t('phrases.category'), value: (row) => tagMap[row.tag_id]?.name ?? t('phrases.uncategorized') },
-                    { header: t('phrases.title_field'), value: (row) => row.title },
-                    { header: t('phrases.content_field'), value: (row) => row.content },
-                    { header: t('phrases.export_use_count'), value: (row) => row.use_count ?? 0 },
-                    { header: t('phrases.export_created_at'), value: (row) => row.created_at },
-                    { header: t('phrases.export_modified_at'), value: (row) => row.modified_at },
-                ],
-                rows: managePhrases,
-            });
-
-            if (exported) {
-                toast.success(t('phrases.export_success'), { style: toastStyle });
-            }
-        } catch (error) {
-            toast.error(t('phrases.export_failed') + (error?.message ?? error), { style: toastStyle });
-        }
-    }, [managePhrases, t, tagMap, toastStyle]);
 
     const quickTagCandidates = useMemo(() => {
         const tagUsage = new Map();
@@ -1533,16 +1501,6 @@ export default function PhrasesInline() {
                         {search ? `找到 ${managePhrases.length} 条` : `共 ${managePhrases.length} 条`}
                     </span>
                     <div style={styles.statusActions}>
-                        <button
-                            type='button'
-                            style={styles.subtleButton}
-                            onClick={() => {
-                                void handleExport();
-                            }}
-                        >
-                            <FiDownload style={{ marginRight: 4 }} />
-                            {t('phrases.export')}
-                        </button>
                         <button
                             type='button'
                             style={styles.subtleButton}

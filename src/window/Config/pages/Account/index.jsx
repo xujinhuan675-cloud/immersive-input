@@ -128,9 +128,7 @@ function buildInviteLink(inviteCode) {
     const code = String(inviteCode || '').trim();
     if (!code) return '';
 
-    const explicitBase = String(
-        import.meta.env.VITE_APP_BASE_URL || import.meta.env.VITE_AUTH_API_BASE || ''
-    )
+    const explicitBase = String(import.meta.env.VITE_APP_BASE_URL || '')
         .trim()
         .replace(/\/api\/?$/i, '');
     const fallbackBase =

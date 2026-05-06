@@ -245,7 +245,9 @@ export default function SourceArea(props) {
             hasHydratedInitialTextRef.current ||
             deleteNewline === null ||
             recognizeLanguage === null ||
-            recognizeServiceList === null
+            recognizeServiceList === null ||
+            !pluginList ||
+            !serviceInstanceConfigMap
         ) {
             return;
         }
@@ -256,7 +258,7 @@ export default function SourceArea(props) {
                 handleNewTextRef.current?.(v);
             }
         });
-    }, [deleteNewline, excerptMode, recognizeLanguage, recognizeServiceList]);
+    }, [deleteNewline, excerptMode, pluginList, recognizeLanguage, recognizeServiceList, serviceInstanceConfigMap]);
 
     useEffect(() => {
         if (!textAreaRef.current) return;

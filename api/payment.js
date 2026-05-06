@@ -1,4 +1,5 @@
 import { sendJson, setCors } from '../server/lib/http.js';
+import { handleLegacyRouteRetired, shouldPassthroughLegacyRoute } from '../server/lib/legacyRoute.js';
 
 function getRoute(req) {
     const url = new URL(req.url, 'http://localhost');
@@ -17,6 +18,20 @@ const ROUTE_HANDLERS = {
 
 export default async function handler(req, res) {
     const route = getRoute(req);
+    if (!shouldPassthroughLegacyRoute('payment')) {
+        return handleLegacyRouteRetired(req, res, {
+            scope: 'payment',
+            route,
+            methods: 'GET, POST, OPTIONS',
+            headers:
+                'Content-Type, Authorization, X-Admin-Token, X-Idempotency-Key, X-User-Id, X-Signature, X-Webhook-Signature, X-Custom-Orchestrator-Signature, X-Custom-Orchestrator-Timestamp, Stripe-Signature',
+            message:
+                route === 'webhook'
+                    ? 'Legacy payment webhook route has been retired. Point payment provider callbacks to FlowGuideAI.'
+                    : 'Legacy payment routes have been retired. Create and query payment orders through FlowGuideAI.',
+        });
+    }
+
     const load = ROUTE_HANDLERS[route];
     if (load) {
         const next = (await load()).default;

@@ -25,6 +25,7 @@ import {
 import { useConfig, useReadAloud, useStopVoiceOnUnmount, useToastStyle } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
+import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../utils/aiGateway';
 import { saveHistory } from '../../utils/aiHistory';
 
 const DEFAULT_TEXTAREA_HEIGHT = 40;
@@ -33,24 +34,11 @@ const SYSTEM_PROMPT =
     '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u6790\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
 
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
-    const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
-    if (!apiUrl || !apiKey) {
-        onError('\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API URL \u548C API Key\u3002');
-        return;
-    }
-
-    let url = apiUrl;
-    if (!/https?:\/\/.+/.test(url)) {
-        url = `https://${url}`;
-    }
-
     try {
-        const response = await window.fetch(url, {
+        const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig);
+        const response = await window.fetch(apiUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-            },
+            headers: buildAiGatewayHeaders(apiKey),
             body: JSON.stringify({
                 model,
                 messages,
@@ -378,7 +366,7 @@ export default function Chat() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [apiConfig, setApiConfig] = useState(null);
+    const [apiConfig, setApiConfig] = useState(undefined);
     const [pined, setPined] = useState(false);
     const [excerptMode, setExcerptMode] = useState(false);
     const abortRef = useRef(null);
@@ -387,7 +375,9 @@ export default function Chat() {
     const messageIdRef = useRef(0);
     const messagesRef = useRef([]);
     const hasHydratedExcerptMode = useRef(false);
+    const pendingHttpTextRef = useRef('');
     const hasContentToClear = messages.length > 0 || input.trim().length > 0;
+    const [pendingHttpVersion, setPendingHttpVersion] = useState(0);
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -470,6 +460,21 @@ export default function Chat() {
             resizeTextarea(textareaRef.current);
             textareaRef.current?.focus();
         });
+    }, []);
+
+    const queueHttpText = useCallback((rawText) => {
+        const text = String(rawText || '').trim();
+        if (!text) return;
+
+        pendingHttpTextRef.current = text;
+        setInput(text);
+
+        window.requestAnimationFrame(() => {
+            resizeTextarea(textareaRef.current);
+            textareaRef.current?.focus();
+        });
+
+        setPendingHttpVersion((previous) => previous + 1);
     }, []);
 
     const sendText = useCallback(
@@ -577,10 +582,6 @@ export default function Chat() {
     }, [pined]);
 
     useEffect(() => {
-        if (!apiConfig) {
-            return undefined;
-        }
-
         let disposed = false;
 
         async function hydratePendingContent() {
@@ -594,7 +595,7 @@ export default function Chat() {
                 return;
             }
 
-            await sendText(pendingText);
+            queueHttpText(pendingText);
         }
 
         void hydratePendingContent();
@@ -609,8 +610,7 @@ export default function Chat() {
                 return;
             }
 
-            setInput(payload);
-            void sendText(payload);
+            queueHttpText(payload);
         });
 
         return () => {
@@ -618,7 +618,17 @@ export default function Chat() {
             void draftUnlisten.then((off) => off());
             void sendUnlisten.then((off) => off());
         };
-    }, [apiConfig, appendDraftText, sendText]);
+    }, [appendDraftText, queueHttpText]);
+
+    useEffect(() => {
+        const pendingText = pendingHttpTextRef.current.trim();
+        if (!pendingText || loading || !apiConfig) {
+            return;
+        }
+
+        pendingHttpTextRef.current = '';
+        void sendText(pendingText);
+    }, [apiConfig, loading, pendingHttpVersion, sendText]);
 
     return (
         <TrayWindow>
@@ -650,9 +660,11 @@ export default function Chat() {
                                 {'\u53D1\u9001\u6587\u672C\u5F00\u59CB\u89E3\u6790'}
                                 <br />
                                 <span style={{ fontSize: '11px' }}>
-                                    {!apiConfig?.apiKey
-                                        ? '\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API Key'
-                                        : ''}
+                                    {apiConfig === undefined
+                                        ? ''
+                                        : !apiConfig?.apiKey
+                                         ? '\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API Key'
+                                         : ''}
                                 </span>
                             </div>
                         ) : null}

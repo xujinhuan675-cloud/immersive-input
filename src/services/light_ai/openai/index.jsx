@@ -1,4 +1,5 @@
 import { store } from '../../../utils/store';
+import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../utils/aiGateway';
 
 export const DEFAULT_STYLE_PROMPTS = {
     strict: {
@@ -46,25 +47,11 @@ async function getUserPreference() {
 }
 
 export async function streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal) {
-    const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig ?? {};
-
-    if (!apiUrl || !apiKey) {
-        onError('API URL or API Key is missing.');
-        return;
-    }
-
-    let url = apiUrl;
-    if (!/https?:\/\/.+/.test(url)) {
-        url = `https://${url}`;
-    }
-
     try {
-        const res = await window.fetch(url, {
+        const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig ?? {});
+        const res = await window.fetch(apiUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-            },
+            headers: buildAiGatewayHeaders(apiKey),
             body: JSON.stringify({
                 model,
                 messages,

@@ -1,4 +1,5 @@
 import { sendJson, setCors } from '../server/lib/http.js';
+import { handleLegacyRouteRetired, shouldPassthroughLegacyRoute } from '../server/lib/legacyRoute.js';
 
 function getRoute(req) {
     const url = new URL(req.url, 'http://localhost');
@@ -15,6 +16,16 @@ const ROUTE_HANDLERS = {
 
 export default async function handler(req, res) {
     const route = getRoute(req);
+    if (!shouldPassthroughLegacyRoute('billing')) {
+        return handleLegacyRouteRetired(req, res, {
+            scope: 'billing',
+            route,
+            methods: 'GET, POST, OPTIONS',
+            headers: 'Content-Type, Authorization, X-Idempotency-Key, X-User-Id, X-Admin-Token',
+            message: 'Legacy billing routes have been retired. Query billing data from FlowGuideAI.',
+        });
+    }
+
     const load = ROUTE_HANDLERS[route];
     if (load) {
         const next = (await load()).default;

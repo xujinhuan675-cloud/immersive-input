@@ -132,10 +132,10 @@ export default function AiTranslateConfig(props) {
         const nextConfig = getMergedAiTranslateConfig(aiTranslateConfig, instanceKey);
         const languageEnum = getAiTranslateLanguageEnum();
 
-        if (!mergedAiConfig.apiUrl || !mergedAiConfig.apiKey || !mergedAiConfig.model) {
+        if (!mergedAiConfig.apiUrl || !mergedAiConfig.model) {
             toast.error(
                 t('ai_config.test_error_fields', {
-                    defaultValue: 'Please fill in API URL, API Key, and model first.',
+                    defaultValue: 'Please fill in API URL and model first, or sign in to use FlowGuideAI.',
                 }),
                 { style: toastStyle }
             );

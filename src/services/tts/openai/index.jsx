@@ -5,6 +5,7 @@ import {
     OPENAI_TTS_DEFAULT_URL,
     OPENAI_TTS_DEFAULT_VOICE,
 } from '../../../utils/aiConfig';
+import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../utils/aiGateway';
 
 function normalizeRequestPath(requestPath = OPENAI_TTS_DEFAULT_URL) {
     let nextRequestPath = String(requestPath || OPENAI_TTS_DEFAULT_URL).trim();
@@ -36,13 +37,14 @@ function normalizeRequestPath(requestPath = OPENAI_TTS_DEFAULT_URL) {
 
 export async function tts(text, _lang, options = {}) {
     const { config = {} } = options;
-    const apiKey = String(config.apiKey || '').trim();
-    if (!apiKey) {
-        throw new Error('OpenAI TTS API key is missing');
-    }
+    const resolvedConfig = await requireAiGatewayConfig({
+        apiUrl: normalizeRequestPath(config.apiUrl),
+        apiKey: config.apiKey,
+        model: config.model || OPENAI_TTS_DEFAULT_MODEL,
+    });
 
     const body = {
-        model: config.model || OPENAI_TTS_DEFAULT_MODEL,
+        model: resolvedConfig.model || OPENAI_TTS_DEFAULT_MODEL,
         input: text,
         voice: config.voice || OPENAI_TTS_DEFAULT_VOICE,
         response_format: 'mp3',
@@ -54,12 +56,9 @@ export async function tts(text, _lang, options = {}) {
         body.instructions = instructions;
     }
 
-    const res = await fetch(normalizeRequestPath(config.apiUrl), {
+    const res = await fetch(normalizeRequestPath(resolvedConfig.apiUrl), {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-        },
+        headers: buildAiGatewayHeaders(resolvedConfig.apiKey),
         body: Body.json(body),
         responseType: 3,
     });
