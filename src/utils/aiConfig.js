@@ -5,6 +5,7 @@ import {
     getFlowGuideChatCompletionsUrl,
     isFlowGuideUrl,
 } from './flowguide';
+import { getAiServiceEntitlement } from './aiEntitlements';
 import { store } from './store';
 
 export const AI_API_SERVICE_LIST_KEY = 'ai_api_service_list';
@@ -12,6 +13,7 @@ export const AI_API_SERVICE_NAME = 'ai_api';
 export const AI_API_DEFAULT_URL = getFlowGuideChatCompletionsUrl();
 export const AI_API_DEFAULT_MODEL = 'gpt-4o-mini';
 export const AI_API_PROVIDER_TITLE = 'OpenAI Compatible API';
+export const AI_API_GATEWAY_INSTANCE_KEY = 'flowguide_gateway_ai';
 
 export const BUILTIN_TTS_CONFIG_KEY = 'builtin_tts_config';
 export const BUILTIN_TTS_PROVIDER_IDS = {
@@ -192,6 +194,18 @@ export function createDefaultAiApiConfig(overrides = {}) {
         enable: true,
         ...pickConfigKeys(overrides, AI_API_CONFIG_KEYS),
     };
+}
+
+export function createGatewayAiApiConfig(overrides = {}) {
+    return createDefaultAiApiConfig({
+        [INSTANCE_NAME_CONFIG_KEY]: 'FlowGuide AI',
+        provider: AI_PROVIDER_IDS.OPENAI,
+        apiUrl: AI_API_DEFAULT_URL,
+        apiKey: '',
+        model: AI_API_DEFAULT_MODEL,
+        enable: true,
+        ...pickConfigKeys(overrides, AI_API_CONFIG_KEYS),
+    });
 }
 
 export function getAiProviderPreset(providerId) {
@@ -506,6 +520,16 @@ export async function getBuiltInTtsConfig() {
 }
 
 export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) {
+    const entitlement = await getAiServiceEntitlement().catch(() => ({
+        canUseCustomAiServices: false,
+    }));
+    if (!entitlement.canUseCustomAiServices) {
+        return withFlowGuideAuthFallback({
+            ...createGatewayAiApiConfig(),
+            instanceKey: AI_API_GATEWAY_INSTANCE_KEY,
+        });
+    }
+
     const instanceList = await ensureAiApiConfigMigration();
     let firstConfig = null;
 

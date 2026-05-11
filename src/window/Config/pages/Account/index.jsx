@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { open as openExternal } from '@tauri-apps/api/shell';
 import {
     Avatar,
@@ -809,7 +810,9 @@ const PaymentProviderButton = React.memo(function PaymentProviderButton({
 
 export default function Account() {
     const { t } = useTranslation();
+    const location = useLocation();
     const [userInfo, setUserInfo] = useState(() => getCurrentUser().user || null);
+    const subscriptionPlansRef = useRef(null);
     const [paymentConfig, setPaymentConfig] = useState(() => ACCOUNT_VIEW_CACHE.paymentConfig);
     const [billingProfile, setBillingProfile] = useState(() => {
         const initialUser = getCurrentUser().user || null;
@@ -2042,6 +2045,16 @@ export default function Account() {
         [hasReadyPaymentProvider, subscriptionPlanCards, subscriptionPlans, t]
     );
 
+    useEffect(() => {
+        if (location.hash !== '#subscription-plans') return;
+        window.requestAnimationFrame(() => {
+            subscriptionPlansRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+    }, [location.hash, subscriptionPlanViewModels.length]);
+
     return (
         <div className='space-y-4 p-1'>
             <Toaster
@@ -2127,20 +2140,22 @@ export default function Account() {
             )}
 
             {userInfo && (
-                <AccountSubscriptionPlansPanel
-                    title={t('config.account.subscription_title')}
-                    subtitle=''
-                    emptyText={t('config.account.subscription_not_ready')}
-                    loading={billingCatalogLoading}
-                    refreshing={billingCatalogRefreshing}
-                    pricingRegion={pricingRegion}
-                    regionOptions={billingRegionOptions}
-                    planViewModels={subscriptionPlanViewModels}
-                    currentBillingTierKey={currentBillingTierKey}
-                    onRegionChange={setPricingRegion}
-                    onSelectCycle={handleSelectPlanCycle}
-                    onPrepareSubscription={handlePrepareSubscriptionStable}
-                />
+                <div ref={subscriptionPlansRef}>
+                    <AccountSubscriptionPlansPanel
+                        title={t('config.account.subscription_title')}
+                        subtitle=''
+                        emptyText={t('config.account.subscription_not_ready')}
+                        loading={billingCatalogLoading}
+                        refreshing={billingCatalogRefreshing}
+                        pricingRegion={pricingRegion}
+                        regionOptions={billingRegionOptions}
+                        planViewModels={subscriptionPlanViewModels}
+                        currentBillingTierKey={currentBillingTierKey}
+                        onRegionChange={setPricingRegion}
+                        onSelectCycle={handleSelectPlanCycle}
+                        onPrepareSubscription={handlePrepareSubscriptionStable}
+                    />
+                </div>
             )}
 
             <Modal

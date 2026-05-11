@@ -268,7 +268,7 @@ function AIApiConfigForm(props) {
 }
 
 export default function ConfigModal(props) {
-    const { serviceInstanceKey, isOpen, onOpenChange, updateServiceInstanceList } = props;
+    const { serviceInstanceKey, isOpen, onOpenChange, updateServiceInstanceList, customServicesAllowed = true } = props;
     const { t } = useTranslation();
 
     return (
@@ -286,11 +286,34 @@ export default function ConfigModal(props) {
                             </div>
                         </ModalHeader>
                         <ModalBody>
-                            <AIApiConfigForm
-                                instanceKey={serviceInstanceKey}
-                                updateServiceInstanceList={updateServiceInstanceList}
-                                onClose={onClose}
-                            />
+                            {customServicesAllowed ? (
+                                <AIApiConfigForm
+                                    instanceKey={serviceInstanceKey}
+                                    updateServiceInstanceList={updateServiceInstanceList}
+                                    onClose={onClose}
+                                />
+                            ) : (
+                                <div className='pb-5'>
+                                    <div className='rounded-[12px] border border-default-200/70 bg-default-50 px-4 py-3'>
+                                        <div className='text-sm font-semibold text-foreground'>
+                                            {t('ai_config.custom_locked_title', {
+                                                defaultValue: 'Custom AI services are locked',
+                                            })}
+                                        </div>
+                                        <div className='mt-1 text-xs leading-5 text-default-500'>
+                                            {t('ai_config.custom_locked_desc', {
+                                                defaultValue:
+                                                    'Your current plan uses the FlowGuide AI gateway. Upgrade to Pro to edit custom API services.',
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className='mt-5 flex justify-end'>
+                                        <Button color='primary' onPress={onClose}>
+                                            {t('common.confirm', { defaultValue: 'OK' })}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </ModalBody>
                     </>
                 )}

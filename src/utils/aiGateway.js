@@ -1,5 +1,8 @@
 import { getAccessToken } from './auth';
-import { isFlowGuideUrl } from './flowguide';
+import { getFlowGuideAudioSpeechUrl, getFlowGuideChatCompletionsUrl, isFlowGuideUrl } from './flowguide';
+import { getAiServiceEntitlement } from './aiEntitlements';
+
+const DEFAULT_AI_MODEL = 'gpt-4o-mini';
 
 export async function resolveAiGatewayConfig(apiConfig = {}) {
     let apiUrl = String(apiConfig.apiUrl || '').trim();
@@ -8,6 +11,17 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
     }
 
     let apiKey = String(apiConfig.apiKey || '').trim();
+    const purpose = String(apiConfig.purpose || 'chat').trim().toLowerCase();
+    if (purpose === 'chat' || purpose === 'speech') {
+        const entitlement = await getAiServiceEntitlement().catch(() => ({
+            canUseCustomAiServices: false,
+        }));
+        if (!entitlement.canUseCustomAiServices && (!apiUrl || !isFlowGuideUrl(apiUrl))) {
+            apiUrl = purpose === 'speech' ? getFlowGuideAudioSpeechUrl() : getFlowGuideChatCompletionsUrl();
+            apiKey = '';
+        }
+    }
+
     if (!apiKey && isFlowGuideUrl(apiUrl)) {
         apiKey = (await getAccessToken()) || '';
     }
@@ -16,7 +30,7 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
         ...apiConfig,
         apiUrl,
         apiKey,
-        model: apiConfig.model,
+        model: apiConfig.model || DEFAULT_AI_MODEL,
         temperature: Number(apiConfig.temperature ?? 0.7),
     };
 }

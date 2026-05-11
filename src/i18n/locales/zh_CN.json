@@ -621,6 +621,10 @@
             "service_section_desc": "管理应用里的 AI 解析与文本模型服务。",
             "text_section_title": "文本模型",
             "text_section_desc": "这部分配置用于 AI 解析和轻量 AI 功能。",
+            "custom_locked_title": "当前套餐不可自定义 AI 服务",
+            "custom_locked_desc": "升级到专业版后可编辑自定义API服务。",
+            "custom_locked_add": "专业版可添加自定义 AI 服务。",
+            "custom_locked_upgrade": "去升级",
             "providers": {
                 "compatible": "OpenAI 兼容 API",
                 "openai": "OpenAI",

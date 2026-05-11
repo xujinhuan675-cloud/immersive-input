@@ -19,6 +19,7 @@ export default function ServiceItem(props) {
         deleteServiceInstance,
         setCurrentConfigKey,
         onConfigOpen,
+        customServicesAllowed = true,
         ...drag
     } = props;
     const { t } = useTranslation();
@@ -45,13 +46,16 @@ export default function ServiceItem(props) {
                 <>
                     <Switch
                         size='sm'
+                        isDisabled={!customServicesAllowed}
                         isSelected={mergedConfig.enable ?? true}
                         onValueChange={(value) => {
                             setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
                         }}
                     />
                     <ConfigServiceIconButton
+                        isDisabled={!customServicesAllowed}
                         onPress={() => {
+                            if (!customServicesAllowed) return;
                             setCurrentConfigKey(serviceInstanceKey);
                             onConfigOpen();
                         }}
@@ -60,7 +64,9 @@ export default function ServiceItem(props) {
                     </ConfigServiceIconButton>
                     <ConfigServiceIconButton
                         color='danger'
+                        isDisabled={!customServicesAllowed}
                         onPress={() => {
+                            if (!customServicesAllowed) return;
                             deleteServiceInstance(serviceInstanceKey);
                         }}
                     >

@@ -622,6 +622,10 @@
             "service_section_desc": "Manage the AI explain and text model services used by the app.",
             "text_section_title": "Text Model",
             "text_section_desc": "This configuration is used by AI explain and light AI features.",
+            "custom_locked_title": "Custom AI services are not available on this plan",
+            "custom_locked_desc": "Your current plan uses the FlowGuide AI gateway. Upgrade to Pro to edit custom API services.",
+            "custom_locked_add": "Pro plan is required for custom AI services.",
+            "custom_locked_upgrade": "View Plans",
             "providers": {
                 "compatible": "OpenAI Compatible API",
                 "openai": "OpenAI",

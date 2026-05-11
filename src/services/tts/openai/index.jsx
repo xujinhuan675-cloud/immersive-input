@@ -41,6 +41,7 @@ export async function tts(text, _lang, options = {}) {
         apiUrl: normalizeRequestPath(config.apiUrl),
         apiKey: config.apiKey,
         model: config.model || OPENAI_TTS_DEFAULT_MODEL,
+        purpose: 'speech',
     });
 
     const body = {

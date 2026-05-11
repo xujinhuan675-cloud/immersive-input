@@ -54,10 +54,21 @@ function resolveAdminToken(options = {}) {
 
 function inferPlanTier(plan, index) {
     const raw = String(plan?.tier || plan?.name || plan?.product_name || '').trim().toLowerCase();
-    if (raw.includes('free')) return 'free';
-    if (raw.includes('pro') || raw.includes('plus') || raw.includes('premium')) return 'pro';
-    if (raw.includes('enterprise') || raw.includes('team')) return 'enterprise';
-    if (raw.includes('basic') || raw.includes('standard')) return 'basic';
+    if (raw.includes('free') || raw.includes('试用') || raw.includes('免费')) return 'free';
+    if (raw.includes('enterprise') || raw.includes('team') || raw.includes('企业') || raw.includes('团队')) {
+        return 'enterprise';
+    }
+    if (
+        raw.includes('pro') ||
+        raw.includes('plus') ||
+        raw.includes('premium') ||
+        raw.includes('professional') ||
+        raw.includes('专业') ||
+        raw.includes('高级')
+    ) {
+        return 'pro';
+    }
+    if (raw.includes('basic') || raw.includes('standard') || raw.includes('基础') || raw.includes('标准')) return 'basic';
     if (index === 1) return 'pro';
     if (index >= 2) return 'enterprise';
     return 'basic';
@@ -66,9 +77,21 @@ function inferPlanTier(plan, index) {
 function inferProfileTier(groupName) {
     const raw = String(groupName || '').trim().toLowerCase();
     if (!raw) return 'free';
-    if (raw.includes('pro') || raw.includes('plus') || raw.includes('premium')) return 'pro';
-    if (raw.includes('enterprise') || raw.includes('team')) return 'enterprise';
-    if (raw.includes('basic') || raw.includes('standard')) return 'basic';
+    if (raw.includes('free') || raw.includes('试用') || raw.includes('免费')) return 'free';
+    if (raw.includes('enterprise') || raw.includes('team') || raw.includes('企业') || raw.includes('团队')) {
+        return 'enterprise';
+    }
+    if (
+        raw.includes('pro') ||
+        raw.includes('plus') ||
+        raw.includes('premium') ||
+        raw.includes('professional') ||
+        raw.includes('专业') ||
+        raw.includes('高级')
+    ) {
+        return 'pro';
+    }
+    if (raw.includes('basic') || raw.includes('standard') || raw.includes('基础') || raw.includes('标准')) return 'basic';
     return 'basic';
 }
 
