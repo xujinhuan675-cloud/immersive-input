@@ -4,6 +4,8 @@ import { requestFlowGuide } from './flowguideApi';
 const STORAGE_KEYS = {
     USER: 'auth_user',
     TOKEN: 'auth_token',
+    REFRESH_TOKEN: 'auth_refresh_token',
+    TOKEN_EXPIRES_AT: 'auth_token_expires_at',
     REMEMBER_EMAIL: 'auth_remember_email',
     REMEMBER_PASSWORD: 'auth_remember_password',
     LANGUAGE_PREFERENCE: 'auth_language_preference',
@@ -27,6 +29,11 @@ function buildStoredUser(user, root = {}) {
     return {
         id: String(id || email),
         email: email ? String(email) : '',
+        username: pickFirst(source.username, root.username) || '',
+        balance: pickFirst(source.balance, root.balance) ?? 0,
+        role: pickFirst(source.role, root.role) || 'user',
+        status: pickFirst(source.status, root.status) || '',
+        subscriptions: source.subscriptions || root.subscriptions || [],
         display_name: String(
             pickFirst(
                 source.display_name,
@@ -56,6 +63,8 @@ function normalizeAuthPayload(payload, fallback = {}) {
         session.token,
         session.jwt
     );
+    const refreshToken = pickFirst(root.refresh_token, root.refreshToken, session.refresh_token, session.refreshToken);
+    const expiresIn = Number(pickFirst(root.expires_in, root.expiresIn, session.expires_in, session.expiresIn));
     const user = buildStoredUser(root.user || session.user, {
         ...fallback,
         ...root,
@@ -68,20 +77,26 @@ function normalizeAuthPayload(payload, fallback = {}) {
     return {
         user,
         token: String(token),
+        refreshToken: refreshToken ? String(refreshToken) : '',
+        expiresAt: Number.isFinite(expiresIn) && expiresIn > 0 ? Date.now() + expiresIn * 1000 : null,
         raw: payload,
     };
 }
 
-function persistStoredSession(user, token) {
+function persistStoredSession(user, token, { refreshToken = '', expiresAt = null } = {}) {
     const storedUser = buildStoredUser(user);
     if (!storedUser || !token) return;
     localStorage.setItem(STORAGE_KEYS.TOKEN, String(token));
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(storedUser));
+    if (refreshToken) localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, String(refreshToken));
+    if (expiresAt) localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, String(expiresAt));
 }
 
 function clearStoredSession() {
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT);
 }
 
 function encryptPassword(password) {
@@ -117,7 +132,10 @@ export async function loginWithPassword({ email, password, rememberMe = false })
     });
     const result = normalizeAuthPayload(payload, { email: normalizedEmail });
 
-    persistStoredSession(result.user, result.token);
+    persistStoredSession(result.user, result.token, {
+        refreshToken: result.refreshToken,
+        expiresAt: result.expiresAt,
+    });
     if (rememberMe) {
         localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, normalizedEmail);
         localStorage.setItem(STORAGE_KEYS.REMEMBER_PASSWORD, encryptPassword(password));
@@ -131,12 +149,12 @@ export async function loginWithPassword({ email, password, rememberMe = false })
 
 export async function registerWithEmail({ username, email, password, code, inviteCode = '' }) {
     const normalizedEmail = String(email || '').trim();
+    const normalizedInviteCode = String(inviteCode || '').trim();
     const payload = await postAuth('register', {
-        username,
         email: normalizedEmail,
         password,
-        code,
-        inviteCode,
+        verify_code: code,
+        ...(normalizedInviteCode ? { aff_code: normalizedInviteCode } : {}),
     });
 
     try {
@@ -144,7 +162,10 @@ export async function registerWithEmail({ username, email, password, code, invit
             email: normalizedEmail,
             username,
         });
-        persistStoredSession(result.user, result.token);
+        persistStoredSession(result.user, result.token, {
+            refreshToken: result.refreshToken,
+            expiresAt: result.expiresAt,
+        });
         return result;
     } catch {
         return loginWithPassword({
@@ -156,15 +177,19 @@ export async function registerWithEmail({ username, email, password, code, invit
 }
 
 export async function sendEmailCode({ email }) {
-    return postAuth('sendCode', { email }, { query: { scene: 'register' } });
+    const result = await postAuth('sendCode', { email }, { query: { scene: 'register' } });
+    return {
+        ...result,
+        cooldown_seconds: Number(result?.cooldown_seconds ?? result?.countdown ?? 60),
+    };
 }
 
 export async function sendResetCode({ email }) {
-    return postAuth('sendCode', { email }, { query: { scene: 'reset' } });
+    return postAuth('forgotPassword', { email });
 }
 
 export async function resetPassword({ email, code, password }) {
-    return postAuth('resetPassword', { email, code, password });
+    return postAuth('resetPassword', { email, token: code, new_password: password });
 }
 
 export async function forgotPassword({ email }) {

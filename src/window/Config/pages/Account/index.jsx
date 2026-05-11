@@ -11,10 +11,8 @@ import {
     ModalBody,
     ModalContent,
     ModalHeader,
-    Tooltip,
 } from '@nextui-org/react';
-import { AiOutlineExclamationCircle } from 'react-icons/ai';
-import { MdLogout } from 'react-icons/md';
+import { MdLogout, MdPayment } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'qrcode';
@@ -22,6 +20,7 @@ import QRCode from 'qrcode';
 import { getCurrentUser, logout } from '../../../../utils/auth';
 import { clearStoredAdminToken, getStoredAdminToken, saveStoredAdminToken } from '../../../../utils/admin';
 import { getBillingCatalog, getBillingProfile, updateAdminMembership } from '../../../../utils/billing';
+import { getSub2WebBase } from '../../../../utils/sub2api';
 import {
     cancelPaymentOrder,
     createPaymentOrder,
@@ -37,7 +36,15 @@ const TIER_KEYS = {
     enterprise: { key: 'enterprise', color: 'warning' },
 };
 
-const TERMINAL_ORDER_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELED', 'REFUNDED']);
+const TERMINAL_ORDER_STATUSES = new Set([
+    'COMPLETED',
+    'FAILED',
+    'CANCELED',
+    'CANCELLED',
+    'EXPIRED',
+    'REFUNDED',
+    'PARTIALLY_REFUNDED',
+]);
 const SUCCESS_ORDER_STATUSES = new Set(['PAID', 'COMPLETED']);
 
 function getProviderDisplayName(provider) {
@@ -56,18 +63,64 @@ function getProviderOptions(paymentConfig) {
     return (paymentConfig?.providers?.customOrchestrator?.adapters || []).filter(Boolean);
 }
 
+function getProviderFeeRate(provider) {
+    const numeric = Number(provider?.limits?.fee_rate);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function canProviderHandleAmount(provider, amount) {
+    if (!provider || !isProviderReadyForPurchase(provider)) return false;
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) return true;
+
+    const limits = provider.limits || {};
+    const min = Number(limits.single_min);
+    const max = Number(limits.single_max);
+    if (Number.isFinite(min) && min > 0 && numericAmount < min) return false;
+    if (Number.isFinite(max) && max > 0 && numericAmount > max) return false;
+    return true;
+}
+
+function sortPaymentProviders(providers) {
+    const order = ['alipay', 'wxpay', 'stripe', 'easypay', 'noop'];
+    return [...(providers || [])].sort((left, right) => {
+        const leftName = String(left?.name || '').trim().toLowerCase();
+        const rightName = String(right?.name || '').trim().toLowerCase();
+        const leftIndex = order.findIndex((item) => leftName.includes(item));
+        const rightIndex = order.findIndex((item) => rightName.includes(item));
+        return (leftIndex < 0 ? 999 : leftIndex) - (rightIndex < 0 ? 999 : rightIndex);
+    });
+}
+
+function getProviderMark(provider) {
+    const key = String(provider || '').trim().toLowerCase();
+    if (key.includes('alipay')) return 'A';
+    if (key.includes('wxpay')) return 'W';
+    if (key.includes('stripe')) return 'S';
+    return 'P';
+}
+
+function getProviderToneClass(provider) {
+    const key = String(provider || '').trim().toLowerCase();
+    if (key.includes('alipay')) return 'bg-sky-500 text-white';
+    if (key.includes('wxpay')) return 'bg-emerald-500 text-white';
+    if (key.includes('stripe')) return 'bg-indigo-500 text-white';
+    return 'bg-default-700 text-white';
+}
+
 function getOrderQrPayload(order) {
     if (!order) return '';
     if (isTerminalOrderStatus(order.status)) return '';
     const presentation = order?.metadata?.checkoutPresentation || {};
     const gatewayPresentation = order?.metadata?.gatewayCreateResponse?.checkoutPresentation || {};
+    const checkoutUrl = String(order.checkoutUrl || '').trim();
     const qrValue =
         presentation.qrContent ||
         gatewayPresentation.qrContent ||
         order?.metadata?.gatewayCreateResponse?.code_url ||
         '';
-    if (qrValue) return String(qrValue);
-    const checkoutUrl = String(order.checkoutUrl || '').trim();
+    const normalizedQrValue = String(qrValue || '').trim();
+    if (normalizedQrValue && normalizedQrValue !== checkoutUrl) return normalizedQrValue;
     return checkoutUrl.startsWith('weixin://') ? checkoutUrl : '';
 }
 
@@ -110,36 +163,25 @@ function toInviteToken(value) {
 
 function getInviteCode(profile, user) {
     const profileCode = toInviteToken(profile?.inviteCode);
-    if (profileCode) return profileCode.slice(0, 8);
-
-    const idCode = toInviteToken(user?.id);
-    if (idCode) return idCode.slice(0, 8);
-
-    const emailPrefix = String(user?.email || '')
-        .split('@')[0]
-        .trim();
-    const emailCode = toInviteToken(emailPrefix);
-    if (emailCode) return emailCode.slice(0, 8);
-
-    return '';
+    return profileCode || '';
 }
 
 function buildInviteLink(inviteCode) {
     const code = String(inviteCode || '').trim();
     if (!code) return '';
 
-    const explicitBase = String(import.meta.env.VITE_APP_BASE_URL || '')
+    const explicitBase = String(import.meta.env.VITE_SUB2API_WEB_BASE || import.meta.env.VITE_FLOWGUIDE_WEB_BASE || '')
         .trim()
         .replace(/\/api\/?$/i, '');
-    const fallbackBase =
-        typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+    const fallbackBase = getSub2WebBase();
     const base = explicitBase || fallbackBase;
 
     try {
         const url = new URL(base);
+        url.pathname = '/register';
         url.search = '';
         url.hash = '';
-        url.searchParams.set('invite', code);
+        url.searchParams.set('aff', code);
         return url.toString();
     } catch {
         return '';
@@ -168,15 +210,6 @@ function resolveInviteStats(profile, user) {
             user?.invitedCount,
             user?.inviteCount
         ),
-        pendingCount: pickFirstFiniteNumber(
-            inviteStats?.pendingCount,
-            inviteStats?.pendingClaimCount,
-            inviteStats?.pendingRewardCount,
-            profile?.pendingInviteCount,
-            profile?.pendingClaimCount,
-            user?.pendingInviteCount,
-            user?.pendingClaimCount
-        ),
         rewardedCredits: pickFirstFiniteNumber(
             inviteStats?.rewardedCredits,
             inviteStats?.earnedCredits,
@@ -186,27 +219,50 @@ function resolveInviteStats(profile, user) {
             user?.inviteRewardCredits,
             user?.earnedInviteCredits
         ),
+        rebateRatePercent: pickFirstFiniteNumber(
+            inviteStats?.rebateRatePercent,
+            inviteStats?.effectiveRebateRatePercent,
+            inviteStats?.effective_rebate_rate_percent,
+            inviteStats?.ratePercent,
+            profile?.rebateRatePercent,
+            profile?.effectiveRebateRatePercent,
+            user?.rebateRatePercent,
+            user?.effectiveRebateRatePercent
+        ),
     };
 }
 
-function getPlanSortWeight(plan) {
-    const tierWeight = {
-        basic: 1,
-        pro: 2,
-        enterprise: 3,
-    };
-    const cycleWeight = {
-        month: 1,
-        year: 2,
-    };
-    return (tierWeight[plan?.tier] || 99) * 10 + (cycleWeight[plan?.billingCycle] || 99);
+function getPlanAmountForSort(plan) {
+    const numeric = Number(plan?.amount ?? plan?.price);
+    return Number.isFinite(numeric) ? numeric : Number.POSITIVE_INFINITY;
 }
 
 function sortSubscriptionPlans(plans) {
-    return [...(plans || [])].sort((left, right) => getPlanSortWeight(left) - getPlanSortWeight(right));
+    return (plans || [])
+        .map((plan, index) => ({ plan, index }))
+        .sort((left, right) => {
+            const amountDiff = getPlanAmountForSort(left.plan) - getPlanAmountForSort(right.plan);
+            if (amountDiff !== 0) return amountDiff;
+
+            const durationDiff =
+                (Number(left.plan?.durationDays) || 0) - (Number(right.plan?.durationDays) || 0);
+            if (durationDiff !== 0) return durationDiff;
+
+            return left.index - right.index;
+        })
+        .map((item) => item.plan);
 }
 
-const PLAN_DISPLAY_ORDER = Object.freeze(['free', 'basic', 'pro']);
+function normalizeFeatureLabels(features) {
+    if (Array.isArray(features)) {
+        return features.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (typeof features === 'string') {
+        return features.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    }
+    return [];
+}
+
 const BILLING_REGION_CONFIG = Object.freeze({
     global: {
         key: 'global',
@@ -216,7 +272,7 @@ const BILLING_REGION_CONFIG = Object.freeze({
     cn: {
         key: 'cn',
         labelKey: 'billing_region_cn',
-        providerNames: ['alipay', 'wxpay', 'easypay'],
+        providerNames: ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'easypay'],
     },
 });
 const BILLING_REGION_ORDER = Object.freeze(['global', 'cn']);
@@ -313,27 +369,16 @@ function getBillingCatalogCacheKey(regionKey, paymentProvider) {
     return `${String(regionKey || 'global').trim()}::${String(paymentProvider || '').trim()}`;
 }
 
-function getBillingCycleSortWeight(cycle) {
-    if (cycle === 'month') return 1;
-    if (cycle === 'year') return 2;
-    return 99;
-}
-
-function getAvailableBillingCycles(plans) {
-    return Array.from(
-        new Set((plans || []).map((plan) => String(plan?.billingCycle || '').trim()).filter(Boolean))
-    ).sort((left, right) => getBillingCycleSortWeight(left) - getBillingCycleSortWeight(right));
-}
-
 function getRegionProviderNames(regionKey) {
     return BILLING_REGION_CONFIG[regionKey]?.providerNames || [];
 }
 
 function filterProvidersByRegion(providerOptions, regionKey) {
     const allowedNames = getRegionProviderNames(regionKey);
-    return (providerOptions || []).filter((item) =>
+    const matched = (providerOptions || []).filter((item) =>
         allowedNames.includes(String(item?.name || '').trim().toLowerCase())
     );
+    return matched.length > 0 ? matched : providerOptions || [];
 }
 
 function isProviderReadyForPurchase(provider) {
@@ -364,22 +409,6 @@ function getCatalogProviderForRegion(providerOptions, regionKey, selectedProvide
         getRegionProviderNames(regionKey)[0] ||
         ''
     );
-}
-
-function getPlanYearlySavings(plan, allPlans) {
-    if (!plan || plan.billingCycle !== 'year') return null;
-    const yearAmount = Number(plan.amount);
-    const monthPlan = (allPlans || []).find(
-        (item) => item?.tier === plan.tier && item?.billingCycle === 'month'
-    );
-    const monthAmount = Number(monthPlan?.amount);
-    if (!Number.isFinite(yearAmount) || !Number.isFinite(monthAmount) || monthAmount <= 0) {
-        return null;
-    }
-    const annualMonthTotal = monthAmount * 12;
-    if (annualMonthTotal <= yearAmount) return null;
-    const percent = Math.round(((annualMonthTotal - yearAmount) / annualMonthTotal) * 100);
-    return percent > 0 ? percent : null;
 }
 
 const SubtleRefreshingValue = React.memo(function SubtleRefreshingValue({
@@ -429,23 +458,19 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                 </div>
 
                 <>
-                    <div className='mt-4 grid grid-cols-2 gap-3'>
+                    <div className='mt-4 grid gap-3 sm:grid-cols-2'>
                         <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
                             <p className='text-[11px] font-medium text-default-500'>
-                                {viewModel.dailyQuotaLabel}
+                                {viewModel.remainingQuotaLabel}
                             </p>
-                            <div className='mt-1.5 flex flex-wrap items-center gap-2'>
-                                <SubtleRefreshingValue refreshing={valueRefreshing}>
-                                    <span className='text-2xl font-semibold tracking-tight text-default-900'>
-                                        {viewModel.usageDisplay}
-                                    </span>
-                                </SubtleRefreshingValue>
-                                {viewModel.showUnlimitedBadge ? (
-                                    <div className='inline-flex rounded-full border border-default-200 bg-white px-2.5 py-1 text-[11px] text-default-600'>
-                                        {viewModel.unlimitedLabel}
-                                    </div>
-                                ) : null}
-                            </div>
+                            <SubtleRefreshingValue
+                                refreshing={valueRefreshing}
+                                className='mt-1.5'
+                            >
+                                <p className='text-2xl font-semibold tracking-tight text-default-900'>
+                                    {viewModel.remainingPercentDisplay}
+                                </p>
+                            </SubtleRefreshingValue>
                         </div>
 
                         <div className='rounded-xl border border-default-200 bg-default-50/70 px-4 py-3'>
@@ -482,7 +507,11 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                             </button>
                         </div>
 
-                        <div className='mt-3 grid gap-2 sm:grid-cols-3'>
+                        <p className='mt-2 text-xs leading-5 text-default-500'>
+                            {viewModel.inviteRebateDescription}
+                        </p>
+
+                        <div className='mt-3 grid gap-2 sm:grid-cols-2'>
                             <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
                                 <p className='text-[11px] text-default-500'>
                                     {viewModel.invitedCountLabel}
@@ -493,33 +522,6 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                                 >
                                     <p className='text-sm font-semibold text-default-800'>
                                         {viewModel.invitedCount}
-                                    </p>
-                                </SubtleRefreshingValue>
-                            </div>
-                            <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
-                                <p className='flex items-center gap-1 text-[11px] text-default-500'>
-                                    <span>{viewModel.pendingCountLabel}</span>
-                                    <Tooltip
-                                        content={viewModel.pendingCountHelpText}
-                                        size='sm'
-                                        placement='top'
-                                        showArrow
-                                        classNames={{
-                                            content:
-                                                'max-w-[240px] rounded-lg border border-default-200 bg-white px-3 py-2 text-[12px] leading-5 text-default-700 shadow-lg',
-                                        }}
-                                    >
-                                        <span className='inline-flex cursor-help text-default-400 transition-colors hover:text-default-600'>
-                                            <AiOutlineExclamationCircle className='text-[13px]' />
-                                        </span>
-                                    </Tooltip>
-                                </p>
-                                <SubtleRefreshingValue
-                                    refreshing={valueRefreshing}
-                                    className='mt-1'
-                                >
-                                    <p className='text-sm font-semibold text-default-800'>
-                                        {viewModel.pendingCount}
                                     </p>
                                 </SubtleRefreshingValue>
                             </div>
@@ -604,11 +606,6 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
                     <p className='mt-1 line-clamp-2 text-sm leading-6 text-default-500'>
                         {viewModel.description}
                     </p>
-                    {viewModel.monthlyAverageLabel ? (
-                        <p className='pt-1 text-xs text-default-500'>
-                            {viewModel.monthlyAverageLabel}
-                        </p>
-                    ) : null}
                 </div>
 
                 {viewModel.availableCycles.length > 0 ? (
@@ -632,37 +629,23 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
                                 );
                             })}
                         </div>
-                        <div className='min-h-[24px]'>
-                            {viewModel.yearlySavingsLabel ? (
-                                <div className='rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700'>
-                                    {viewModel.yearlySavingsLabel}
-                                </div>
-                            ) : null}
-                        </div>
                     </div>
                 ) : (
                     <div className='min-h-[64px] shrink-0' />
                 )}
             </div>
 
-            <div className='mt-2 rounded-xl border border-default-200 bg-default-50/70 px-3 py-3'>
-                <p className='text-[11px] font-medium text-default-500'>{viewModel.dailyQuotaLabel}</p>
-                <SubtleRefreshingValue
-                    refreshing={refreshing}
-                    className='mt-1'
-                >
-                    <p className='text-xl font-semibold tracking-tight text-default-900'>
-                        {viewModel.dailyQuotaValue}
-                    </p>
-                </SubtleRefreshingValue>
-            </div>
-
-            <div className='mt-4 min-h-[24px] text-xs leading-6 text-default-600'>
-                {viewModel.primaryFeatureLabel ? (
-                    <div className='flex items-start gap-2'>
-                        <span className={`mt-[8px] h-1.5 w-1.5 rounded-full ${viewModel.accentClass}`} />
-                        <span>{viewModel.primaryFeatureLabel}</span>
-                    </div>
+            <div className='mt-4 min-h-[72px] space-y-2 text-xs leading-5 text-default-600'>
+                {viewModel.featureLabels.length > 0 ? (
+                    viewModel.featureLabels.map((feature) => (
+                        <div
+                            key={feature}
+                            className='flex items-start gap-2'
+                        >
+                            <span className={`mt-[7px] h-1.5 w-1.5 rounded-full ${viewModel.accentClass}`} />
+                            <span>{feature}</span>
+                        </div>
+                    ))
                 ) : (
                     <span className='text-default-300'>-</span>
                 )}
@@ -794,6 +777,36 @@ const AccountSubscriptionPlansPanel = React.memo(function AccountSubscriptionPla
     );
 });
 
+const PaymentProviderButton = React.memo(function PaymentProviderButton({
+    provider,
+    selected,
+    available,
+    feeRate,
+    onSelect,
+}) {
+    const name = provider?.name || '';
+    return (
+        <button
+            type='button'
+            disabled={!available}
+            className={`relative flex min-h-[58px] items-center justify-center gap-3 rounded-lg border px-4 text-sm transition ${
+                selected
+                    ? 'border-primary-500 bg-primary-50 text-default-900 shadow-sm'
+                    : 'border-default-200 bg-white text-default-700 hover:border-default-300'
+            } ${available ? '' : 'cursor-not-allowed opacity-50'}`}
+            onClick={() => available && onSelect(name)}
+        >
+            <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${getProviderToneClass(name)}`}>
+                {getProviderMark(name)}
+            </span>
+            <span className='flex flex-col items-start leading-tight'>
+                <span className='text-base font-semibold'>{getProviderDisplayName(name)}</span>
+                {feeRate > 0 ? <span className='text-[10px] text-default-400'>+{feeRate}%</span> : null}
+            </span>
+        </button>
+    );
+});
+
 export default function Account() {
     const { t } = useTranslation();
     const [userInfo, setUserInfo] = useState(() => getCurrentUser().user || null);
@@ -819,7 +832,6 @@ export default function Account() {
         return Boolean(initialUser?.id) && !cachedCatalog;
     });
     const [billingCatalogRefreshing, setBillingCatalogRefreshing] = useState(false);
-    const [selectedPlanCycles, setSelectedPlanCycles] = useState({});
     const [pricingRegion, setPricingRegion] = useState('global');
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [activePurchaseKey, setActivePurchaseKey] = useState('');
@@ -877,6 +889,12 @@ export default function Account() {
         const normalizedValue = String(nextValue || '').trim();
         ACCOUNT_VIEW_CACHE.lastSelectedPaymentProvider = normalizedValue;
         persistAccountViewCache();
+        setLatestOrder((current) => {
+            if (!current) return current;
+            const currentProvider = String(current.provider || current.paymentType || '').trim();
+            return currentProvider === normalizedValue ? current : null;
+        });
+        setQrModalOpen(false);
         setSelectedPaymentProvider((currentValue) =>
             currentValue === normalizedValue ? currentValue : normalizedValue
         );
@@ -1001,27 +1019,6 @@ export default function Account() {
             cacheKey: billingCatalogCacheKey,
         });
     }, [billingCatalogCacheKey, paymentConfig, resolvedCatalogPaymentProvider, userInfo?.id]);
-
-    useEffect(() => {
-        if (subscriptionPlans.length === 0) return;
-        setSelectedPlanCycles((current) => {
-            let changed = false;
-            const next = { ...current };
-
-            PLAN_DISPLAY_ORDER.forEach((tierKey) => {
-                if (tierKey === 'free') return;
-                const tierPlans = subscriptionPlans.filter((plan) => plan?.tier === tierKey);
-                const tierCycles = getAvailableBillingCycles(tierPlans);
-                if (tierCycles.length === 0) return;
-                if (!tierCycles.includes(next[tierKey])) {
-                    next[tierKey] = tierCycles[0];
-                    changed = true;
-                }
-            });
-
-            return changed ? next : current;
-        });
-    }, [billingCatalog]);
 
     useEffect(() => {
         if (!userInfo?.id) return undefined;
@@ -1344,6 +1341,8 @@ export default function Account() {
         }
 
         setActivePurchaseKey(purchaseKey);
+        setLatestOrder(null);
+        setQrModalOpen(false);
         try {
             const idempotencyKey = `${userInfo.id}_${productCode}_${Date.now()}`;
             const result = await createPaymentOrder({
@@ -1359,7 +1358,9 @@ export default function Account() {
                 idempotencyKey,
                 paymentProvider: selectedPaymentProvider,
             });
-            setLatestOrder(result?.order || null);
+            const createdOrder = result?.order || null;
+            const createdQrPayload = getOrderQrPayload(createdOrder);
+            setLatestOrder(createdOrder);
             triggerAccountRefresh({
                 includeUser: false,
                 includePaymentConfig: false,
@@ -1367,10 +1368,10 @@ export default function Account() {
                 includeCatalog: false,
             });
             toast.success(t('config.account.payment_create_success'));
-            if (getOrderQrPayload(result?.order)) {
+            if (createdQrPayload) {
                 setQrModalOpen(true);
-            } else if (result?.order?.checkoutUrl) {
-                await openCheckout(result.order.checkoutUrl);
+            } else if (createdOrder?.checkoutUrl) {
+                await openCheckout(createdOrder.checkoutUrl);
             } else {
                 toast(t('config.account.payment_checkout_unavailable'));
             }
@@ -1411,11 +1412,11 @@ export default function Account() {
 
         await createOrder({
             purchaseKey: 'topup_custom',
-            orderType: 'topup',
-            productCode: 'membership_topup',
+            orderType: 'balance',
+            productCode: 'balance_topup',
             amount,
-            currency: billingCatalog?.currency || 'USD',
-            description: `Membership recharge for ${userInfo?.email || userInfo?.id || 'user'}`,
+            currency: billingCatalog?.currency || 'CNY',
+            description: `Balance recharge for ${userInfo?.email || userInfo?.id || 'user'}`,
         });
     }
 
@@ -1443,16 +1444,7 @@ export default function Account() {
         void copyInviteLinkRef.current();
     }, []);
 
-    const handleSelectPlanCycle = useCallback((tierKey, cycle) => {
-        setSelectedPlanCycles((current) =>
-            current[tierKey] === cycle
-                ? current
-                : {
-                      ...current,
-                      [tierKey]: cycle,
-                  }
-        );
-    }, []);
+    const handleSelectPlanCycle = useCallback(() => {}, []);
 
     async function handlePurchaseSubscription(plan) {
         if (!plan) return;
@@ -1464,6 +1456,7 @@ export default function Account() {
             currency: plan.currency || billingCatalog?.currency || 'CNY',
             description: `${plan.productCode} for ${userInfo?.email || userInfo?.id || 'user'}`,
             metadata: {
+                planId: plan.planId,
                 planTier: plan.tier,
                 billingCycle: plan.billingCycle,
                 durationDays: plan.durationDays,
@@ -1680,51 +1673,6 @@ export default function Account() {
         return date.toLocaleDateString();
     }
 
-    function formatBillingTime(value) {
-        if (!value) return t('config.account.billing_none');
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return String(value);
-        return date.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-            timeZone: 'UTC',
-        });
-    }
-
-    function formatBillingQuota(value) {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric) && numeric < 0) return t('config.account.billing_unlimited');
-        if (!Number.isFinite(numeric)) return '0';
-        return String(numeric);
-    }
-
-    function resolveQuotaResetDeadline(value) {
-        const raw = String(value || '').trim();
-        if (!raw) return null;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-            const baseTime = Date.parse(`${raw}T00:00:00.000Z`);
-            if (Number.isNaN(baseTime)) return null;
-            return new Date(baseTime + 24 * 60 * 60 * 1000);
-        }
-        const parsed = new Date(raw);
-        if (Number.isNaN(parsed.getTime())) return null;
-        const next = new Date(parsed);
-        next.setUTCDate(next.getUTCDate() + 1);
-        next.setUTCHours(0, 0, 0, 0);
-        return next;
-    }
-
-    function formatPlanQuota(plan) {
-        const quota = Number(plan?.dailyQuota);
-        if (Number.isFinite(quota) && quota < 0) {
-            return t('config.account.subscription_unlimited_quota_value');
-        }
-        return t('config.account.subscription_daily_quota_value', {
-            value: Number.isFinite(quota) ? quota : 0,
-        });
-    }
-
     function getBillingStatusColor(status) {
         const normalized = String(status || '').toLowerCase();
         if (normalized === 'active') return 'success';
@@ -1772,42 +1720,28 @@ export default function Account() {
             .trim()
             .toLowerCase();
         if (normalized === 'subscription') return t('config.account.order_type_subscription');
-        if (normalized === 'topup') return t('config.account.order_type_topup');
+        if (normalized === 'topup' || normalized === 'balance') return t('config.account.order_type_topup');
         return normalized || '-';
     }
 
     const displayTier = billingProfile?.tier || userInfo?.membership_tier || 'free';
     const tierConfig = userInfo ? TIER_KEYS[displayTier] ?? TIER_KEYS.free : null;
-    const activeBackend = paymentConfig?.activeBackend || '-';
-    const customEnabled = paymentConfig?.customOrchestratorEnabled ? 'ON' : 'OFF';
     const paymentProviderOptions = getProviderOptions(paymentConfig);
     const regionPaymentProviderOptions = filterProvidersByRegion(paymentProviderOptions, pricingRegion);
     const selectedProviderDetail =
         regionPaymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         null;
-    const selectedProviderPurchaseReady = isProviderReadyForPurchase(selectedProviderDetail);
+    const normalizedSelectedPaymentProvider = String(selectedPaymentProvider || '')
+        .trim()
+        .toLowerCase();
     const selectedProviderMissingFields =
         selectedProviderDetail?.createMissingFields || selectedProviderDetail?.missingFields || [];
-    const paymentChannel =
-        selectedPaymentProvider ||
-        paymentConfig?.providers?.customOrchestrator?.channel ||
-        paymentConfig?.providers?.customOrchestrator?.adapter ||
-        '-';
-    const paymentReady =
-        selectedProviderDetail?.createReady ??
-        selectedProviderDetail?.ready ??
-        paymentConfig?.providers?.customOrchestrator?.ready;
-    const paymentMissingFields =
-        selectedProviderDetail?.createMissingFields ||
-        selectedProviderDetail?.missingFields ||
-        paymentConfig?.providers?.customOrchestrator?.missingFields ||
-        [];
     const hasReadyPaymentProvider = regionPaymentProviderOptions.some((item) =>
         isProviderReadyForPurchase(item)
     );
-    const topupCreditsPerUnit = Number(
-        billingCatalog?.topupCreditsPerUnit ?? billingCatalog?.topupCreditsPerCny
+    const topupBalanceMultiplier = Number(
+        billingCatalog?.topupBalanceMultiplier
     );
     const latestOrderQrPayload = getOrderQrPayload(latestOrder);
     const topupPresets = billingCatalog?.topupPresets || [];
@@ -1819,9 +1753,9 @@ export default function Account() {
     const paymentIntentType = paymentIntent?.type || '';
     const paymentIntentTopupAmount =
         paymentIntentType === 'topup' ? Number(paymentIntent?.amount) || 0 : 0;
-    const paymentIntentEstimatedCredits =
-        Number.isFinite(topupCreditsPerUnit) && Number.isFinite(paymentIntentTopupAmount)
-            ? Math.max(0, Math.floor(paymentIntentTopupAmount * topupCreditsPerUnit))
+    const paymentIntentEstimatedBalance =
+        Number.isFinite(topupBalanceMultiplier) && Number.isFinite(paymentIntentTopupAmount)
+            ? paymentIntentTopupAmount * topupBalanceMultiplier
             : null;
     const paymentIntentResolvedPlan =
         paymentIntentType === 'subscription'
@@ -1836,50 +1770,122 @@ export default function Account() {
         paymentIntentType === 'subscription'
             ? 'subscription'
             : paymentIntentType === 'topup'
-              ? 'topup'
+              ? 'balance'
               : '';
     const paymentIntentProductCode =
         paymentIntentType === 'subscription'
             ? String(paymentIntentResolvedPlan?.productCode || '').trim()
             : paymentIntentType === 'topup'
-              ? 'membership_topup'
+              ? 'balance_topup'
               : '';
     const paymentIntentTitle =
         paymentIntentType === 'subscription' && paymentIntentResolvedPlan
-            ? `${t(`config.account.tier_${paymentIntentResolvedPlan.tier}`)} ${t(
-                  `config.account.subscription_cycle_${paymentIntentResolvedPlan.billingCycle}`
+            ? `${paymentIntentResolvedPlan.planName || paymentIntentResolvedPlan.productCode} ${t(
+                  `config.account.subscription_cycle_${paymentIntentResolvedPlan.billingCycle}`,
+                  { defaultValue: paymentIntentResolvedPlan.billingCycle }
               )}`
             : t('config.account.order_type_topup');
     const paymentIntentAmountLabel =
         paymentIntentType === 'subscription' && paymentIntentResolvedPlan
             ? formatMoney(paymentIntentResolvedPlan.amount, paymentIntentResolvedPlan.currency)
             : formatMoney(paymentIntentTopupAmount, billingCatalog?.currency || 'CNY');
+    const paymentIntentBaseAmount =
+        paymentIntentType === 'subscription' && paymentIntentResolvedPlan
+            ? Number(paymentIntentResolvedPlan.amount) || 0
+            : paymentIntentTopupAmount;
+    const paymentIntentPlanId =
+        paymentIntentType === 'subscription' ? Number(paymentIntentResolvedPlan?.planId) : null;
+    const selectedProviderFeeRate = getProviderFeeRate(selectedProviderDetail);
+    const paymentIntentFeeAmount =
+        selectedProviderFeeRate > 0 && paymentIntentBaseAmount > 0
+            ? Math.ceil(((paymentIntentBaseAmount * selectedProviderFeeRate) / 100) * 100) / 100
+            : 0;
+    const paymentIntentPayAmount =
+        paymentIntentFeeAmount > 0
+            ? Math.round((paymentIntentBaseAmount + paymentIntentFeeAmount) * 100) / 100
+            : paymentIntentBaseAmount;
+    const paymentIntentPayAmountLabel = formatMoney(
+        paymentIntentPayAmount,
+        paymentIntentResolvedPlan?.currency || billingCatalog?.currency || 'CNY'
+    );
+    const selectedProviderCanHandlePaymentAmount = canProviderHandleAmount(
+        selectedProviderDetail,
+        paymentIntentBaseAmount
+    );
     const paymentIntentHasValidAmount =
         paymentIntentType !== 'topup' ||
         (Number.isFinite(paymentIntentTopupAmount) && paymentIntentTopupAmount > 0);
+    const paymentIntentHasRequiredSelection =
+        paymentIntentType !== 'subscription' || Boolean(paymentIntentResolvedPlan);
+    const paymentMethodOptions = sortPaymentProviders(regionPaymentProviderOptions).map((provider) => ({
+        provider,
+        name: provider?.name || '',
+        feeRate: getProviderFeeRate(provider),
+        available: canProviderHandleAmount(provider, paymentIntentBaseAmount),
+    }));
+    const topupPresetOptions =
+        topupPresets.length > 0
+            ? topupPresets
+            : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000].map((amount) => ({
+                  productCode: `balance_topup_${amount}`,
+                  amount,
+                  currency: billingCatalog?.currency || 'CNY',
+                  balance: amount,
+              }));
+    const topupMinAmount = Number(billingCatalog?.globalMin) || 0;
+    const topupMaxAmount = Number(billingCatalog?.globalMax) || 0;
+    const filteredTopupPresets = topupPresetOptions.filter((preset) => {
+        const amount = Number(preset.amount);
+        if (!Number.isFinite(amount)) return false;
+        if (topupMinAmount > 0 && amount < topupMinAmount) return false;
+        if (topupMaxAmount > 0 && amount > topupMaxAmount) return false;
+        return true;
+    });
+    const paymentTopupAmountOutOfRange =
+        paymentIntentType === 'topup' &&
+        paymentIntentTopupAmount > 0 &&
+        ((topupMinAmount > 0 && paymentIntentTopupAmount < topupMinAmount) ||
+            (topupMaxAmount > 0 && paymentIntentTopupAmount > topupMaxAmount));
+    const paymentConfirmDisabled =
+        !paymentIntent ||
+        !paymentIntentHasValidAmount ||
+        !paymentIntentHasRequiredSelection ||
+        (paymentIntentType === 'topup' && Boolean(billingCatalog?.balanceDisabled)) ||
+        paymentTopupAmountOutOfRange ||
+        !selectedProviderCanHandlePaymentAmount;
     const paymentFlowOrder =
         latestOrder &&
         paymentIntentProductCode &&
+        !isTerminalOrderStatus(latestOrder.status) &&
         String(latestOrder.productCode || '').trim() === paymentIntentProductCode &&
+        String(latestOrder.provider || latestOrder.paymentType || '')
+            .trim()
+            .toLowerCase() === normalizedSelectedPaymentProvider &&
+        Math.abs((Number(latestOrder.amount) || 0) - paymentIntentBaseAmount) < 0.000001 &&
+        (paymentIntentType !== 'subscription' ||
+            !Number.isFinite(paymentIntentPlanId) ||
+            Number(latestOrder?.metadata?.planId) === paymentIntentPlanId) &&
         String(latestOrder.orderType || '')
             .trim()
             .toLowerCase() === paymentIntentOrderType
             ? latestOrder
             : null;
-    const paymentFlowQrPayload = paymentFlowOrder ? latestOrderQrPayload : '';
+    const paymentFlowQrPayload = paymentFlowOrder ? getOrderQrPayload(paymentFlowOrder) : '';
     const billingQuotaValue = Number(billingProfile?.dailyQuota);
-    const billingUsedValue = Math.max(0, Number(billingProfile?.dailyQuotaUsed) || 0);
-    const billingUsageQuotaLabel =
-        Number.isFinite(billingQuotaValue) && billingQuotaValue < 0
-            ? t('config.account.billing_unlimited')
-            : formatBillingQuota(billingProfile?.dailyQuota);
-    const billingUsageDisplay = `${billingUsedValue}/${billingUsageQuotaLabel}`;
+    const billingHasUnlimitedQuota = Number.isFinite(billingQuotaValue) && billingQuotaValue < 0;
+    const billingHasQuota = Number.isFinite(billingQuotaValue) && billingQuotaValue > 0;
+    const billingRemainingValue = billingHasUnlimitedQuota
+        ? null
+        : billingHasQuota
+          ? Math.max(0, billingQuotaValue - (Number(billingProfile?.dailyQuotaUsed) || 0))
+          : 0;
+    const billingRemainingPercent = billingHasUnlimitedQuota
+        ? 100
+        : billingHasQuota
+          ? Math.max(0, Math.min(100, Math.round((billingRemainingValue / billingQuotaValue) * 100)))
+          : 0;
     const billingCreditsDisplay = formatBillingValue(billingProfile?.bonusCredits);
     const billingExpiryDisplay = formatBillingDate(billingProfile?.subscriptionExpiresAt);
-    const quotaResetDeadline = resolveQuotaResetDeadline(billingProfile?.quotaResetAt);
-    const quotaResetTimeDisplay = quotaResetDeadline
-        ? `${formatBillingTime(quotaResetDeadline)} UTC`
-        : t('config.account.billing_none');
     const billingStatusNormalized = String(billingProfile?.status || '')
         .trim()
         .toLowerCase();
@@ -1898,74 +1904,17 @@ export default function Account() {
     const inviteCode = getInviteCode(billingProfile, userInfo);
     const inviteLink = buildInviteLink(inviteCode);
     const inviteStats = resolveInviteStats(billingProfile, userInfo);
-    const comparisonFreePlan = useMemo(
-        () => ({
-            productCode: 'membership_free',
-            tier: 'free',
-            billingCycle: 'month',
-            durationDays: 30,
-            amount: 0,
-            currency: billingCatalog?.currency || 'CNY',
-            dailyQuota: billingCatalog?.freeTier?.dailyQuota ?? 20,
-            allowCreditFallback: billingCatalog?.freeTier?.allowCreditFallback ?? true,
-            isIncludedPlan: true,
-        }),
-        [
-            billingCatalog?.currency,
-            billingCatalog?.freeTier?.allowCreditFallback,
-            billingCatalog?.freeTier?.dailyQuota,
-        ]
-    );
     const subscriptionPlanCards = useMemo(() => {
         if (subscriptionPlans.length > 0) {
-            return PLAN_DISPLAY_ORDER.map((tierKey) => {
-                if (tierKey === 'free') {
-                    return {
-                        tierKey,
-                        plan: comparisonFreePlan,
-                        availableCycles: [],
-                    };
-                }
-
-                const tierPlans = subscriptionPlans.filter((plan) => plan?.tier === tierKey);
-                if (tierPlans.length === 0) return null;
-                const tierCycles = getAvailableBillingCycles(tierPlans);
-                const selectedCycle = tierCycles.includes(selectedPlanCycles[tierKey])
-                    ? selectedPlanCycles[tierKey]
-                    : tierCycles[0];
-                const selectedPlan =
-                    tierPlans.find((plan) => plan?.billingCycle === selectedCycle) || tierPlans[0];
-
-                return {
-                    tierKey,
-                    plan: selectedPlan,
-                    availableCycles: tierCycles,
-                };
-            }).filter(Boolean);
+            return subscriptionPlans.map((plan, index) => ({
+                tierKey: `${plan?.tier || 'plan'}_${plan?.planId || plan?.productCode || index}`,
+                plan,
+                availableCycles: [],
+            }));
         }
 
-        return PLAN_DISPLAY_ORDER.map((tierKey) => ({
-            tierKey,
-            plan: {
-                productCode: `membership_${tierKey}_placeholder`,
-                tier: tierKey,
-                billingCycle: 'month',
-                durationDays: tierKey === 'free' ? 30 : null,
-                amount: tierKey === 'free' ? 0 : null,
-                currency: billingCatalog?.currency || 'CNY',
-                dailyQuota: tierKey === 'free' ? comparisonFreePlan.dailyQuota : null,
-                allowCreditFallback: tierKey === 'free' ? comparisonFreePlan.allowCreditFallback : null,
-                isIncludedPlan: tierKey === 'free',
-                isPlaceholder: true,
-            },
-            availableCycles: [],
-        }));
-    }, [
-        billingCatalog?.currency,
-        comparisonFreePlan,
-        selectedPlanCycles,
-        subscriptionPlans,
-    ]);
+        return [];
+    }, [subscriptionPlans]);
     const billingPanelViewModel = useMemo(
         () => ({
             title: t('config.account.billing_title'),
@@ -1973,27 +1922,26 @@ export default function Account() {
             purchaseActionLabel: t('config.account.credit_purchase_action'),
             ready: Boolean(billingProfile),
             hasReadyPaymentProvider,
-            dailyQuotaLabel: t('config.account.billing_daily_quota'),
-            usageDisplay: billingProfile ? billingUsageDisplay : '-/-',
-            showUnlimitedBadge: Boolean(billingProfile) && Number.isFinite(billingQuotaValue) && billingQuotaValue < 0,
-            unlimitedLabel: t('config.account.billing_unlimited'),
+            remainingQuotaLabel: t('config.account.billing_remaining_quota'),
+            remainingPercent: billingProfile ? billingRemainingPercent : 0,
+            remainingPercentDisplay: billingProfile
+                ? billingHasUnlimitedQuota
+                    ? t('config.account.billing_unlimited')
+                    : `${billingRemainingPercent}%`
+                : t('config.account.billing_none'),
             creditsLabel: t('config.account.billing_credits'),
             creditsDisplay: billingProfile ? billingCreditsDisplay : t('config.account.billing_none'),
             subscriptionExpiresLabel: t('config.account.billing_subscription_expires'),
             expiryDisplay: billingExpiryDisplay,
-            quotaResetLabel: t('config.account.billing_quota_reset_at'),
-            quotaResetDisplay: quotaResetTimeDisplay,
             inviteCodeLabel: t('config.account.invite_code'),
             inviteCodeDisplay: inviteCode || t('config.account.billing_none'),
             inviteShareLabel: t('config.account.invite_share'),
             inviteShareDisabled: !inviteLink,
+            inviteRebateDescription: t('config.account.invite_rebate_description', {
+                rate: Math.max(0, Number(inviteStats.rebateRatePercent) || 0),
+            }),
             invitedCountLabel: t('config.account.invite_invited_count'),
             invitedCount: billingProfile ? inviteStats.invitedCount : t('config.account.billing_none'),
-            pendingCountLabel: t('config.account.invite_pending_count'),
-            pendingCountHelpText: t('config.account.invite_pending_count_help', {
-                defaultValue: '为保障平台资源公平使用，邀请奖励将在受邀用户完成任意金额充值后发放。',
-            }),
-            pendingCount: billingProfile ? inviteStats.pendingCount : t('config.account.billing_none'),
             rewardedCreditsLabel: t('config.account.invite_rewarded_credits'),
             rewardedCredits: billingProfile
                 ? inviteStats.rewardedCredits
@@ -2003,16 +1951,15 @@ export default function Account() {
         [
             billingCreditsDisplay,
             billingExpiryDisplay,
+            billingHasUnlimitedQuota,
             billingProfile,
-            billingQuotaValue,
-            billingUsageDisplay,
+            billingRemainingPercent,
             hasReadyPaymentProvider,
             inviteCode,
             inviteLink,
             inviteStats.invitedCount,
-            inviteStats.pendingCount,
+            inviteStats.rebateRatePercent,
             inviteStats.rewardedCredits,
-            quotaResetTimeDisplay,
             t,
         ]
     );
@@ -2031,12 +1978,7 @@ export default function Account() {
                 const planCardStyle = PLAN_CARD_STYLES[plan.tier] || PLAN_CARD_STYLES.basic;
                 const isFreePlan = plan.tier === 'free' || plan.isIncludedPlan;
                 const isPlaceholder = Boolean(plan.isPlaceholder);
-                const isRecommendedPlan = plan.tier === 'pro';
-                const yearlySavings = getPlanYearlySavings(plan, subscriptionPlans);
-                const monthlyAverage =
-                    !isFreePlan && plan.billingCycle === 'year'
-                        ? formatMoney(Number(plan.amount || 0) / 12, plan.currency)
-                        : null;
+                const isRecommendedPlan = Boolean(plan.isRecommended) || plan.tier === 'pro';
                 const durationLabel = isFreePlan
                     ? t('config.account.subscription_free_feature')
                     : Number.isFinite(Number(plan.durationDays))
@@ -2048,10 +1990,14 @@ export default function Account() {
                     ? t('config.account.subscription_credit_fallback')
                     : '';
                 const hasNumericPrice = Number.isFinite(Number(plan.amount));
-                const hasNumericQuota = Number.isFinite(Number(plan.dailyQuota));
+                const featureLabels = normalizeFeatureLabels(plan.features);
+                if (featureLabels.length === 0) {
+                    if (durationLabel) featureLabels.push(durationLabel);
+                    if (fallbackLabel) featureLabels.push(fallbackLabel);
+                }
 
                 return {
-                    key: `${plan.tier}_${plan.billingCycle}`,
+                    key: `${plan.productCode || plan.planId || plan.tier}_${plan.billingCycle}`,
                     tier: plan.tier,
                     plan,
                     isPlaceholder,
@@ -2064,7 +2010,7 @@ export default function Account() {
                     surfaceClass: planCardStyle.surface,
                     accentClass: planCardStyle.accent,
                     badgeClass: planCardStyle.badge,
-                    tierLabel: t(`config.account.tier_${planTierConfig.key}`),
+                    tierLabel: plan.planName || t(`config.account.tier_${planTierConfig.key}`),
                     isRecommended: isRecommendedPlan,
                     recommendedLabel: t('config.account.subscription_recommended'),
                     currentPlanLabel: t('config.account.subscription_current_plan'),
@@ -2076,25 +2022,12 @@ export default function Account() {
                     priceUnitLabel: isFreePlan || !hasNumericPrice
                         ? ''
                         : `/${t(`config.account.subscription_unit_${plan.billingCycle}`)}`,
-                    description: t(`config.account.subscription_tier_${plan.tier}_desc`),
-                    monthlyAverageLabel: monthlyAverage
-                        ? t('config.account.subscription_monthly_average', {
-                              value: monthlyAverage,
-                          })
-                        : '',
-                    yearlySavingsLabel: yearlySavings
-                        ? t('config.account.subscription_yearly_savings', {
-                              value: yearlySavings,
-                          })
-                        : '',
-                    dailyQuotaLabel: t('config.account.billing_daily_quota'),
-                    dailyQuotaValue: hasNumericQuota
-                        ? formatBillingQuota(plan.dailyQuota)
-                        : t('config.account.billing_none'),
-                    primaryFeatureLabel:
-                        durationLabel && fallbackLabel
-                            ? `${durationLabel} · ${fallbackLabel}`
-                            : durationLabel || fallbackLabel || '',
+                    description:
+                        plan.description ||
+                        t(`config.account.subscription_tier_${plan.tier}_desc`, {
+                            defaultValue: plan.planName || '',
+                        }),
+                    featureLabels: featureLabels.slice(0, 4),
                     isFreePlan,
                     ctaLabel: isFreePlan
                         ? t('config.account.subscription_free_action')
@@ -2214,217 +2147,189 @@ export default function Account() {
                 isOpen={paymentModalOpen}
                 onOpenChange={setPaymentModalOpen}
                 placement='center'
-                size='3xl'
+                size='4xl'
                 scrollBehavior='inside'
             >
-                <ModalContent>
+                <ModalContent className='bg-gradient-to-br from-primary-50/70 via-white to-default-50'>
                     <ModalHeader className='flex flex-col gap-1'>
-                        <span>{t('config.account.payment_title')}</span>
+                        <span>{t('config.account.payment_checkout_title')}</span>
                         <span className='text-xs font-normal text-default-400'>{paymentIntentTitle}</span>
                     </ModalHeader>
                     <ModalBody className='space-y-4 pb-6'>
-                        <div className='rounded-[24px] border border-default-200 bg-gradient-to-br from-default-50 via-white to-default-50 p-4'>
-                            <div className='flex items-start justify-between gap-3'>
-                                <div className='space-y-1'>
-                                    <p className='text-xs text-default-500'>
-                                        {t('config.account.payment_order_type')}
-                                    </p>
-                                    <p className='text-sm font-semibold text-default-800'>
-                                        {paymentIntentType === 'subscription'
-                                            ? t('config.account.order_type_subscription')
-                                            : t('config.account.order_type_topup')}
-                                    </p>
-                                    <p className='text-xs text-default-500'>{paymentIntentTitle}</p>
-                                    {paymentIntentProductCode && (
-                                        <p className='text-xs text-default-500'>
-                                            {t('config.account.payment_order_product')}:
-                                            <span className='ml-1 font-mono text-default-700'>
-                                                {paymentIntentProductCode}
-                                            </span>
-                                        </p>
-                                    )}
-                                </div>
-                                <div className='text-right'>
-                                    <p className='text-lg font-semibold text-default-900'>
-                                        {paymentIntentAmountLabel}
-                                    </p>
-                                    {paymentIntentType === 'topup' &&
-                                        paymentIntentEstimatedCredits !== null && (
-                                            <p className='mt-1 text-xs text-default-500'>
-                                                {t('config.account.topup_credit_estimate')}:
-                                                <span className='ml-1 font-mono text-default-700'>
-                                                    {paymentIntentEstimatedCredits}
-                                                </span>
-                                            </p>
-                                        )}
-                                </div>
-                            </div>
-                        </div>
-
                         {paymentIntentType === 'topup' && (
-                            <div className='rounded-[24px] border border-default-200 p-4'>
-                                <div className='space-y-1'>
-                                    <p className='text-sm font-semibold text-default-800'>
-                                        {t('config.account.credit_topup_title')}
+                            <>
+                                <div className='rounded-2xl border border-default-200 bg-white p-5 shadow-sm'>
+                                    <p className='text-xs font-medium text-default-400'>
+                                        {t('config.account.payment_recharge_account')}
                                     </p>
-                                    <p className='text-xs text-default-500'>
-                                        {t('config.account.credit_topup_subtitle')}
+                                    <p className='mt-1 text-base font-semibold text-default-900'>
+                                        {userInfo?.display_name || userInfo?.email || userInfo?.id || '-'}
+                                    </p>
+                                    <p className='mt-1 text-sm font-medium text-primary-600'>
+                                        {t('config.account.payment_current_balance')}: {billingCreditsDisplay}
                                     </p>
                                 </div>
 
-                                {topupPresets.length > 0 && (
-                                    <div className='mt-4 space-y-2'>
-                                        <p className='text-xs font-medium text-default-600'>
-                                            {t('config.account.topup_presets_title')}
-                                        </p>
-                                        <div className='flex flex-wrap gap-2'>
-                                            {topupPresets.map((preset) => (
-                                                <Button
+                                <div className='rounded-2xl border border-default-200 bg-white p-5 shadow-sm'>
+                                    <p className='mb-3 text-sm font-medium text-default-700'>
+                                        {t('config.account.topup_presets_title')}
+                                    </p>
+                                    <div className='grid grid-cols-3 gap-2'>
+                                        {filteredTopupPresets.map((preset) => {
+                                            const active =
+                                                Number(paymentIntent?.amount) === Number(preset.amount);
+                                            return (
+                                                <button
                                                     key={`${preset.productCode}_${preset.amount}`}
-                                                    size='sm'
-                                                    variant={
-                                                        Number(paymentIntent?.amount) === Number(preset.amount)
-                                                            ? 'solid'
-                                                            : 'bordered'
-                                                    }
-                                                    color='primary'
-                                                    className='min-h-[40px]'
-                                                    onPress={() =>
-                                                        updateRechargeAmount(String(preset.amount))
-                                                    }
+                                                    type='button'
+                                                    className={`rounded-lg border-2 px-4 py-3 text-center text-sm font-medium transition ${
+                                                        active
+                                                            ? 'border-primary-500 bg-primary-50 text-primary-700'
+                                                            : 'border-default-200 bg-white text-default-700 hover:border-default-300'
+                                                    }`}
+                                                    onClick={() => updateRechargeAmount(String(preset.amount))}
                                                 >
-                                                    {formatMoney(preset.amount, preset.currency)}
-                                                </Button>
-                                            ))}
-                                        </div>
+                                                    {preset.amount}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                )}
 
-                                <div className='mt-4 flex flex-wrap items-end gap-2'>
-                                    <Input
-                                        type='number'
-                                        min={0.01}
-                                        step={0.01}
-                                        size='sm'
-                                        label={t('config.account.credit_purchase_amount')}
-                                        value={String(paymentIntent?.amount ?? rechargeAmount)}
-                                        onValueChange={updateRechargeAmount}
-                                        className='min-w-[220px] flex-1'
-                                    />
+                                    <div className='mt-5'>
+                                        <label className='mb-2 block text-sm font-medium text-default-700'>
+                                            {t('config.account.payment_custom_amount')}
+                                        </label>
+                                        <div className='relative'>
+                                            <span className='absolute left-3 top-1/2 -translate-y-1/2 text-default-400'>
+                                                $
+                                            </span>
+                                            <Input
+                                                type='number'
+                                                min={topupMinAmount || 0.01}
+                                                max={topupMaxAmount || undefined}
+                                                step={0.01}
+                                                value={String(paymentIntent?.amount ?? rechargeAmount)}
+                                                onValueChange={updateRechargeAmount}
+                                                classNames={{
+                                                    inputWrapper:
+                                                        'h-12 rounded-xl border border-default-200 bg-white pl-6 shadow-none',
+                                                }}
+                                                placeholder={t('config.account.payment_enter_amount')}
+                                            />
+                                        </div>
+                                        {paymentTopupAmountOutOfRange ? (
+                                            <p className='mt-2 text-xs text-warning-600'>
+                                                {t('config.account.payment_amount_range_hint', {
+                                                    min: topupMinAmount || '-',
+                                                    max: topupMaxAmount || '-',
+                                                })}
+                                            </p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         )}
 
-                        <div className='rounded-[24px] border border-default-200 p-4'>
-                            <div className='mb-3 flex items-center gap-2'>
-                                <p className='text-sm font-semibold text-default-800'>
-                                    {t('config.account.payment_title')}
-                                </p>
+                        {paymentIntentType === 'topup' && billingCatalog?.balanceDisabled ? (
+                            <div className='rounded-2xl border border-default-200 bg-white p-5 text-sm text-default-500 shadow-sm'>
+                                {t('config.account.payment_balance_disabled')}
                             </div>
-                            <div className='space-y-1 text-xs text-default-500'>
-                                <p>
-                                    {t('config.account.payment_active_backend')}:
-                                    <span className='ml-1 font-mono text-default-700'>{activeBackend}</span>
+                        ) : null}
+
+                        <div className='rounded-2xl border border-default-200 bg-white p-5 shadow-sm'>
+                            <p className='mb-3 text-sm font-medium text-default-700'>
+                                {t('config.account.payment_provider_label')}
+                            </p>
+                            {paymentMethodOptions.length > 0 ? (
+                                <div className='grid gap-3 sm:grid-cols-2'>
+                                    {paymentMethodOptions.map((item) => (
+                                        <PaymentProviderButton
+                                            key={item.name}
+                                            provider={item.provider}
+                                            selected={selectedPaymentProvider === item.name}
+                                            available={item.available}
+                                            feeRate={item.feeRate}
+                                            onSelect={updateSelectedPaymentProvider}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className='text-sm text-default-500'>
+                                    {t('config.account.payment_provider_required')}
                                 </p>
-                                <p>
-                                    {t('config.account.payment_custom_enabled')}:
-                                    <span className='ml-1 font-mono text-default-700'>{customEnabled}</span>
-                                </p>
-                                <p>
-                                    {t('config.account.payment_channel')}:
-                                    <span className='ml-1 font-mono text-default-700'>{paymentChannel}</span>
-                                </p>
-                                <p>
-                                    {t('config.account.payment_channel_ready')}:
-                                    <span className='ml-1 font-mono text-default-700'>
-                                        {paymentReady === undefined
-                                            ? '-'
-                                            : paymentReady
-                                              ? t('config.account.payment_ready_yes')
-                                              : t('config.account.payment_ready_no')}
+                            )}
+                            {selectedProviderMissingFields.length > 0 && (
+                                <p className='mt-3 text-xs text-danger-500'>
+                                    {t('config.account.payment_provider_missing')}:{' '}
+                                    <span className='font-mono'>
+                                        {selectedProviderMissingFields.join(', ')}
                                     </span>
                                 </p>
-                                {paymentMissingFields.length > 0 && (
-                                    <p>
-                                        {t('config.account.payment_missing_fields')}:
-                                        <span className='ml-1 font-mono text-danger-500'>
-                                            {paymentMissingFields.join(', ')}
-                                        </span>
-                                    </p>
-                                )}
-                            </div>
+                            )}
                         </div>
 
-                        {regionPaymentProviderOptions.length > 0 && (
-                            <div className='space-y-2'>
-                                <label className='text-xs text-default-500'>
-                                    {t('config.account.payment_provider_label')}
-                                </label>
-                                {regionPaymentProviderOptions.length > 1 ? (
-                                    <select
-                                        value={selectedPaymentProvider}
-                                        onChange={(event) =>
-                                            updateSelectedPaymentProvider(event.target.value)
-                                        }
-                                        className='w-full rounded-lg border border-default-200 bg-transparent px-3 py-2 text-sm text-default-700 outline-none'
-                                    >
-                                        {regionPaymentProviderOptions.map((item) => (
-                                            <option
-                                                key={item.name}
-                                                value={item.name}
-                                            >
-                                                {getProviderDisplayName(item.name)}
-                                                {!isProviderReadyForPurchase(item)
-                                                    ? ` (${t('config.account.payment_ready_no')})`
-                                                    : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <div className='rounded-lg border border-default-200 bg-default-50 px-3 py-2 text-sm text-default-700'>
-                                        {getProviderDisplayName(regionPaymentProviderOptions[0]?.name)}
-                                    </div>
-                                )}
-                                {selectedProviderMissingFields.length > 0 && (
-                                    <p className='text-xs text-danger-500'>
-                                        {t('config.account.payment_provider_missing')}:{' '}
-                                        <span className='font-mono'>
-                                            {selectedProviderMissingFields.join(', ')}
+                        {paymentIntentBaseAmount > 0 && (
+                            <div className='rounded-2xl border border-default-200 bg-white p-5 shadow-sm'>
+                                <div className='space-y-2 text-sm'>
+                                    <div className='flex justify-between gap-4'>
+                                        <span className='text-default-500'>
+                                            {t('config.account.payment_order_amount')}
                                         </span>
-                                    </p>
-                                )}
+                                        <span className='font-medium text-default-900'>
+                                            {paymentIntentAmountLabel}
+                                        </span>
+                                    </div>
+                                    {paymentIntentFeeAmount > 0 ? (
+                                        <div className='flex justify-between gap-4'>
+                                            <span className='text-default-500'>
+                                                {t('config.account.payment_fee')} ({selectedProviderFeeRate}%)
+                                            </span>
+                                            <span className='font-medium text-default-900'>
+                                                {formatMoney(paymentIntentFeeAmount, billingCatalog?.currency || 'CNY')}
+                                            </span>
+                                        </div>
+                                    ) : null}
+                                    {paymentIntentType === 'topup' && paymentIntentEstimatedBalance !== null ? (
+                                        <div className='flex justify-between gap-4 border-t border-default-200 pt-2'>
+                                            <span className='text-default-500'>
+                                                {t('config.account.topup_credit_estimate')}
+                                            </span>
+                                            <span className='font-medium text-default-900'>
+                                                {formatMoney(
+                                                    paymentIntentEstimatedBalance,
+                                                    billingCatalog?.currency || 'CNY'
+                                                )}
+                                            </span>
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         )}
 
-                        <Button
-                            size='md'
-                            color={
-                                paymentIntentType === 'subscription' &&
-                                paymentIntentResolvedPlan?.tier === 'pro'
-                                    ? 'secondary'
-                                    : 'primary'
-                            }
-                            isLoading={
-                                paymentIntentType === 'subscription'
-                                    ? activePurchaseKey === paymentIntentResolvedPlan?.productCode
-                                    : activePurchaseKey === 'topup_custom'
-                            }
-                            isDisabled={
-                                !paymentIntent ||
-                                !paymentIntentHasValidAmount ||
-                                !selectedProviderPurchaseReady
-                            }
-                            onPress={handleConfirmPaymentIntent}
-                        >
-                            {paymentIntentType === 'subscription'
-                                ? t('config.account.subscription_buy')
-                                : t('config.account.payment_create')}
-                        </Button>
+                        {!paymentFlowOrder ? (
+                            <Button
+                                size='lg'
+                                color='primary'
+                                className='h-12 rounded-xl text-base font-semibold'
+                                startContent={<MdPayment className='text-lg' />}
+                                isLoading={
+                                    paymentIntentType === 'subscription'
+                                        ? activePurchaseKey === paymentIntentResolvedPlan?.productCode
+                                        : activePurchaseKey === 'topup_custom'
+                                }
+                                isDisabled={paymentConfirmDisabled}
+                                onPress={handleConfirmPaymentIntent}
+                            >
+                                {t('config.account.payment_confirm_action', {
+                                    amount: paymentIntentPayAmountLabel,
+                                })}
+                            </Button>
+                        ) : null}
 
-                        {paymentFlowOrder && (
-                            <div className='space-y-2 rounded-lg border border-default-200 p-3'>
+                        {paymentFlowOrder ? (
+                            <div className='space-y-2 rounded-2xl border border-default-200 bg-white p-5 shadow-sm'>
                                 <div className='flex items-center justify-between gap-2'>
-                                    <p className='text-xs text-default-600'>
+                                    <p className='text-sm font-medium text-default-700'>
                                         {t('config.account.payment_latest_order')}:
                                         <span className='ml-1 font-mono'>{paymentFlowOrder.id}</span>
                                     </p>
@@ -2437,55 +2342,27 @@ export default function Account() {
                                         {paymentFlowOrder.status}
                                     </Chip>
                                 </div>
-                                <p className='text-xs text-default-500'>
+                                <p className='text-sm text-default-500'>
                                     {t('config.account.payment_order_amount')}:
                                     <span className='ml-1 text-default-700'>
                                         {formatOrderAmount(paymentFlowOrder)}
                                     </span>
                                 </p>
-                                <p className='text-xs text-default-500'>
+                                <p className='text-sm text-default-500'>
                                     {t('config.account.payment_provider_label')}:
                                     <span className='ml-1 text-default-700'>
                                         {getProviderDisplayName(paymentFlowOrder.provider)}
                                     </span>
                                 </p>
-                                <p className='text-xs text-default-500'>
+                                <p className='text-sm text-default-500'>
                                     {t('config.account.payment_order_type')}:
                                     <span className='ml-1 text-default-700'>
                                         {getOrderTypeLabel(paymentFlowOrder.orderType)}
                                     </span>
                                 </p>
-                                {paymentFlowOrder.productCode && (
-                                    <p className='text-xs text-default-500'>
-                                        {t('config.account.payment_order_product')}:
-                                        <span className='ml-1 text-default-700'>
-                                            {paymentFlowOrder.productCode}
-                                        </span>
-                                    </p>
-                                )}
-                                {!isTerminalOrderStatus(paymentFlowOrder.status) && (
-                                    <p className='text-xs text-primary-500'>
-                                        {t('config.account.payment_polling')}
-                                    </p>
-                                )}
-                                {paymentFlowQrPayload && (
-                                    <div className='rounded-xl border border-default-200 bg-default-50/70 p-3'>
-                                        <p className='mb-2 text-xs font-medium text-default-600'>
-                                            {t('config.account.payment_qr_inline_title')}
-                                        </p>
-                                        {qrCodeDataUrl ? (
-                                            <img
-                                                src={qrCodeDataUrl}
-                                                alt='payment qr code'
-                                                className='mx-auto h-52 w-52 rounded-xl border border-default-200 bg-white p-3'
-                                            />
-                                        ) : (
-                                            <div className='mx-auto flex h-52 w-52 items-center justify-center rounded-xl border border-default-200 bg-white text-sm text-default-400'>
-                                                {t('config.account.payment_qr_loading')}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                <p className='text-sm text-primary-500'>
+                                    {t('config.account.payment_polling')}
+                                </p>
                                 <div className='flex flex-wrap gap-2'>
                                     {!paymentFlowQrPayload && (
                                         <Button
@@ -2506,25 +2383,21 @@ export default function Account() {
                                             {t('config.account.payment_show_qr')}
                                         </Button>
                                     )}
-                                    {!isTerminalOrderStatus(paymentFlowOrder.status) && (
-                                        <Button
-                                            size='sm'
-                                            variant='light'
-                                            color='danger'
-                                            isLoading={cancelingOrder}
-                                            onPress={handleCancelLatestOrder}
-                                        >
-                                            {t('config.account.payment_cancel_order')}
-                                        </Button>
-                                    )}
+                                    <Button
+                                        size='sm'
+                                        variant='light'
+                                        color='danger'
+                                        isLoading={cancelingOrder}
+                                        onPress={handleCancelLatestOrder}
+                                    >
+                                        {t('config.account.payment_cancel_order')}
+                                    </Button>
                                 </div>
-                                {!isTerminalOrderStatus(paymentFlowOrder.status) && (
-                                    <p className='text-[11px] text-default-400'>
-                                        {t('config.account.payment_cancel_order_hint')}
-                                    </p>
-                                )}
+                                <p className='text-[11px] text-default-400'>
+                                    {t('config.account.payment_cancel_order_hint')}
+                                </p>
                             </div>
-                        )}
+                        ) : null}
                     </ModalBody>
                 </ModalContent>
             </Modal>

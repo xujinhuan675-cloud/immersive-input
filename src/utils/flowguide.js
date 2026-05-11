@@ -1,11 +1,12 @@
 const DEFAULT_FLOWGUIDE_API_BASE = 'https://ai.flowguide.cc';
 
 const DEFAULT_AUTH_PATHS = Object.freeze({
-    login: '/api/auth/login',
-    register: '/api/auth/register',
-    sendCode: '/api/auth/send-code',
-    resetPassword: '/api/auth/reset-password',
-    logout: '/api/auth/logout',
+    login: '/api/v1/auth/login',
+    register: '/api/v1/auth/register',
+    sendCode: '/api/v1/auth/send-verify-code',
+    forgotPassword: '/api/v1/auth/forgot-password',
+    resetPassword: '/api/v1/auth/reset-password',
+    logout: '/api/v1/auth/logout',
 });
 
 function trimTrailingSlash(value) {
@@ -50,7 +51,10 @@ export function getFlowGuideAuthPath(name) {
 
 export function buildFlowGuideUrl(path, { base = getFlowGuideApiBase(), query } = {}) {
     const normalizedBase = normalizeBaseUrl(base);
-    const normalizedPath = trimLeadingSlash(path || '/');
+    let normalizedPath = trimLeadingSlash(path || '/');
+    if (/\/api\/v1$/i.test(normalizedBase) && normalizedPath.startsWith('api/v1/')) {
+        normalizedPath = normalizedPath.slice('api/v1/'.length);
+    }
     const url = `${normalizedBase}/${normalizedPath}`;
     if (!query) return url;
 

@@ -41,7 +41,7 @@ export default function RegisterForm({ onSuccess }) {
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
-        const incomingInviteCode = String(params.get('invite') || '')
+        const incomingInviteCode = String(params.get('aff') || params.get('aff_code') || params.get('invite') || '')
             .trim()
             .toUpperCase();
         if (incomingInviteCode) {
