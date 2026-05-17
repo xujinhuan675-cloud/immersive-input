@@ -79,6 +79,31 @@ fn write_backup_bundle<W: Write + std::io::Seek>(
     Ok(())
 }
 
+fn list_local_backup_files(path: &str) -> Result<Vec<String>, Error> {
+    let dir = Path::new(path);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut files = vec![];
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("zip") {
+            continue;
+        }
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        files.push(file_name.to_string());
+    }
+    files.sort();
+    Ok(files)
+}
+
 #[tauri::command(async)]
 pub async fn webdav(
     operate: &str,
@@ -154,11 +179,28 @@ pub async fn local(operate: &str, path: String) -> Result<String, Error> {
     match operate {
         "put" => {
             let config_dir_path = app_backup_dir()?;
+            if let Some(parent) = Path::new(&path).parent() {
+                fs::create_dir_all(parent)?;
+            }
 
             let zip_file = std::fs::File::create(&path)?;
             let mut zip = zip::ZipWriter::new(zip_file);
             write_backup_bundle(&mut zip, &config_dir_path)?;
             zip.finish()?;
+            Ok("".to_string())
+        }
+        "list" => {
+            let result = serde_json::to_string(&list_local_backup_files(&path)?)?;
+            Ok(result)
+        }
+        "delete" => {
+            let path = Path::new(&path);
+            if path.extension().and_then(|ext| ext.to_str()) != Some("zip") {
+                return Err(Error::Error("Local Delete Only Supports Zip Files".into()));
+            }
+            if path.is_file() {
+                fs::remove_file(path)?;
+            }
             Ok("".to_string())
         }
         "get" => {

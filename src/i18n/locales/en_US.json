@@ -229,7 +229,16 @@
                 "vault_export_success": "Vault exported successfully",
                 "vault_export_failed": "Vault export failed: ",
                 "vault_import_success": "Imported {{imported}} vault records, skipped {{skipped}} duplicates or empty rows",
-                "vault_import_failed": "Vault import failed: "
+                "vault_import_failed": "Vault import failed: ",
+                "immediate_backup": "Back Up Now",
+                "auto_backup": "Auto Backup",
+                "auto_off": "Off",
+                "auto_daily": "Daily",
+                "auto_weekly": "Weekly",
+                "auto_monthly": "Monthly",
+                "local_directory": "Auto Backup Folder",
+                "choose_folder": "Choose Folder",
+                "change_folder": "Change Folder"
             },
             "account": {
                 "label": "Account",
@@ -357,7 +366,7 @@
                 "subscription_renewal_note": "If your current subscription is still active, the newly purchased duration will extend from the existing expiry time",
                 "credit_topup_title": "Balance Recharge",
                 "credit_topup_subtitle": "Recharge balance for AI usage and uninterrupted access.",
-      "billing_summary_subtitle": "Resets daily, balance keeps access going.",
+                "billing_summary_subtitle": "Resets daily, balance keeps access going.",
                 "billing_summary_subtitle_with_reset": "Resets {{time}}, balance keeps access going.",
                 "credit_purchase_amount": "Purchase amount",
                 "credit_purchase_action": "Recharge balance",
@@ -426,7 +435,7 @@
             "ai": {
                 "label": "AI Features",
                 "title": "AI Features",
-            "api_tip": "API settings moved to Service → AI Services tab",
+                "api_tip": "API settings moved to Service → AI Services tab",
                 "pref_title": "Personal Writing Preferences",
                 "pref_desc": "This text will be appended to the System Prompt for each AI Polish session to better match your writing style.",
                 "pref_placeholder": "Enter your writing style preferences...",
@@ -1083,4 +1092,3 @@
         }
     }
 }
-

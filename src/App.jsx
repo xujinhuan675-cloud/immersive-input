@@ -24,6 +24,7 @@ import Login from './window/Login';
 import AuthGuard from './components/AuthGuard';
 import { useConfig } from './hooks';
 import { applyAppFont, DEFAULT_APP_FONT_SIZE } from './utils/appFont';
+import { startAutoBackupScheduler } from './utils/autoBackup';
 import './style.css';
 import './i18n';
 
@@ -94,6 +95,12 @@ export default function App() {
 
     useEffect(() => {
         store.load();
+    }, []);
+
+    useEffect(() => {
+        if (appWindow.label === 'daemon') {
+            startAutoBackupScheduler();
+        }
     }, []);
 
     useEffect(() => {

@@ -229,7 +229,16 @@
                 "vault_export_success": "密码本导出成功",
                 "vault_export_failed": "密码本导出失败：",
                 "vault_import_success": "已导入 {{imported}} 条密码本记录，跳过 {{skipped}} 条重复或空内容记录",
-                "vault_import_failed": "密码本导入失败："
+                "vault_import_failed": "密码本导入失败：",
+                "immediate_backup": "立即备份",
+                "auto_backup": "自动备份",
+                "auto_off": "关闭",
+                "auto_daily": "每天",
+                "auto_weekly": "每周",
+                "auto_monthly": "每月",
+                "local_directory": "自动备份目录",
+                "choose_folder": "选择文件夹",
+                "change_folder": "更换文件夹"
             },
             "account": {
                 "label": "账户",
@@ -356,7 +365,7 @@
                 "subscription_renewal_note": "当前会员仍在生效时，新购买的时长会从现有到期时间往后顺延",
                 "credit_topup_title": "余额充值",
                 "credit_topup_subtitle": "充值到余额后，可用于 AI 调用与持续使用。",
-      "billing_summary_subtitle": "每日重置，余额可用于继续使用。",
+                "billing_summary_subtitle": "每日重置，余额可用于继续使用。",
                 "billing_summary_subtitle_with_reset": "{{time}} 重置，余额可用于继续使用。",
                 "credit_purchase_amount": "购买金额",
                 "credit_purchase_action": "充值余额",
@@ -425,7 +434,7 @@
             "ai": {
                 "label": "AI",
                 "title": "AI",
-            "api_tip": "API 配置已移至『服务 → AI 服务』标签页",
+                "api_tip": "API 配置已移至『服务 → AI 服务』标签页",
                 "pref_title": "个人写作偏好",
                 "pref_desc": "这段文字会附加到每次 AI 润色的 System Prompt，让 AI 更贴合你的表达风格。",
                 "pref_placeholder": "在此填写你的写作风格偏好...",
@@ -1082,4 +1091,3 @@
         }
     }
 }
-
