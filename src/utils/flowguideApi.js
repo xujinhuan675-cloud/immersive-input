@@ -1,4 +1,4 @@
-import { buildFlowGuideUrl, parseFlowGuideErrorPayload } from './flowguide';
+import { buildFlowGuideAuthUrl, parseFlowGuideErrorPayload } from './flowguide';
 
 async function parseResponsePayload(response) {
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
@@ -27,7 +27,7 @@ export async function requestFlowGuide(path, { method = 'GET', headers = {}, bod
         requestHeaders.Authorization = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(buildFlowGuideUrl(path, { query }), {
+    const response = await fetch(buildFlowGuideAuthUrl(path, { query }), {
         method,
         headers: requestHeaders,
         body: body === undefined ? undefined : JSON.stringify(body),

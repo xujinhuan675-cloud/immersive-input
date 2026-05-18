@@ -980,7 +980,7 @@ export default function Account() {
             setBillingProfileLoading(true);
             setBillingProfileRefreshing(false);
         }
-        loadBillingProfile(userInfo.id, { silent: true });
+        loadBillingProfile(userInfo.id, { silent: false });
     }, [userInfo?.id]);
 
     useEffect(() => {
@@ -1201,6 +1201,7 @@ export default function Account() {
                 persistAccountViewCache();
             }
             updateStateIfChanged(setBillingProfile, nextProfile);
+            refreshUser();
             return nextProfile;
         } catch (error) {
             if (!silent) {

@@ -521,6 +521,9 @@ function EditView({ record, allTags, onSave, onCancel }) {
     const [error, setError] = useState('');
 
     const strength = getPasswordStrength(password);
+    const selectableTags = Array.from(new Set([...allTags, ...tags])).sort((left, right) =>
+        left.localeCompare(right)
+    );
 
     const toggleTag = (t) => setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
     const addTag = () => {
@@ -671,13 +674,12 @@ function EditView({ record, allTags, onSave, onCancel }) {
                 <div style={S.formRow}>
                     <label style={S.label}>{t('vault.tags_label')}</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                        {allTags.map((tag) => (
+                        {selectableTags.map((tag) => (
                             <span
                                 key={tag}
                                 style={S.tagPill(tags.includes(tag))}
                                 onClick={() => toggleTag(tag)}
                             >
-                                
                                 {tag}
                             </span>
                         ))}
@@ -702,25 +704,6 @@ function EditView({ record, allTags, onSave, onCancel }) {
                             {t('vault.add_tag')}
                         </button>
                     </div>
-                    {/* 瀹告煡鈧鐖ｇ粵楣冾暕鐟?*/}
-                    {tags.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', marginTop: '4px' }}>
-                            {tags.map((t) => (
-                                <span
-                                    key={t}
-                                    style={S.tagPill(true)}
-                                >
-                                    {t}
-                                    <span
-                                        style={{ marginLeft: 4, cursor: 'pointer' }}
-                                        onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
-                                    >
-                                        ?
-                                    </span>
-                                </span>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </div>
             <div style={S.bottomBar}>

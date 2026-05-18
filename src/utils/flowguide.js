@@ -4,6 +4,7 @@ const DEFAULT_AUTH_PATHS = Object.freeze({
     login: '/api/v1/auth/login',
     register: '/api/v1/auth/register',
     sendCode: '/api/v1/auth/send-verify-code',
+    refresh: '/api/v1/auth/refresh',
     forgotPassword: '/api/v1/auth/forgot-password',
     resetPassword: '/api/v1/auth/reset-password',
     logout: '/api/v1/auth/logout',
@@ -17,6 +18,13 @@ function trimLeadingSlash(value) {
     return String(value || '').trim().replace(/^\/+/, '');
 }
 
+function getEnvValue(key) {
+    const viteEnv = import.meta.env || {};
+    if (viteEnv[key] !== undefined) return viteEnv[key];
+    if (typeof process !== 'undefined' && process.env) return process.env[key];
+    return undefined;
+}
+
 export function normalizeBaseUrl(value, fallback = DEFAULT_FLOWGUIDE_API_BASE) {
     const raw = trimTrailingSlash(value) || trimTrailingSlash(fallback);
     if (!raw) return '';
@@ -24,21 +32,28 @@ export function normalizeBaseUrl(value, fallback = DEFAULT_FLOWGUIDE_API_BASE) {
 }
 
 export function getFlowGuideApiBase() {
-    return normalizeBaseUrl(import.meta.env.VITE_FLOWGUIDE_API_BASE, DEFAULT_FLOWGUIDE_API_BASE);
+    return normalizeBaseUrl(getEnvValue('VITE_FLOWGUIDE_API_BASE'), DEFAULT_FLOWGUIDE_API_BASE);
+}
+
+export function getFlowGuideAuthBase() {
+    return normalizeBaseUrl(
+        getEnvValue('VITE_FLOWGUIDE_AUTH_BASE') || getEnvValue('VITE_AUTH_API_BASE'),
+        getFlowGuideApiBase()
+    );
 }
 
 export function getFlowGuideAiGatewayBase() {
-    return normalizeBaseUrl(import.meta.env.VITE_FLOWGUIDE_AI_GATEWAY_BASE, getFlowGuideApiBase());
+    return normalizeBaseUrl(getEnvValue('VITE_FLOWGUIDE_AI_GATEWAY_BASE'), getFlowGuideApiBase());
 }
 
 export function getFlowGuideChatCompletionsUrl() {
-    const explicit = String(import.meta.env.VITE_FLOWGUIDE_CHAT_COMPLETIONS_URL || '').trim();
+    const explicit = String(getEnvValue('VITE_FLOWGUIDE_CHAT_COMPLETIONS_URL') || '').trim();
     if (explicit) return explicit;
     return `${getFlowGuideAiGatewayBase()}/v1/chat/completions`;
 }
 
 export function getFlowGuideAudioSpeechUrl() {
-    const explicit = String(import.meta.env.VITE_FLOWGUIDE_AUDIO_SPEECH_URL || '').trim();
+    const explicit = String(getEnvValue('VITE_FLOWGUIDE_AUDIO_SPEECH_URL') || '').trim();
     if (explicit) return explicit;
     return `${getFlowGuideAiGatewayBase()}/v1/audio/speech`;
 }
@@ -46,7 +61,7 @@ export function getFlowGuideAudioSpeechUrl() {
 export function getFlowGuideAuthPath(name) {
     const key = String(name || '').trim();
     const envKey = `VITE_FLOWGUIDE_AUTH_${key.replace(/[A-Z]/g, (char) => `_${char}`).toUpperCase()}_PATH`;
-    return String(import.meta.env[envKey] || DEFAULT_AUTH_PATHS[key] || '').trim();
+    return String(getEnvValue(envKey) || DEFAULT_AUTH_PATHS[key] || '').trim();
 }
 
 export function buildFlowGuideUrl(path, { base = getFlowGuideApiBase(), query } = {}) {
@@ -63,6 +78,10 @@ export function buildFlowGuideUrl(path, { base = getFlowGuideApiBase(), query } 
     return suffix ? `${url}?${suffix}` : url;
 }
 
+export function buildFlowGuideAuthUrl(path, { query } = {}) {
+    return buildFlowGuideUrl(path, { base: getFlowGuideAuthBase(), query });
+}
+
 export function isFlowGuideUrl(value) {
     const raw = String(value || '').trim();
     if (!raw) return false;
@@ -72,7 +91,12 @@ export function isFlowGuideUrl(value) {
         const target = new URL(resolved);
         const apiBase = new URL(getFlowGuideApiBase());
         const gatewayBase = new URL(getFlowGuideAiGatewayBase());
-        return target.origin === apiBase.origin || target.origin === gatewayBase.origin;
+        const authBase = new URL(getFlowGuideAuthBase());
+        return (
+            target.origin === apiBase.origin ||
+            target.origin === gatewayBase.origin ||
+            target.origin === authBase.origin
+        );
     } catch {
         return false;
     }

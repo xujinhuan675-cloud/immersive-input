@@ -110,7 +110,7 @@ test('computeSubscriptionGrant extends from current expiry for active subscripti
         tier: 'basic',
         status: 'active',
         subscriptionExpiresAt: '2026-05-01T00:00:00.000Z',
-        dailyQuota: 300,
+        dailyQuota: 100,
         dailyQuotaUsed: 0,
         quotaResetAt: '2026-04-08',
         bonusCredits: 0,
@@ -121,7 +121,7 @@ test('computeSubscriptionGrant extends from current expiry for active subscripti
         new Date('2026-04-08T12:00:00.000Z')
     );
     assert.equal(next.tier, 'basic');
-    assert.equal(next.dailyQuota, 300);
+    assert.equal(next.dailyQuota, 100);
     assert.equal(next.subscriptionExpiresAt, '2026-05-31T00:00:00.000Z');
 });
 

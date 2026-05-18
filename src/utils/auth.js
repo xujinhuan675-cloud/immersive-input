@@ -11,6 +11,8 @@ const STORAGE_KEYS = {
     LANGUAGE_PREFERENCE: 'auth_language_preference',
 };
 
+let refreshTokenPromise = null;
+
 function pickFirst(...values) {
     return values.find((value) => value !== undefined && value !== null && value !== '');
 }
@@ -46,6 +48,41 @@ function buildStoredUser(user, root = {}) {
             ) || ''
         ),
         avatar_url: pickFirst(source.avatar_url, source.avatarUrl, source.picture, root.avatarUrl) || '',
+    };
+}
+
+function mergeStoredUserPatch(currentUser, patch = {}) {
+    if (!currentUser && !patch) return null;
+    const source = patch || {};
+    const email = pickFirst(source.email, currentUser?.email);
+    const id = pickFirst(source.id, source.user_id, source.userId, currentUser?.id, email);
+    if (!id && !email) return null;
+
+    return {
+        ...(currentUser || {}),
+        id: String(id || email),
+        email: email ? String(email) : currentUser?.email || '',
+        username: pickFirst(source.username, currentUser?.username) || '',
+        balance: pickFirst(source.balance, currentUser?.balance) ?? 0,
+        role: pickFirst(source.role, currentUser?.role) || 'user',
+        status: pickFirst(source.status, currentUser?.status) || '',
+        subscriptions: source.subscriptions || currentUser?.subscriptions || [],
+        display_name: String(
+            pickFirst(
+                source.display_name,
+                source.displayName,
+                source.name,
+                source.username,
+                source.nickname,
+                currentUser?.display_name,
+                currentUser?.displayName,
+                currentUser?.name,
+                currentUser?.username,
+                email
+            ) || ''
+        ),
+        avatar_url:
+            pickFirst(source.avatar_url, source.avatarUrl, source.picture, currentUser?.avatar_url) || '',
     };
 }
 
@@ -90,6 +127,18 @@ function persistStoredSession(user, token, { refreshToken = '', expiresAt = null
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(storedUser));
     if (refreshToken) localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, String(refreshToken));
     if (expiresAt) localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, String(expiresAt));
+}
+
+function persistCurrentUser(user) {
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    const storedUser = buildStoredUser(user);
+    if (!storedUser || !token) return null;
+    const nextUser = {
+        ...(user || {}),
+        ...storedUser,
+    };
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(nextUser));
+    return nextUser;
 }
 
 function clearStoredSession() {
@@ -219,8 +268,54 @@ export function getCurrentUser() {
     }
 }
 
+export function updateCurrentUser(patch = {}) {
+    const { user } = getCurrentUser();
+    const nextUser = mergeStoredUserPatch(user, patch);
+    if (!nextUser) return null;
+    return persistCurrentUser(nextUser);
+}
+
+export async function refreshStoredUserProfile() {
+    const token = await requireAccessToken();
+    const payload = await requestFlowGuide('/api/v1/user/profile', { token });
+    const root = getPayloadRoot(payload);
+    return updateCurrentUser(root?.user || root?.account || root?.profile || root);
+}
+
 export async function getAccessToken() {
     return localStorage.getItem(STORAGE_KEYS.TOKEN) || null;
+}
+
+export async function refreshAccessToken() {
+    if (refreshTokenPromise) return refreshTokenPromise;
+
+    refreshTokenPromise = (async () => {
+        const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+        if (!refreshToken) return null;
+
+        try {
+            const payload = await postAuth('refresh', {
+                refresh_token: refreshToken,
+                refreshToken,
+            });
+            const currentUser = getCurrentUser().user || {};
+            const result = normalizeAuthPayload(payload, currentUser);
+            persistStoredSession(result.user, result.token, {
+                refreshToken: result.refreshToken || refreshToken,
+                expiresAt: result.expiresAt,
+            });
+            return result.token;
+        } catch (error) {
+            if (error?.status === 401 || error?.status === 403) {
+                clearStoredSession();
+            }
+            throw error;
+        } finally {
+            refreshTokenPromise = null;
+        }
+    })();
+
+    return refreshTokenPromise;
 }
 
 export async function requireAccessToken() {

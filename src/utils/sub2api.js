@@ -1,9 +1,17 @@
+import { refreshAccessToken } from './auth';
 import { getFlowGuideApiBase, normalizeBaseUrl, parseFlowGuideErrorPayload } from './flowguide';
 
 const DEFAULT_SUB2API_API_BASE = 'https://ai.flowguide.cc/api/v1';
 
 function trimSlashes(value) {
     return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function getEnvValue(key) {
+    const viteEnv = import.meta.env || {};
+    if (viteEnv[key] !== undefined) return viteEnv[key];
+    if (typeof process !== 'undefined' && process.env) return process.env[key];
+    return undefined;
 }
 
 function normalizeApiBase(value) {
@@ -17,8 +25,8 @@ function normalizeApiBase(value) {
 
 export function getSub2ApiBase() {
     const explicit =
-        String(import.meta.env.VITE_SUB2API_API_BASE || '').trim() ||
-        String(import.meta.env.VITE_FLOWGUIDE_REST_API_BASE || '').trim();
+        String(getEnvValue('VITE_SUB2API_API_BASE') || '').trim() ||
+        String(getEnvValue('VITE_FLOWGUIDE_REST_API_BASE') || '').trim();
     if (explicit) {
         return /\/api\/v1$/i.test(trimSlashes(explicit)) ? trimSlashes(explicit) : normalizeApiBase(explicit);
     }
@@ -29,8 +37,8 @@ export function getSub2ApiBase() {
 
 export function getSub2WebBase() {
     const explicit =
-        String(import.meta.env.VITE_SUB2API_WEB_BASE || '').trim() ||
-        String(import.meta.env.VITE_FLOWGUIDE_WEB_BASE || '').trim();
+        String(getEnvValue('VITE_SUB2API_WEB_BASE') || '').trim() ||
+        String(getEnvValue('VITE_FLOWGUIDE_WEB_BASE') || '').trim();
     if (explicit) return normalizeBaseUrl(explicit, 'https://ai.flowguide.cc');
 
     const apiBase = getSub2ApiBase()
@@ -106,7 +114,8 @@ export async function requestSub2Api(
         ...headers,
     };
 
-    const authToken = String(token || '').trim();
+    const explicitToken = String(token || '').trim();
+    const authToken = explicitToken;
     if (authToken && !requestHeaders.Authorization && !requestHeaders.authorization) {
         requestHeaders.Authorization = `Bearer ${authToken}`;
     }
@@ -117,17 +126,30 @@ export async function requestSub2Api(
         requestBody = JSON.stringify(body);
     }
 
-    const response = await fetch(buildSub2ApiUrl(path, { query }), {
+    const url = buildSub2ApiUrl(path, { query });
+    let response = await fetch(url, {
         method,
         headers: requestHeaders,
         body: requestBody,
     });
+    if (response.status === 401 && explicitToken && !headers.Authorization && !headers.authorization) {
+        const refreshedToken = await refreshAccessToken().catch(() => null);
+        if (refreshedToken && refreshedToken !== explicitToken) {
+            requestHeaders.Authorization = `Bearer ${refreshedToken}`;
+            response = await fetch(url, {
+                method,
+                headers: requestHeaders,
+                body: requestBody,
+            });
+        }
+    }
     const payload = await parseResponsePayload(response);
 
     if (!response.ok) {
         const error = new Error(parseFlowGuideErrorPayload(payload, `Request failed (${response.status})`));
         error.status = response.status;
         error.payload = payload;
+        error.url = url;
         throw error;
     }
 

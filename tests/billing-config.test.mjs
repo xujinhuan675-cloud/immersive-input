@@ -31,18 +31,45 @@ function withEnv(overrides, run) {
 test('getBillingCatalog returns default plans and topup presets', () => {
     withEnv(
         {
+            BILLING_CURRENCY: '',
+            BILLING_DEFAULT_DISPLAY_CURRENCY: '',
+            BILLING_TOPUP_PRESET_AMOUNTS_USD: '',
+            BILLING_TOPUP_PRESET_AMOUNTS: '',
+            BILLING_PLAN_PRICES_JSON_USD: '',
+            BILLING_PLAN_PRICES_JSON: '',
+            BILLING_PLAN_PRICE_USD_MEMBERSHIP_BASIC_MONTH: '',
+            BILLING_PLAN_PRICE_MEMBERSHIP_BASIC_MONTH: '',
+        },
+        () => {
+            const catalog = getBillingCatalog();
+            assert.equal(catalog.currency, 'USD');
+            assert.deepEqual(
+                catalog.topupPresets.map((item) => item.amount),
+                [4.99, 8.99, 14.99, 29.99]
+            );
+            assert.equal(catalog.subscriptionPlans.length, 6);
+            assert.equal(
+                catalog.subscriptionPlans.find((item) => item.productCode === 'membership_pro_year')?.amount,
+                99.99
+            );
+        }
+    );
+});
+
+test('getBillingCatalog returns CNY defaults when currency is explicit', () => {
+    withEnv(
+        {
             BILLING_TOPUP_PRESET_AMOUNTS: '',
             BILLING_PLAN_PRICES_JSON: '',
             BILLING_PLAN_PRICE_MEMBERSHIP_BASIC_MONTH: '',
         },
         () => {
-            const catalog = getBillingCatalog();
+            const catalog = getBillingCatalog({ currency: 'CNY' });
             assert.equal(catalog.currency, 'CNY');
             assert.deepEqual(
                 catalog.topupPresets.map((item) => item.amount),
                 [29, 59, 99, 199]
             );
-            assert.equal(catalog.subscriptionPlans.length, 6);
             assert.equal(
                 catalog.subscriptionPlans.find((item) => item.productCode === 'membership_pro_year')?.amount,
                 599
@@ -55,10 +82,10 @@ test('getBillingCatalog honors plan-price and topup overrides', () => {
     withEnv(
         {
             BILLING_CURRENCY: 'usd',
-            BILLING_TOPUP_CREDITS_PER_CNY: '120',
-            BILLING_TOPUP_PRESET_AMOUNTS: '9.9,19.9',
-            BILLING_PLAN_PRICE_MEMBERSHIP_BASIC_MONTH: '15',
-            BILLING_PLAN_PRICES_JSON: JSON.stringify({
+            BILLING_TOPUP_CREDITS_PER_USD: '120',
+            BILLING_TOPUP_PRESET_AMOUNTS_USD: '9.9,19.9',
+            BILLING_PLAN_PRICE_USD_MEMBERSHIP_BASIC_MONTH: '15',
+            BILLING_PLAN_PRICES_JSON_USD: JSON.stringify({
                 membership_enterprise_year: 1200,
             }),
         },

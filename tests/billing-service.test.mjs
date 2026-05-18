@@ -195,7 +195,7 @@ test('applyPaymentGrantForOrder upgrades subscription tier and expiry', async ()
     assert.equal(granted.applied, true);
     assert.equal(granted.grantType, 'subscription');
     assert.equal(granted.profile.tier, 'pro');
-    assert.equal(granted.profile.dailyQuota, 2000);
+    assert.equal(granted.profile.dailyQuota, 500);
     assert.equal(granted.profile.subscriptionExpiresAt, '2026-05-08T00:00:00.000Z');
 });
 

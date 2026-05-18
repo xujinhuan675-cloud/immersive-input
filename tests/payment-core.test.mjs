@@ -705,7 +705,7 @@ test('wxpay adapter runtime status reports required env keys when missing', () =
     ]);
 });
 
-test('payment config endpoint is publicly readable without bearer token', async () => {
+test('payment config legacy endpoint is retired by default', async () => {
     restoreEnv();
     const headers = new Map();
     let body = '';
@@ -728,9 +728,13 @@ test('payment config endpoint is publicly readable without bearer token', async 
         res
     );
 
-    assert.equal(res.statusCode, 200);
+    assert.equal(res.statusCode, 410);
     assert.equal(headers.get('Content-Type'), 'application/json; charset=utf-8');
-    assert.equal(JSON.parse(body).ok, true);
+    const payload = JSON.parse(body);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.retired, true);
+    assert.equal(payload.scope, 'payment');
+    assert.equal(payload.route, 'config');
 });
 
 test('wxpay adapter appends H5 redirect_url when return url is configured', async () => {

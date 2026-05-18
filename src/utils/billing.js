@@ -1,4 +1,4 @@
-import { getCurrentUser, requireAccessToken } from './auth';
+import { getCurrentUser, requireAccessToken, updateCurrentUser } from './auth';
 import { requestSub2Api } from './sub2api';
 
 function resolveUserId(userId) {
@@ -235,6 +235,7 @@ export async function getBillingProfile(userId, options = {}) {
         requestSub2Api('/subscriptions/progress', { token }).catch(() => []),
         requestSub2Api('/subscriptions/summary', { token }).catch(() => null),
     ]);
+    updateCurrentUser(user);
 
     return {
         profile: normalizeProfile({
