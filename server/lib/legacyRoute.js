@@ -23,7 +23,7 @@ function getEnvValue(...keys) {
 
 export function getFlowGuideServerBase() {
     return (
-        getEnvValue('FLOWGUIDE_API_BASE', 'VITE_FLOWGUIDE_API_BASE', 'VITE_AUTH_API_BASE') ||
+        getEnvValue('FLOWGUIDE_API_BASE', 'VITE_FLOWGUIDE_API_BASE') ||
         DEFAULT_FLOWGUIDE_BASE
     ).replace(/\/+$/, '');
 }

@@ -9,7 +9,6 @@ import {
 } from '../src/utils/flowguide.js';
 
 const ENV_KEYS = [
-    'VITE_AUTH_API_BASE',
     'VITE_FLOWGUIDE_API_BASE',
     'VITE_FLOWGUIDE_AUTH_BASE',
 ];
@@ -40,14 +39,12 @@ function withEnv(overrides, run) {
     }
 }
 
-test('auth base does not change FlowGuide API base', () => {
+test('auth base defaults to FlowGuide API base', () => {
     withEnv(
-        {
-            VITE_AUTH_API_BASE: 'https://pay.openeducation.top',
-        },
+        {},
         () => {
-            assert.equal(getFlowGuideAuthBase(), 'https://pay.openeducation.top');
-            assert.equal(buildFlowGuideAuthUrl('/api/v1/auth/login'), 'https://pay.openeducation.top/api/v1/auth/login');
+            assert.equal(getFlowGuideAuthBase(), 'https://ai.flowguide.cc');
+            assert.equal(buildFlowGuideAuthUrl('/api/v1/auth/login'), 'https://ai.flowguide.cc/api/v1/auth/login');
             assert.equal(getFlowGuideApiBase(), 'https://ai.flowguide.cc');
             assert.equal(buildFlowGuideUrl('/api/v1/user/profile'), 'https://ai.flowguide.cc/api/v1/user/profile');
         }
@@ -58,7 +55,7 @@ test('explicit FlowGuide API base is separate from auth base', () => {
     withEnv(
         {
             VITE_FLOWGUIDE_API_BASE: 'https://flowguide.example',
-            VITE_AUTH_API_BASE: 'https://pay.example',
+            VITE_FLOWGUIDE_AUTH_BASE: 'https://pay.example',
         },
         () => {
             assert.equal(getFlowGuideApiBase(), 'https://flowguide.example');

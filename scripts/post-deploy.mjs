@@ -11,7 +11,7 @@ function getApiUrl() {
     if (process.env.VERCEL_URL) {
         return `https://${process.env.VERCEL_URL}`;
     }
-    return process.env.VITE_AUTH_API_BASE || 'http://localhost:3000';
+    return process.env.VITE_FLOWGUIDE_API_BASE || 'http://localhost:3000';
 }
 
 function shouldSkipRemoteInit() {

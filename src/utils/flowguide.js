@@ -36,10 +36,7 @@ export function getFlowGuideApiBase() {
 }
 
 export function getFlowGuideAuthBase() {
-    return normalizeBaseUrl(
-        getEnvValue('VITE_FLOWGUIDE_AUTH_BASE') || getEnvValue('VITE_AUTH_API_BASE'),
-        getFlowGuideApiBase()
-    );
+    return normalizeBaseUrl(getEnvValue('VITE_FLOWGUIDE_AUTH_BASE'), getFlowGuideApiBase());
 }
 
 export function getFlowGuideAiGatewayBase() {

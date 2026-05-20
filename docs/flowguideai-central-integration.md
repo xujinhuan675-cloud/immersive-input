@@ -13,10 +13,11 @@ FlowGuideAI (`https://ai.flowguide.cc`) is the central account, billing, payment
 ## Default Endpoints
 
 - Auth base: `https://ai.flowguide.cc`
-- Login: `/api/auth/login`
-- Register: `/api/auth/register`
-- Send code: `/api/auth/send-code?scene=register|reset`
-- Reset password: `/api/auth/reset-password`
+- Login: `/api/v1/auth/login`
+- Register: `/api/v1/auth/register`
+- Send code: `/api/v1/auth/send-verify-code`
+- Forgot password: `/api/v1/auth/forgot-password`
+- Reset password: `/api/v1/auth/reset-password`
 - Billing profile: `/api/billing/profile`
 - Billing catalog: `/api/billing/catalog`
 - Payment config: `/api/payment/config`
@@ -30,13 +31,15 @@ Use these only when FlowGuideAI changes domains or paths.
 
 ```env
 VITE_FLOWGUIDE_API_BASE=https://ai.flowguide.cc
+VITE_FLOWGUIDE_AUTH_BASE=https://ai.flowguide.cc
 VITE_FLOWGUIDE_AI_GATEWAY_BASE=https://ai.flowguide.cc
 VITE_FLOWGUIDE_CHAT_COMPLETIONS_URL=https://ai.flowguide.cc/v1/chat/completions
 VITE_FLOWGUIDE_AUDIO_SPEECH_URL=https://ai.flowguide.cc/v1/audio/speech
-VITE_FLOWGUIDE_AUTH_LOGIN_PATH=/api/auth/login
-VITE_FLOWGUIDE_AUTH_REGISTER_PATH=/api/auth/register
-VITE_FLOWGUIDE_AUTH_SEND_CODE_PATH=/api/auth/send-code
-VITE_FLOWGUIDE_AUTH_RESET_PASSWORD_PATH=/api/auth/reset-password
+VITE_FLOWGUIDE_AUTH_LOGIN_PATH=/api/v1/auth/login
+VITE_FLOWGUIDE_AUTH_REGISTER_PATH=/api/v1/auth/register
+VITE_FLOWGUIDE_AUTH_SEND_CODE_PATH=/api/v1/auth/send-verify-code
+VITE_FLOWGUIDE_AUTH_FORGOT_PASSWORD_PATH=/api/v1/auth/forgot-password
+VITE_FLOWGUIDE_AUTH_RESET_PASSWORD_PATH=/api/v1/auth/reset-password
 ```
 
 ## Vercel Environment Migration
