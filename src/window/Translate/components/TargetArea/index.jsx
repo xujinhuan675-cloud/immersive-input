@@ -530,7 +530,7 @@ export default function TargetArea(props) {
         if (typeof result === 'string' && result !== '') {
             textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
         }
-    }, [result]);
+    }, [result, collapsed]);
 
     const hasStringResult = typeof result === 'string' && result.trim() !== '';
     const hasStructuredResult =
