@@ -151,7 +151,9 @@ fn handle_event(event: Event) {
                 save_foreground_window();
                 std::thread::sleep(std::time::Duration::from_millis(delay_ms));
 
-                let text = crate::selection_capture::get_text(Some(selection_marker));
+                let text = crate::selection_capture::get_text_without_clipboard_fallback(Some(
+                    selection_marker,
+                ));
                 let trimmed = text.trim().to_string();
                 crash_log::record(
                     "mouse_hook",

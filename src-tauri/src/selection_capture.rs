@@ -64,6 +64,19 @@ pub fn get_text(user_copy_priority_marker: Option<u64>) -> String {
     }
 }
 
+pub fn get_text_without_clipboard_fallback(user_copy_priority_marker: Option<u64>) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        return get_text_windows_without_clipboard_fallback(user_copy_priority_marker);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = user_copy_priority_marker;
+        selection::get_text()
+    }
+}
+
 fn copy_modifier_active() -> bool {
     CONTROL_DOWN.load(Ordering::SeqCst) || META_DOWN.load(Ordering::SeqCst)
 }
@@ -155,6 +168,41 @@ fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
                 format!("clipboard fallback error={}", err),
             );
             error!("get_text_by_clipboard error: {}", err);
+            String::new()
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn get_text_windows_without_clipboard_fallback(user_copy_priority_marker: Option<u64>) -> String {
+    if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
+        crash_log::record(
+            "selection_capture",
+            format!("user clipboard text chars={}", text.len()),
+        );
+        return text;
+    }
+
+    crash_log::record("selection_capture", "automation capture start");
+    match get_text_by_automation() {
+        Ok(text) if !text.is_empty() => {
+            crash_log::record(
+                "selection_capture",
+                format!("automation capture chars={}", text.len()),
+            );
+            text
+        }
+        Ok(_) => {
+            crash_log::record("selection_capture", "automation capture empty");
+            debug!("get_text_by_automation is empty");
+            String::new()
+        }
+        Err(err) => {
+            crash_log::record(
+                "selection_capture",
+                format!("automation capture error={}", err),
+            );
+            error!("get_text_by_automation error: {}", err);
             String::new()
         }
     }
