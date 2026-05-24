@@ -7,6 +7,7 @@ import { FiEdit3, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
+    WindowHeaderPinButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
 import {
@@ -18,6 +19,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
+import { useWindowPin } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getRecords, addRecord, updateRecord, deleteRecord, getAllTags } from './vaultDb';
 
@@ -523,7 +525,7 @@ function PasswordGenPanel({ onUse, onCopySuccess }) {
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 // 缂傛牞绶憴鍡楁禈
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
-function EditView({ record, allTags, onSave, onCancel }) {
+function EditView({ record, allTags, onSave, onCancel, pined, onTogglePin }) {
     const { t } = useTranslation();
     const isNew = !record;
     const [account, setAccount] = useState(record?.account ?? '');
@@ -582,7 +584,12 @@ function EditView({ record, allTags, onSave, onCancel }) {
                         {isNew ? t('vault.new_record') : t('vault.edit_record')}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderCloseButton />
+                    </div>
+                }
             />
             {false && (
                 <div style={S.header}>
@@ -827,7 +834,7 @@ function QuickAddModal({ onSave, onClose, initialAccount = '', initialPassword =
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 // 閸掓銆冪憴鍡楁禈閿涘牅瀵岀憴鍡楁禈閿?
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
-function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
+function ListView({ onEdit, pendingMode = 'idle', onModeConsumed, pined, onTogglePin }) {
     const { t } = useTranslation();
     const [records, setRecords] = useState([]);
     const [allTags, setAllTags] = useState([]);
@@ -941,7 +948,12 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                         {t('vault.title')}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderCloseButton />
+                    </div>
+                }
             />
             {false && (
                 <div style={S.header}>
@@ -1208,6 +1220,7 @@ export default function Vault() {
     const [editRecord, setEditRecord] = useState(null);
     const [allTags, setAllTags] = useState([]);
     const [listKey, setListKey] = useState(0);
+    const [pined, togglePin] = useWindowPin();
     // 'idle' | 'quick_add' | 'quick_fill'
     const [pendingMode, setPendingMode] = useState('idle');
 
@@ -1256,6 +1269,8 @@ export default function Vault() {
                             allTags={allTags}
                             onSave={handleSaved}
                             onCancel={handleCancel}
+                            pined={pined}
+                            onTogglePin={togglePin}
                         />
                     ) : (
                         <ListView
@@ -1263,6 +1278,8 @@ export default function Vault() {
                             onEdit={handleEdit}
                             pendingMode={pendingMode}
                             onModeConsumed={() => setPendingMode('idle')}
+                            pined={pined}
+                            onTogglePin={togglePin}
                         />
                     )}
                 </TrayWindowSurface>

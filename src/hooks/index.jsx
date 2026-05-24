@@ -3,3 +3,4 @@ export * from './useToastStyle';
 export * from './useSyncAtom';
 export * from './useVoice';
 export * from './useReadAloud';
+export * from './useWindowPin';

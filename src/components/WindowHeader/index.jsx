@@ -87,12 +87,13 @@ function startWindowDrag(event) {
     void appWindow.startDragging().catch(() => {});
 }
 
-function getButtonStyle(variant, iconOnly, active, disabled) {
+function getButtonStyle(variant, iconOnly, active, disabled, hovered) {
     const base = {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '6px',
+        width: iconOnly ? '32px' : undefined,
         minWidth: iconOnly ? '32px' : 'auto',
         height: '32px',
         padding: iconOnly ? '0' : '0 12px',
@@ -110,6 +111,25 @@ function getButtonStyle(variant, iconOnly, active, disabled) {
         boxSizing: 'border-box',
     };
 
+    if (variant === 'close') {
+        return {
+            ...base,
+            border: hovered && !disabled ? '1px solid rgba(254, 202, 202, 0.96)' : '1px solid transparent',
+            background: hovered && !disabled ? 'rgba(254, 242, 242, 0.96)' : 'transparent',
+            color: hovered && !disabled ? '#dc2626' : '#4b5563',
+        };
+    }
+
+    if (variant === 'pin') {
+        return {
+            ...base,
+            border: hovered && !disabled ? '1px solid rgba(226, 232, 240, 0.96)' : '1px solid transparent',
+            background: hovered && !disabled ? 'rgba(15, 23, 42, 0.06)' : 'transparent',
+            color: active ? '#2563eb' : '#4b5563',
+            boxShadow: 'none',
+        };
+    }
+
     if (variant === 'primary' || active) {
         return {
             ...base,
@@ -122,8 +142,8 @@ function getButtonStyle(variant, iconOnly, active, disabled) {
     if (variant === 'ghost') {
         return {
             ...base,
-            border: '1px solid transparent',
-            background: 'transparent',
+            border: hovered && !disabled ? '1px solid rgba(226, 232, 240, 0.96)' : '1px solid transparent',
+            background: hovered && !disabled ? 'rgba(15, 23, 42, 0.06)' : 'transparent',
             color: '#4b5563',
         };
     }
@@ -137,7 +157,11 @@ function getButtonStyle(variant, iconOnly, active, disabled) {
         };
     }
 
-    return base;
+    return {
+        ...base,
+        border: hovered && !disabled ? '1px solid rgba(203, 213, 225, 0.96)' : base.border,
+        background: hovered && !disabled ? 'rgba(248, 250, 252, 0.98)' : base.background,
+    };
 }
 
 export function WindowHeaderButton({
@@ -150,13 +174,18 @@ export function WindowHeaderButton({
     title,
     style,
 }) {
+    const [hovered, setHovered] = React.useState(false);
+
     return (
         <button
             type='button'
             title={title}
             disabled={disabled}
             onClick={disabled ? undefined : onClick}
-            style={{ ...getButtonStyle(variant, iconOnly, active, disabled), ...style }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onBlur={() => setHovered(false)}
+            style={{ ...getButtonStyle(variant, iconOnly, active, disabled, hovered), ...style }}
         >
             {children}
         </button>
@@ -180,7 +209,7 @@ export function WindowHeaderCloseButton({ label, showLabel = false, hideOnDarwin
     return (
         <WindowHeaderButton
             iconOnly={!showLabel}
-            variant='ghost'
+            variant='close'
             title={label || 'Close'}
             onClick={onClick || (() => appWindow.close())}
         >
@@ -198,10 +227,10 @@ export function WindowHeaderPinButton({ active = false, onClick, hideOnDarwin = 
     return (
         <WindowHeaderButton
             iconOnly
-            variant={active ? 'primary' : 'default'}
-            active={active}
-            title='Pin'
+            variant='pin'
+            title={active ? 'Unpin' : 'Pin'}
             onClick={onClick}
+            active={active}
         >
             <BsPinFill className='text-[14px]' />
         </WindowHeaderButton>

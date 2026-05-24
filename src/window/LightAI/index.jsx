@@ -8,6 +8,7 @@ import { MdContentCopy } from 'react-icons/md';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
+    WindowHeaderPinButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
 import {
@@ -19,7 +20,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
-import { useReadAloud, useStopVoiceOnUnmount, useToastStyle } from '../../hooks';
+import { useReadAloud, useStopVoiceOnUnmount, useToastStyle, useWindowPin } from '../../hooks';
 import { useConfig } from '../../hooks/useConfig';
 import {
     STYLE_KEYS,
@@ -405,6 +406,7 @@ export default function LightAI() {
     const apiConfig = useApiConfig();
     const toastStyle = useToastStyle();
     const readAloud = useReadAloud();
+    const [pined, togglePin] = useWindowPin();
     const [activeTab, setActiveTab] = useState('style');
     const [sourceText, setSourceText] = useState('');
     const [targetMode, setTargetMode] = useState('selection');
@@ -754,7 +756,12 @@ export default function LightAI() {
                         文本助手
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton onClick={() => void handleDismiss()} />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
+                        <WindowHeaderCloseButton onClick={() => void handleDismiss()} />
+                    </div>
+                }
             />
 
             <TrayWindowBody style={styles.body}>

@@ -2,11 +2,18 @@ import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { HiOutlineCollection, HiOutlinePencilAlt, HiOutlineTag, HiOutlineTrash } from 'react-icons/hi';
+import {
+    HiOutlineAdjustments,
+    HiOutlineCollection,
+    HiOutlinePencilAlt,
+    HiOutlineTag,
+    HiOutlineTrash,
+} from 'react-icons/hi';
 
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
+    WindowHeaderPinButton,
     WindowHeaderTitle,
 } from '../../components/WindowHeader';
 import {
@@ -18,6 +25,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
+import { useWindowPin } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import {
     addPhrase,
@@ -65,7 +73,7 @@ const styles = {
         WebkitBackdropFilter: 'none',
     },
     searchInput: {
-        height: '34px',
+        height: '36px',
         width: '100%',
         borderRadius: '10px',
         border: '1px solid rgba(203, 213, 225, 0.9)',
@@ -75,12 +83,17 @@ const styles = {
         fontSize: '13px',
         color: '#0f172a',
     },
+    searchBar: {
+        padding: '8px 12px 6px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
+        background: '#fff',
+    },
     filterBar: {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        minHeight: '46px',
-        padding: '8px 12px',
+        minHeight: '44px',
+        padding: '6px 12px 8px',
         borderBottom: '1px solid rgba(226, 232, 240, 0.76)',
         background: '#fff',
     },
@@ -118,6 +131,19 @@ const styles = {
         color: '#475569',
         fontSize: '12px',
         fontWeight: 500,
+    },
+    iconButton: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '34px',
+        height: '34px',
+        padding: 0,
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        background: 'rgba(255, 255, 255, 0.88)',
+        color: '#475569',
+        fontSize: '16px',
     },
     listWrap: {
         flex: 1,
@@ -423,7 +449,7 @@ function PhraseRow(props) {
     );
 }
 
-function TagsView({ onBack, onChanged }) {
+function TagsView({ onBack, onChanged, pined, onTogglePin }) {
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [editingId, setEditingId] = useState(null);
@@ -488,9 +514,12 @@ function TagsView({ onBack, onChanged }) {
                     </WindowHeaderTitle>
                 }
                 right={
-                    creating ? null : (
-                        <WindowHeaderButton onClick={() => setCreating(true)}>{t('phrases.add')}</WindowHeaderButton>
-                    )
+                    <div className='flex items-center gap-1.5'>
+                        {creating ? null : (
+                            <WindowHeaderButton onClick={() => setCreating(true)}>{t('phrases.add')}</WindowHeaderButton>
+                        )}
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                    </div>
                 }
             />
 
@@ -614,7 +643,7 @@ function TagsView({ onBack, onChanged }) {
     );
 }
 
-function EditView({ phrase, allTags, onSaved, onCancel }) {
+function EditView({ phrase, allTags, onSaved, onCancel, pined, onTogglePin }) {
     const { t } = useTranslation();
     const isNew = !phrase;
     const [title, setTitle] = useState(phrase?.title ?? '');
@@ -682,7 +711,12 @@ function EditView({ phrase, allTags, onSaved, onCancel }) {
                         {isNew ? t('phrases.add_phrase') : t('phrases.edit_phrase')}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderCloseButton />
+                    </div>
+                }
             />
 
             <div style={styles.formScroll}>
@@ -777,6 +811,7 @@ export default function Phrases() {
     const { t } = useTranslation();
     const [view, setView] = useState('list');
     const [editPhrase, setEditPhrase] = useState(null);
+    const [pined, togglePin] = useWindowPin();
     const [tags, setTags] = useState([]);
     const [allPhrases, setAllPhrases] = useState([]);
     const [tagCounts, setTagCounts] = useState({});
@@ -936,6 +971,8 @@ export default function Phrases() {
                     setView('list');
                     setEditPhrase(null);
                 }}
+                pined={pined}
+                onTogglePin={togglePin}
             />
         );
     } else if (view === 'tags') {
@@ -943,6 +980,8 @@ export default function Phrases() {
             <TagsView
                 onBack={() => setView('list')}
                 onChanged={reload}
+                pined={pined}
+                onTogglePin={togglePin}
             />
         );
     } else {
@@ -954,7 +993,7 @@ export default function Phrases() {
             >
                 <WindowHeader
                     style={styles.modernHeader}
-                    left={
+                    center={
                         <WindowHeaderTitle
                             icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
                             style={TRAY_WINDOW_TITLE_STYLE}
@@ -963,39 +1002,31 @@ export default function Phrases() {
                             常用语
                         </WindowHeaderTitle>
                     }
-                    center={
-                        <input
-                            ref={searchRef}
-                            style={styles.searchInput}
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            onKeyDown={handleListKeyDown}
-                            placeholder={
-                                filtered.length > 0 && search
-                                    ? t('phrases.search_found', {
-                                          n: filtered.length,
-                                          preview: (filtered[0].title || filtered[0].content).slice(0, 10),
-                                      })
-                                    : t('phrases.search_placeholder')
-                            }
-                        />
-                    }
                     right={
-                        <>
-                            <WindowHeaderButton
-                                variant='primary'
-                                style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
-                                onClick={() => {
-                                    setEditPhrase(null);
-                                    setView('edit');
-                                }}
-                            >
-                                {t('phrases.add')}
-                            </WindowHeaderButton>
+                        <div className='flex items-center gap-1.5'>
+                            <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
                             <WindowHeaderCloseButton />
-                        </>
+                        </div>
                     }
                 />
+
+                <div style={styles.searchBar}>
+                    <input
+                        ref={searchRef}
+                        style={styles.searchInput}
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={handleListKeyDown}
+                        placeholder={
+                            filtered.length > 0 && search
+                                ? t('phrases.search_found', {
+                                      n: filtered.length,
+                                      preview: (filtered[0].title || filtered[0].content).slice(0, 10),
+                                  })
+                                : t('phrases.search_placeholder')
+                        }
+                    />
+                </div>
 
                 <div style={styles.filterBar}>
                     <div style={styles.filterScroll}>
@@ -1019,11 +1050,12 @@ export default function Phrases() {
                     <div style={styles.filterActions}>
                         <button
                             type='button'
-                            style={styles.secondaryButton}
+                            title={t('phrases.manage_tags')}
+                            aria-label={t('phrases.manage_tags')}
+                            style={styles.iconButton}
                             onClick={() => setView('tags')}
                         >
-                            <HiOutlineTag style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
-                            {t('phrases.tags')}
+                            <HiOutlineAdjustments />
                         </button>
                         <button
                             type='button'
@@ -1083,6 +1115,16 @@ export default function Phrases() {
                     </span>
                     {batchMode ? <span>连续发送中 · 已发 {sentIds.size} 条</span> : null}
                     <span style={styles.statusHint}>↑↓ 选择 · Enter {batchMode ? '发送' : '填入'} · Esc 关闭</span>
+                    <button
+                        type='button'
+                        style={{ ...styles.footerButton(true), ...TRAY_WINDOW_PRIMARY_BUTTON_STYLE }}
+                        onClick={() => {
+                            setEditPhrase(null);
+                            setView('edit');
+                        }}
+                    >
+                        {t('phrases.add')}
+                    </button>
                 </div>
             </div>
         );

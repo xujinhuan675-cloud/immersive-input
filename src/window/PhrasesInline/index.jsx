@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { AiOutlineClose } from 'react-icons/ai';
 import {
+    HiOutlineAdjustments,
     HiOutlineClipboardList,
     HiOutlineCollection,
     HiOutlinePencilAlt,
@@ -11,7 +12,11 @@ import {
     HiOutlineTrash,
 } from 'react-icons/hi';
 
-import WindowHeader, { WindowHeaderCloseButton, WindowHeaderTitle } from '../../components/WindowHeader';
+import WindowHeader, {
+    WindowHeaderCloseButton,
+    WindowHeaderPinButton,
+    WindowHeaderTitle,
+} from '../../components/WindowHeader';
 import {
     TRAY_WINDOW_HEADER_STYLE,
     TRAY_WINDOW_PRIMARY_BUTTON_STYLE,
@@ -21,6 +26,7 @@ import {
     TrayWindowBody,
     TrayWindowSurface,
 } from '../../components/TrayWindow';
+import { useWindowPin } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import {
     addPhrase,
@@ -94,7 +100,7 @@ const styles = {
         WebkitBackdropFilter: 'none',
     },
     searchInput: {
-        height: '34px',
+        height: '36px',
         width: '100%',
         borderRadius: '10px',
         border: '1px solid rgba(203, 213, 225, 0.92)',
@@ -275,10 +281,11 @@ const styles = {
         width: '24px',
         height: '24px',
         borderRadius: '8px',
-        border: 'none',
-        background: hovered ? 'rgba(15, 23, 42, 0.06)' : 'transparent',
-        color: hovered ? '#334155' : '#64748b',
+        border: hovered ? '1px solid rgba(254, 202, 202, 0.96)' : '1px solid transparent',
+        background: hovered ? 'rgba(254, 242, 242, 0.96)' : 'transparent',
+        color: hovered ? '#dc2626' : '#64748b',
         flexShrink: 0,
+        boxSizing: 'border-box',
         transition: 'background 120ms ease, color 120ms ease',
     }),
     quickDock: {
@@ -303,6 +310,11 @@ const styles = {
         outline: 'none',
         fontSize: '13px',
         color: '#0f172a',
+    },
+    searchBar: {
+        padding: '8px 12px 6px',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
+        background: '#fff',
     },
     quickManageButton: {
         display: 'inline-flex',
@@ -336,10 +348,24 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        minHeight: '42px',
-        padding: '7px 12px',
+        minHeight: '44px',
+        padding: '6px 12px 8px',
         borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
         background: '#fff',
+    },
+    iconButton: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '34px',
+        height: '34px',
+        padding: 0,
+        borderRadius: '10px',
+        border: '1px solid rgba(226, 232, 240, 0.92)',
+        background: 'rgba(255, 255, 255, 0.92)',
+        color: '#475569',
+        fontSize: '16px',
+        flexShrink: 0,
     },
     filterScroll: {
         display: 'flex',
@@ -628,7 +654,7 @@ function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrima
     );
 }
 
-function TagsView({ onBack, onChanged, onClose }) {
+function TagsView({ onBack, onChanged, onClose, pined, onTogglePin }) {
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [editingId, setEditingId] = useState(null);
@@ -687,7 +713,12 @@ function TagsView({ onBack, onChanged, onClose }) {
                         {t('phrases.manage_tags')}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton onClick={onClose} />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderCloseButton onClick={onClose} />
+                    </div>
+                }
             />
 
             <div
@@ -822,7 +853,7 @@ function TagsView({ onBack, onChanged, onClose }) {
     );
 }
 
-function EditView({ phrase, allTags, onSaved, onCancel, onClose }) {
+function EditView({ phrase, allTags, onSaved, onCancel, onClose, pined, onTogglePin }) {
     const { t } = useTranslation();
     const isNew = !phrase;
     const [title, setTitle] = useState(phrase?.title ?? '');
@@ -875,7 +906,12 @@ function EditView({ phrase, allTags, onSaved, onCancel, onClose }) {
                         {isNew ? t('phrases.add_phrase') : t('phrases.edit_phrase')}
                     </WindowHeaderTitle>
                 }
-                right={<WindowHeaderCloseButton onClick={onClose} />}
+                right={
+                    <div className='flex items-center gap-1.5'>
+                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderCloseButton onClick={onClose} />
+                    </div>
+                }
             />
 
             <div
@@ -978,6 +1014,7 @@ export default function PhrasesInline() {
     const { t } = useTranslation();
     const [view, setView] = useState('quick');
     const [editPhrase, setEditPhrase] = useState(null);
+    const [pined, togglePin] = useWindowPin();
     const [tags, setTags] = useState([]);
     const [allPhrases, setAllPhrases] = useState([]);
     const [tagCounts, setTagCounts] = useState({});
@@ -1417,6 +1454,8 @@ export default function PhrasesInline() {
                     setEditPhrase(null);
                 }}
                 onClose={dismiss}
+                pined={pined}
+                onTogglePin={togglePin}
             />
         );
     } else if (view === 'tags') {
@@ -1425,6 +1464,8 @@ export default function PhrasesInline() {
                 onBack={() => setView('manage')}
                 onChanged={reload}
                 onClose={dismiss}
+                pined={pined}
+                onTogglePin={togglePin}
             />
         );
     } else if (view === 'manage') {
@@ -1432,7 +1473,7 @@ export default function PhrasesInline() {
             <div style={styles.view}>
                 <WindowHeader
                     style={styles.manageHeader}
-                    left={
+                    center={
                         <WindowHeaderTitle
                             icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
                             style={TRAY_WINDOW_TITLE_STYLE}
@@ -1441,17 +1482,23 @@ export default function PhrasesInline() {
                             管理常用语
                         </WindowHeaderTitle>
                     }
-                    center={
-                        <input
-                            ref={searchRef}
-                            style={styles.searchInput}
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder={t('phrases.search_placeholder')}
-                        />
+                    right={
+                        <div className='flex items-center gap-1.5'>
+                            <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
+                            <WindowHeaderCloseButton onClick={dismiss} />
+                        </div>
                     }
-                    right={<WindowHeaderCloseButton onClick={dismiss} />}
                 />
+
+                <div style={styles.searchBar}>
+                    <input
+                        ref={searchRef}
+                        style={styles.searchInput}
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder={t('phrases.search_placeholder')}
+                    />
+                </div>
 
                 <div style={styles.filterBar}>
                     <div
@@ -1472,11 +1519,12 @@ export default function PhrasesInline() {
                     </div>
                     <button
                         type='button'
-                        style={styles.subtleButton}
+                        title={t('phrases.manage_tags')}
+                        aria-label={t('phrases.manage_tags')}
+                        style={styles.iconButton}
                         onClick={() => setView('tags')}
                     >
-                        <HiOutlineTag style={{ marginRight: 4 }} />
-                        {t('phrases.tags')}
+                        <HiOutlineAdjustments />
                     </button>
                 </div>
 
@@ -1652,7 +1700,7 @@ export default function PhrasesInline() {
     return (
         <TrayWindow
             style={
-                view === 'manage'
+                view !== 'quick'
                     ? styles.manageWindow
                     : view === 'quick'
                       ? styles.quickWindow
@@ -1663,7 +1711,7 @@ export default function PhrasesInline() {
                 style={
                     view === 'quick'
                         ? styles.quickBody
-                        : view === 'manage'
+                        : view !== 'quick'
                           ? styles.manageBody
                           : undefined
                 }
@@ -1672,7 +1720,7 @@ export default function PhrasesInline() {
                     style={
                         view === 'quick'
                             ? styles.quickSurface
-                            : view === 'manage'
+                            : view !== 'quick'
                               ? styles.manageSurface
                             : undefined
                     }
