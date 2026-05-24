@@ -101,7 +101,7 @@ export default function Login({ embedded = false, onSuccess }) {
 
     return (
         <div
-            className={`${embedded ? '' : 'h-screen'} flex select-none flex-col overflow-y-auto bg-background cursor-default`}
+            className={`${embedded ? '' : 'h-screen'} flex select-none flex-col overflow-y-auto bg-background`}
             style={{ userSelect: 'none' }}
         >
             {!embedded && (

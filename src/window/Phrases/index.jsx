@@ -43,6 +43,27 @@ const styles = {
         fontFamily: APP_FONT_FAMILY_VAR,
         color: '#0f172a',
     },
+    window: {
+        background: '#fff',
+    },
+    body: {
+        padding: 0,
+    },
+    surface: {
+        border: 'none',
+        borderRadius: 0,
+        background: '#fff',
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
+    modernHeader: {
+        ...TRAY_WINDOW_HEADER_STYLE,
+        background: '#fff',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
     searchInput: {
         height: '34px',
         width: '100%',
@@ -61,7 +82,7 @@ const styles = {
         minHeight: '46px',
         padding: '8px 12px',
         borderBottom: '1px solid rgba(226, 232, 240, 0.76)',
-        background: 'rgba(248, 250, 252, 0.76)',
+        background: '#fff',
     },
     filterScroll: {
         display: 'flex',
@@ -86,7 +107,6 @@ const styles = {
         background: active ? '#0f172a' : 'rgba(255, 255, 255, 0.88)',
         color: active ? '#ffffff' : '#475569',
         fontSize: '12px',
-        cursor: 'pointer',
         whiteSpace: 'nowrap',
     }),
     secondaryButton: {
@@ -98,33 +118,33 @@ const styles = {
         color: '#475569',
         fontSize: '12px',
         fontWeight: 500,
-        cursor: 'pointer',
     },
     listWrap: {
         flex: 1,
         overflow: 'auto',
-        padding: '10px 12px 12px',
+        padding: 0,
+        background: '#fff',
     },
     list: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: 0,
     },
-    item: (active, sent) => ({
+    item: (active, sent, last = false) => ({
         display: 'flex',
         alignItems: 'flex-start',
         gap: '10px',
-        padding: '10px 12px',
-        borderRadius: '13px',
-        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.18)' : sent ? 'rgba(187, 247, 208, 0.95)' : 'rgba(226, 232, 240, 0.9)'}`,
+        padding: '12px 18px',
+        borderRadius: 0,
+        border: 'none',
+        borderBottom: last ? 'none' : '1px solid rgba(226, 232, 240, 0.72)',
         background: active
-            ? 'rgba(241, 245, 249, 0.94)'
+            ? 'rgba(248, 250, 252, 0.96)'
             : sent
-              ? 'rgba(240, 253, 244, 0.88)'
-              : 'rgba(255, 255, 255, 0.92)',
-        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.28)',
-        cursor: 'pointer',
-        transition: 'background 120ms ease, border-color 120ms ease',
+              ? 'rgba(240, 253, 244, 0.72)'
+              : '#fff',
+        boxShadow: 'none',
+        transition: 'background 120ms ease',
     }),
     itemMain: {
         minWidth: 0,
@@ -172,7 +192,6 @@ const styles = {
         background: danger ? 'rgba(255, 241, 242, 0.92)' : 'rgba(255, 255, 255, 0.9)',
         color: danger ? '#dc2626' : '#475569',
         fontSize: '11px',
-        cursor: 'pointer',
     }),
     empty: {
         padding: '56px 16px',
@@ -187,7 +206,7 @@ const styles = {
         gap: '8px',
         padding: '7px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.78)',
+        background: '#fff',
         color: '#64748b',
         fontSize: '11px',
     },
@@ -203,7 +222,7 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        background: 'rgba(248, 250, 252, 0.58)',
+        background: '#fff',
     },
     section: {
         display: 'flex',
@@ -237,7 +256,7 @@ const styles = {
         gap: '8px',
         padding: '10px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.76)',
+        background: '#fff',
     },
     footerButton: (primary = false) => ({
         height: '40px',
@@ -249,26 +268,26 @@ const styles = {
         color: primary ? '#ffffff' : '#475569',
         fontSize: '13px',
         fontWeight: 600,
-        cursor: 'pointer',
     }),
     managerList: {
         flex: 1,
         overflow: 'auto',
-        padding: '10px 12px 12px',
+        padding: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        background: 'rgba(248, 250, 252, 0.58)',
+        gap: 0,
+        background: '#fff',
     },
     tagRow: {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        padding: '10px 12px',
-        borderRadius: '12px',
-        border: '1px solid rgba(226, 232, 240, 0.9)',
-        background: 'rgba(255, 255, 255, 0.92)',
-        boxShadow: '0 12px 28px -26px rgba(15, 23, 42, 0.28)',
+        padding: '12px 18px',
+        borderRadius: 0,
+        border: 'none',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
+        background: '#fff',
+        boxShadow: 'none',
     },
     tagDot: (color) => ({
         width: '10px',
@@ -306,7 +325,6 @@ const styles = {
         color: '#475569',
         fontSize: '12px',
         fontWeight: 500,
-        cursor: 'pointer',
     },
 };
 
@@ -335,11 +353,12 @@ function HighlightText({ text, query }) {
 }
 
 function PhraseRow(props) {
-    const { phrase, tag, query, active, hovered, sent, batchMode, onHover, onSend, onEdit, onDelete } = props;
+    const { phrase, tag, query, active, hovered, sent, batchMode, last, onHover, onSend, onEdit, onDelete } = props;
 
     return (
         <div
-            style={styles.item(active, sent)}
+            data-clickable='true'
+            style={styles.item(active, sent, last)}
             onMouseEnter={onHover}
             onClick={() => onSend(phrase)}
         >
@@ -458,7 +477,7 @@ function TagsView({ onBack, onChanged }) {
     return (
         <div style={styles.view}>
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={styles.modernHeader}
                 left={<WindowHeaderButton onClick={onBack}>{t('phrases.back')}</WindowHeaderButton>}
                 center={
                     <WindowHeaderTitle
@@ -653,7 +672,7 @@ function EditView({ phrase, allTags, onSaved, onCancel }) {
     return (
         <div style={styles.view}>
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={styles.modernHeader}
                 center={
                     <WindowHeaderTitle
                         icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
@@ -934,7 +953,7 @@ export default function Phrases() {
                 tabIndex={-1}
             >
                 <WindowHeader
-                    style={TRAY_WINDOW_HEADER_STYLE}
+                    style={styles.modernHeader}
                     left={
                         <WindowHeaderTitle
                             icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
@@ -1036,6 +1055,7 @@ export default function Phrases() {
                                     hovered={hoverId === phrase.id}
                                     sent={sentIds.has(phrase.id)}
                                     batchMode={batchMode}
+                                    last={index === filtered.length - 1}
                                     onHover={() => {
                                         setHoverId(phrase.id);
                                         setActiveIdx(index);
@@ -1069,9 +1089,9 @@ export default function Phrases() {
     }
 
     return (
-        <TrayWindow>
-            <TrayWindowBody>
-                <TrayWindowSurface>{content}</TrayWindowSurface>
+        <TrayWindow style={styles.window}>
+            <TrayWindowBody style={styles.body}>
+                <TrayWindowSurface style={styles.surface}>{content}</TrayWindowSurface>
             </TrayWindowBody>
         </TrayWindow>
     );

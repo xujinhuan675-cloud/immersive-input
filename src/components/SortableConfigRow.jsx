@@ -17,7 +17,7 @@ export default function SortableConfigRow(props) {
                 {showDragHandle ? (
                     <div
                         {...dragHandleProps}
-                        className='flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-default-400 transition-colors hover:bg-default-100 hover:text-default-600 active:cursor-grabbing'
+                        className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-default-400 transition-colors hover:bg-default-100 hover:text-default-600'
                     >
                         <LuGripVertical size={16} />
                     </div>

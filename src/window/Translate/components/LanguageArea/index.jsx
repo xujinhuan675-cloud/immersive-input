@@ -20,7 +20,7 @@ export default function LanguageArea() {
     const detectLanguage = useAtomValue(detectLanguageAtom);
     const { t } = useTranslation();
     const languageButtonClass =
-        'h-auto min-h-[38px] w-full justify-start rounded-[10px] px-3 py-2 text-default-700 transition-colors hover:bg-default-100 data-[hover=true]:bg-default-100';
+        'h-auto min-h-[38px] w-full justify-start rounded-[10px] border border-default-200/80 bg-white px-3 py-2 text-default-700 transition-colors hover:bg-default-50 data-[hover=true]:bg-default-50';
     const detectedLanguageLabel =
         sourceLanguage === 'auto' && detectLanguage !== '' ? t(`languages.${detectLanguage}`) : null;
 
@@ -34,8 +34,8 @@ export default function LanguageArea() {
     }, [translateSourceLanguage, translateTargetLanguage]);
 
     return (
-        <div className='rounded-[12px] border border-default-200/80 bg-content1/92 p-1'>
-            <div className='flex items-center gap-1'>
+        <div className='border-b border-default-200/70 bg-white px-4 py-2'>
+            <div className='flex items-center gap-2'>
                 <div className='min-w-0 flex-1'>
                     <Dropdown>
                         <DropdownTrigger>

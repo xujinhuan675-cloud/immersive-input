@@ -3,18 +3,28 @@ use log::{debug, error};
 use once_cell::sync::Lazy;
 use rdev::Key;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 static PROCESS_START: Lazy<Instant> = Lazy::new(Instant::now);
 static CONTROL_DOWN: AtomicBool = AtomicBool::new(false);
 static META_DOWN: AtomicBool = AtomicBool::new(false);
 static LAST_USER_COPY_INTENT_MS: AtomicU64 = AtomicU64::new(0);
+static AUTO_TOOLBAR_PENDING_SELECTION: Lazy<Mutex<Option<AutoToolbarSelectionContext>>> =
+    Lazy::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
 static INTERNAL_COPY_ACTIVE: AtomicBool = AtomicBool::new(false);
 
 #[cfg(target_os = "windows")]
 static LAST_USER_COPY_BASE_SEQ: AtomicU32 = AtomicU32::new(0);
+
+#[derive(Clone, Copy)]
+struct AutoToolbarSelectionContext {
+    marker: u64,
+    release_x: i32,
+    release_y: i32,
+}
 
 pub fn current_marker() -> u64 {
     PROCESS_START.elapsed().as_millis().min(u64::MAX as u128) as u64
@@ -64,17 +74,61 @@ pub fn get_text(user_copy_priority_marker: Option<u64>) -> String {
     }
 }
 
-pub fn get_text_without_clipboard_fallback(user_copy_priority_marker: Option<u64>) -> String {
+pub fn get_text_for_auto_toolbar(
+    user_copy_priority_marker: Option<u64>,
+    release_x: i32,
+    release_y: i32,
+) -> String {
     #[cfg(target_os = "windows")]
     {
-        return get_text_windows_without_clipboard_fallback(user_copy_priority_marker);
+        return get_text_windows_for_auto_toolbar(user_copy_priority_marker, release_x, release_y);
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = user_copy_priority_marker;
+        let _ = (user_copy_priority_marker, release_x, release_y);
         selection::get_text()
     }
+}
+
+pub fn set_auto_toolbar_pending_selection(marker: u64, release_x: i32, release_y: i32) {
+    let mut guard = AUTO_TOOLBAR_PENDING_SELECTION
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    *guard = Some(AutoToolbarSelectionContext {
+        marker,
+        release_x,
+        release_y,
+    });
+}
+
+pub fn clear_auto_toolbar_pending_selection() {
+    let mut guard = AUTO_TOOLBAR_PENDING_SELECTION
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    *guard = None;
+}
+
+pub fn has_auto_toolbar_pending_selection() -> bool {
+    AUTO_TOOLBAR_PENDING_SELECTION
+        .lock()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
+}
+
+pub fn capture_auto_toolbar_pending_selection() -> String {
+    let context = {
+        let mut guard = AUTO_TOOLBAR_PENDING_SELECTION
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        guard.take()
+    };
+
+    let Some(context) = context else {
+        return String::new();
+    };
+
+    get_text_for_auto_toolbar(Some(context.marker), context.release_x, context.release_y)
 }
 
 fn copy_modifier_active() -> bool {
@@ -174,35 +228,111 @@ fn get_text_windows(user_copy_priority_marker: Option<u64>) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn get_text_windows_without_clipboard_fallback(user_copy_priority_marker: Option<u64>) -> String {
+fn get_text_windows_for_auto_toolbar(
+    user_copy_priority_marker: Option<u64>,
+    release_x: i32,
+    release_y: i32,
+) -> String {
     if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
         crash_log::record(
             "selection_capture",
-            format!("user clipboard text chars={}", text.len()),
+            format!("auto toolbar user clipboard text chars={}", text.len()),
         );
         return text;
     }
 
-    crash_log::record("selection_capture", "automation capture start");
+    crash_log::record("selection_capture", "auto toolbar focused automation capture start");
     match get_text_by_automation() {
         Ok(text) if !text.is_empty() => {
             crash_log::record(
                 "selection_capture",
-                format!("automation capture chars={}", text.len()),
+                format!("auto toolbar focused automation chars={}", text.len()),
+            );
+            return text;
+        }
+        Ok(_) => {
+            crash_log::record(
+                "selection_capture",
+                "auto toolbar focused automation empty",
+            );
+            debug!("auto toolbar focused automation is empty");
+        }
+        Err(err) => {
+            crash_log::record(
+                "selection_capture",
+                format!("auto toolbar focused automation error={}", err),
+            );
+            error!("auto toolbar focused automation error: {}", err);
+        }
+    }
+
+    crash_log::record(
+        "selection_capture",
+        format!(
+            "auto toolbar point automation capture start x={} y={}",
+            release_x, release_y
+        ),
+    );
+    match get_text_by_automation_from_point(release_x, release_y) {
+        Ok(text) if !text.is_empty() => {
+            crash_log::record(
+                "selection_capture",
+                format!("auto toolbar point automation chars={}", text.len()),
+            );
+            return text;
+        }
+        Ok(_) => {
+            crash_log::record("selection_capture", "auto toolbar point automation empty");
+            debug!("auto toolbar point automation is empty");
+        }
+        Err(err) => {
+            crash_log::record(
+                "selection_capture",
+                format!("auto toolbar point automation error={}", err),
+            );
+            error!("auto toolbar point automation error: {}", err);
+        }
+    }
+
+    if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
+        crash_log::record(
+            "selection_capture",
+            format!("auto toolbar late user clipboard text chars={}", text.len()),
+        );
+        return text;
+    }
+
+    if copy_modifier_active() {
+        debug!("Skipping auto toolbar clipboard fallback because copy modifier is held");
+        return String::new();
+    }
+
+    if has_user_copy_intent_since(user_copy_priority_marker) {
+        debug!("Skipping auto toolbar clipboard fallback because user copy is still settling");
+        return String::new();
+    }
+
+    debug!("auto toolbar fallback to protected clipboard capture");
+    crash_log::record("selection_capture", "auto toolbar clipboard fallback start");
+    match get_text_by_clipboard_for_auto_toolbar(user_copy_priority_marker) {
+        Ok(text) if !text.is_empty() => {
+            crash_log::record(
+                "selection_capture",
+                format!("auto toolbar clipboard fallback chars={}", text.len()),
             );
             text
         }
         Ok(_) => {
-            crash_log::record("selection_capture", "automation capture empty");
-            debug!("get_text_by_automation is empty");
+            crash_log::record("selection_capture", "auto toolbar clipboard fallback empty");
+            debug!("auto toolbar clipboard fallback is empty");
             String::new()
         }
         Err(err) => {
             crash_log::record(
                 "selection_capture",
-                format!("automation capture error={}", err),
+                format!("auto toolbar clipboard fallback error={}", err),
             );
-            error!("get_text_by_automation error: {}", err);
+            error!("auto toolbar clipboard fallback error: {}", err);
             String::new()
         }
     }
@@ -264,15 +394,11 @@ fn clipboard_sequence() -> u32 {
 }
 
 #[cfg(target_os = "windows")]
-fn get_text_by_automation() -> Result<String, Box<dyn std::error::Error>> {
-    use windows::Win32::System::Com::{CoCreateInstance, CoInitialize, CLSCTX_ALL};
-    use windows::Win32::UI::Accessibility::{
-        CUIAutomation, IUIAutomation, IUIAutomationTextPattern, UIA_TextPatternId,
-    };
+fn get_selected_text_from_element(
+    element: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use windows::Win32::UI::Accessibility::{IUIAutomationTextPattern, UIA_TextPatternId};
 
-    let _ = unsafe { CoInitialize(None) };
-    let automation: IUIAutomation = unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_ALL) }?;
-    let element = unsafe { automation.GetFocusedElement() }?;
     let selection: IUIAutomationTextPattern =
         unsafe { element.GetCurrentPatternAs(UIA_TextPatternId) }?;
     let ranges = unsafe { selection.GetSelection() }?;
@@ -286,6 +412,115 @@ fn get_text_by_automation() -> Result<String, Box<dyn std::error::Error>> {
     }
 
     Ok(target.trim().to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn get_text_by_automation() -> Result<String, Box<dyn std::error::Error>> {
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitialize, CLSCTX_ALL};
+    use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+
+    let _ = unsafe { CoInitialize(None) };
+    let automation: IUIAutomation = unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_ALL) }?;
+    let element = unsafe { automation.GetFocusedElement() }?;
+    get_selected_text_from_element(&element)
+}
+
+#[cfg(target_os = "windows")]
+fn get_text_by_automation_from_point(
+    release_x: i32,
+    release_y: i32,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitialize, CLSCTX_ALL};
+    use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+
+    let _ = unsafe { CoInitialize(None) };
+    let automation: IUIAutomation = unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_ALL) }?;
+    let element = unsafe {
+        automation.ElementFromPoint(POINT {
+            x: release_x,
+            y: release_y,
+        })
+    }?;
+
+    if let Ok(text) = get_selected_text_from_element(&element) {
+        if !text.is_empty() {
+            return Ok(text);
+        }
+    }
+
+    let walker = unsafe { automation.ControlViewWalker() }?;
+    let mut current = element;
+    for _ in 0..8 {
+        let parent = unsafe { walker.GetParentElement(&current) }?;
+        if let Ok(text) = get_selected_text_from_element(&parent) {
+            if !text.is_empty() {
+                return Ok(text);
+            }
+        }
+        current = parent;
+    }
+
+    Ok(String::new())
+}
+
+#[cfg(target_os = "windows")]
+fn get_text_by_clipboard_for_auto_toolbar(
+    user_copy_priority_marker: Option<u64>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use arboard::{Clipboard, ImageData};
+    use std::time::Duration;
+
+    let old_text = Clipboard::new()?.get_text().ok().map(|value| value.trim().to_string());
+    let old_image: Option<ImageData<'static>> = Clipboard::new()?.get_image().ok();
+    let seq_before = clipboard_sequence();
+
+    if copy_modifier_active() {
+        debug!("Skipping auto toolbar clipboard capture because copy modifier is held");
+        return Ok(String::new());
+    }
+
+    if let Some(text) = read_user_clipboard_text_if_ready(user_copy_priority_marker)? {
+        return Ok(text);
+    }
+
+    send_internal_copy()?;
+    std::thread::sleep(Duration::from_millis(70));
+
+    let seq_after_capture = clipboard_sequence();
+    if seq_after_capture == seq_before {
+        return Ok(String::new());
+    }
+
+    if let Some(text) = read_user_clipboard_text_if_ready(user_copy_priority_marker)? {
+        return Ok(text);
+    }
+
+    let captured_text = read_clipboard_text().unwrap_or_default().trim().to_string();
+    let seq_before_restore = clipboard_sequence();
+    if seq_before_restore != seq_after_capture {
+        crash_log::record(
+            "selection_capture",
+            "auto toolbar clipboard changed during fallback; skip captured text",
+        );
+        return Ok(String::new());
+    }
+
+    restore_clipboard(old_text.clone(), old_image)?;
+
+    if captured_text.is_empty() {
+        return Ok(String::new());
+    }
+
+    if old_text.as_deref() == Some(captured_text.as_str()) {
+        crash_log::record(
+            "selection_capture",
+            "auto toolbar clipboard fallback matched previous text; treating as stale",
+        );
+        return Ok(String::new());
+    }
+
+    Ok(captured_text)
 }
 
 #[cfg(target_os = "windows")]

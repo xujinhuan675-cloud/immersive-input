@@ -24,7 +24,7 @@ function ServiceSelectRow({ icon, label, onPress, trailing, disabled = false }) 
                 onClick={onPress}
                 disabled={disabled}
                 className={`flex min-h-[56px] flex-1 items-center gap-3 rounded-xl border border-divider/70 bg-default-50 px-4 py-3 text-left transition-colors ${
-                    disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-default-100'
+                    disabled ? ' opacity-60' : 'hover:bg-default-100'
                 }`}
             >
                 <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-content1 text-default-600 shadow-sm'>

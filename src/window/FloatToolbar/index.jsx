@@ -64,7 +64,7 @@ const RESULT_PANEL_STYLE = {
     background: 'rgba(248, 250, 252, 0.72)',
 };
 const EXPLAIN_SYSTEM_PROMPT =
-    '你是一位知识渊博、表达清晰的解析助手。请围绕用户提供的文本或问题，解释核心含义、关键概念、上下文和实际用法。回答要准确、简洁、易懂。';
+    '你是一位知识渊博、表达清晰的解释助手。请围绕用户提供的文本或问题，解释核心含义、关键概念、上下文和实际用法。回答要准确、简洁、易懂。';
 const translatePluginInfoCache = new Map();
 
 function getFormulaResultText(text, calcResult) {
@@ -789,6 +789,7 @@ export default function FloatToolbar() {
     const [smartBtns, setSmartBtns] = useState([]);
     const [calcResult, setCalcResult] = useState(null);
     const [colorVal, setColorVal] = useState(null);
+    const [pendingSelection, setPendingSelection] = useState(false);
     const hasStickyExtraPanel = calcResult != null || colorVal != null;
 
     const resizeWindow = useCallback((buttons, hasExtra) => {
@@ -809,6 +810,7 @@ export default function FloatToolbar() {
             selectedText.current = text || '';
             setCalcResult(null);
             setColorVal(null);
+            setPendingSelection(!text);
 
             const detectedType = detectType(text);
             const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
@@ -817,7 +819,24 @@ export default function FloatToolbar() {
             selectedText.current = '';
             setCalcResult(null);
             setColorVal(null);
+            setPendingSelection(true);
             setSmartBtns([]);
+        }
+    }, []);
+
+    const ensureSelectionText = useCallback(async () => {
+        try {
+            const text = await invoke('get_auto_toolbar_text');
+            selectedText.current = text || '';
+            setPendingSelection(false);
+
+            const detectedType = detectType(text);
+            const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
+            setSmartBtns(smartButton ? [smartButton] : []);
+
+            return selectedText.current;
+        } catch {
+            return selectedText.current || '';
         }
     }, []);
 
@@ -879,6 +898,8 @@ export default function FloatToolbar() {
     const hide = useCallback(() => {
         setCalcResult(null);
         setColorVal(null);
+        setPendingSelection(false);
+        invoke('clear_auto_toolbar_pending_selection').catch(() => {});
         appWindow.hide().catch(() => {});
     }, []);
 
@@ -888,12 +909,12 @@ export default function FloatToolbar() {
             timerRef.current = null;
         }
 
-        if (hasStickyExtraPanel) {
+        if (hasStickyExtraPanel || pendingSelection) {
             return;
         }
 
         timerRef.current = setTimeout(hide, autoHideMs);
-    }, [hide, autoHideMs, hasStickyExtraPanel]);
+    }, [hide, autoHideMs, hasStickyExtraPanel, pendingSelection]);
 
     useEffect(() => {
         resetTimer();
@@ -909,6 +930,9 @@ export default function FloatToolbar() {
         let blurTimer = null;
         const unlistenBlur = listen('tauri://blur', () => {
             if (hasStickyExtraPanel) {
+                return;
+            }
+            if (pendingSelection) {
                 return;
             }
             blurTimer = setTimeout(hide, 150);
@@ -938,13 +962,14 @@ export default function FloatToolbar() {
             unlistenFocus.then((fn) => fn());
             unlistenSelectionUpdate.then((fn) => fn());
         };
-    }, [hasStickyExtraPanel, hide, refreshSelectionState, resetTimer]);
+    }, [hasStickyExtraPanel, hide, pendingSelection, refreshSelectionState, resetTimer]);
 
     const handleClick = useCallback(
         async (id) => {
             resetTimer();
             const action = BUTTON_ACTIONS[id];
             if (!action) return;
+            const text = await ensureSelectionText();
 
             const ctx = {
                 hide,
@@ -959,11 +984,12 @@ export default function FloatToolbar() {
                 t,
             };
 
-            await action(selectedText.current || '', ctx);
+            await action(text || '', ctx);
         },
         [
             hide,
             resetTimer,
+            ensureSelectionText,
             calcResult,
             colorVal,
             translateActionBehavior,
@@ -992,7 +1018,6 @@ export default function FloatToolbar() {
                         borderRadius: '10px',
                         background: palette.restBg,
                         color: palette.color,
-                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1042,7 +1067,6 @@ export default function FloatToolbar() {
                 borderRadius: '9px',
                 background: 'rgba(15, 23, 42, 0.06)',
                 color: '#475569',
-                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1075,133 +1099,136 @@ export default function FloatToolbar() {
                 borderRadius: '14px',
                 border: 'none',
                 background: '#fff',
-                boxShadow: 'none',
+                boxShadow:
+                    'inset 0 0 0 1px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88)',
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
+                boxSizing: 'border-box',
                 overflow: 'hidden',
                 userSelect: 'none',
             }}
             onMouseEnter={resetTimer}
             onMouseMove={resetTimer}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${BUTTON_GAP}px`,
-                    padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
-                }}
-            >
-                {smartButtons}
-                {smartButtons.length > 0 && baseButtons.length > 0 && (
-                    <div
-                        style={{
-                            width: '1px',
-                            height: '14px',
-                            background: 'rgba(148, 163, 184, 0.28)',
-                            margin: '0 2px',
-                            flexShrink: 0,
-                        }}
-                    />
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: `${BUTTON_GAP}px`,
+                        padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
+                    }}
+                >
+                    {smartButtons}
+                    {smartButtons.length > 0 && baseButtons.length > 0 && (
+                        <div
+                            style={{
+                                width: '1px',
+                                height: '14px',
+                                background: 'rgba(148, 163, 184, 0.28)',
+                                margin: '0 2px',
+                                flexShrink: 0,
+                            }}
+                        />
+                    )}
+                    {baseButtons}
+                </div>
+
+                {calcResult != null && (
+                    <div style={RESULT_PANEL_STYLE}>
+                        <span
+                            style={{
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: '#334155',
+                                fontFamily: 'monospace',
+                                flex: 1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            = {calcResult}
+                        </span>
+                        {renderPanelActionButton(
+                            t('float_toolbar.apply_result', {
+                                defaultValue: 'Result',
+                            }),
+                            t('float_toolbar.apply_result_title', {
+                                defaultValue: 'Apply result',
+                            }),
+                            'apply_calc_result'
+                        )}
+                        {renderPanelActionButton(
+                            t('float_toolbar.apply_formula', {
+                                defaultValue: 'Formula',
+                            }),
+                            t('float_toolbar.apply_formula_title', {
+                                defaultValue: 'Apply formula',
+                            }),
+                            'apply_calc_formula'
+                        )}
+                    </div>
                 )}
-                {baseButtons}
-            </div>
 
-            {calcResult != null && (
-                <div style={RESULT_PANEL_STYLE}>
-                    <span
-                        style={{
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            color: '#334155',
-                            fontFamily: 'monospace',
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}
-                    >
-                        = {calcResult}
-                    </span>
-                    {renderPanelActionButton(
-                        t('float_toolbar.apply_result', {
-                            defaultValue: '结果',
-                        }),
-                        t('float_toolbar.apply_result_title', {
-                            defaultValue: '应用结果',
-                        }),
-                        'apply_calc_result'
-                    )}
-                    {renderPanelActionButton(
-                        t('float_toolbar.apply_formula', {
-                            defaultValue: '公式',
-                        }),
-                        t('float_toolbar.apply_formula_title', {
-                            defaultValue: '应用公式',
-                        }),
-                        'apply_calc_formula'
-                    )}
-                </div>
-            )}
-
-            {colorVal != null && (
-                <div style={RESULT_PANEL_STYLE}>
-                    <div
-                        style={{
-                            width: '14px',
-                            height: '14px',
-                            borderRadius: '999px',
-                            background: colorVal,
-                            border: '1px solid rgba(15, 23, 42, 0.12)',
-                            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.28)',
-                            flexShrink: 0,
-                        }}
-                    />
-                    <span
-                        style={{
-                            fontSize: '12px',
-                            color: '#334155',
-                            fontFamily: 'monospace',
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}
-                    >
-                        {colorVal}
-                    </span>
-                    <button
-                        type='button'
-                        title={t('common.copy', { defaultValue: 'Copy' })}
-                        aria-label={t('common.copy', { defaultValue: 'Copy' })}
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            border: 'none',
-                            borderRadius: '9px',
-                            background: 'rgba(15, 23, 42, 0.06)',
-                            color: '#475569',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 120ms ease, color 120ms ease',
-                            flexShrink: 0,
-                        }}
-                        onClick={() => handleClick('copy_color')}
-                        onMouseEnter={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
-                            event.currentTarget.style.color = '#1f2937';
-                        }}
-                        onMouseLeave={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
-                            event.currentTarget.style.color = '#475569';
-                        }}
-                    >
-                        <LuClipboardCopy size={14} />
-                    </button>
-                </div>
-            )}
+                {colorVal != null && (
+                    <div style={RESULT_PANEL_STYLE}>
+                        <div
+                            style={{
+                                width: '14px',
+                                height: '14px',
+                                borderRadius: '999px',
+                                background: colorVal,
+                                border: '1px solid rgba(15, 23, 42, 0.12)',
+                                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.28)',
+                                flexShrink: 0,
+                            }}
+                        />
+                        <span
+                            style={{
+                                fontSize: '12px',
+                                color: '#334155',
+                                fontFamily: 'monospace',
+                                flex: 1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                            }}
+                        >
+                            {colorVal}
+                        </span>
+                        <button
+                            type='button'
+                            title={t('common.copy', { defaultValue: 'Copy' })}
+                            aria-label={t('common.copy', { defaultValue: 'Copy' })}
+                            style={{
+                                width: '28px',
+                                height: '28px',
+                                border: 'none',
+                                borderRadius: '9px',
+                                background: 'rgba(15, 23, 42, 0.06)',
+                                color: '#475569',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'background 120ms ease, color 120ms ease',
+                                flexShrink: 0,
+                            }}
+                            onClick={() => handleClick('copy_color')}
+                            onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                    'rgba(15, 23, 42, 0.10)';
+                                event.currentTarget.style.color = '#1f2937';
+                            }}
+                            onMouseLeave={(event) => {
+                                event.currentTarget.style.background =
+                                    'rgba(15, 23, 42, 0.06)';
+                                event.currentTarget.style.color = '#475569';
+                            }}
+                        >
+                            <LuClipboardCopy size={14} />
+                        </button>
+                    </div>
+                )}
         </div>
     );
 }

@@ -7,6 +7,7 @@ import { VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-ic
 
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { osType } from '../../utils/env';
+import { getWindowActionCursor, WINDOW_INTERACTION_CURSOR } from '../../styles/interaction';
 
 const styles = {
     header: {
@@ -20,16 +21,10 @@ const styles = {
         borderBottom: '1px solid #e5e7eb',
         flexShrink: 0,
         boxSizing: 'border-box',
-    },
-    dragOverlay: {
-        position: 'absolute',
-        inset: 0,
-        cursor: 'move',
-        zIndex: 0,
+        cursor: WINDOW_INTERACTION_CURSOR.drag,
     },
     slot: {
         position: 'relative',
-        zIndex: 1,
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
@@ -37,7 +32,6 @@ const styles = {
     },
     center: {
         position: 'relative',
-        zIndex: 1,
         flex: 1,
         minWidth: 0,
         display: 'flex',
@@ -62,6 +56,37 @@ const styles = {
     },
 };
 
+const NON_DRAG_SELECTOR = [
+    'button',
+    'input',
+    'textarea',
+    'select',
+    'option',
+    'a',
+    '[role="button"]',
+    '[role="switch"]',
+    '[role="checkbox"]',
+    '[role="radio"]',
+    '[role="tab"]',
+    '[role="menuitem"]',
+    '[role="option"]',
+    '[data-no-window-drag="true"]',
+    '[data-clickable="true"]',
+].join(',');
+
+function startWindowDrag(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(NON_DRAG_SELECTOR)) {
+        return;
+    }
+
+    void appWindow.startDragging().catch(() => {});
+}
+
 function getButtonStyle(variant, iconOnly, active, disabled) {
     const base = {
         display: 'inline-flex',
@@ -79,7 +104,7 @@ function getButtonStyle(variant, iconOnly, active, disabled) {
         fontSize: '12px',
         fontWeight: 600,
         lineHeight: 1,
-        cursor: disabled ? 'default' : 'pointer',
+        cursor: getWindowActionCursor(disabled),
         opacity: disabled ? 0.55 : 1,
         transition: 'all 120ms ease',
         boxSizing: 'border-box',
@@ -270,8 +295,10 @@ export default function WindowHeader({
     rightStyle,
 }) {
     return (
-        <div style={{ ...styles.header, ...style }}>
-            <div style={styles.dragOverlay} data-tauri-drag-region='true' />
+        <div
+            style={{ ...styles.header, ...style }}
+            onMouseDown={startWindowDrag}
+        >
             {left ? <div style={{ ...styles.slot, ...leftStyle }}>{left}</div> : null}
             <div style={{ ...styles.center, ...centerStyle }}>{center}</div>
             {right ? <div style={{ ...styles.slot, ...rightStyle }}>{right}</div> : null}

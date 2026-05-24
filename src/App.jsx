@@ -83,7 +83,6 @@ const WINDOW_SIZE_MEMORY = {
     chat: { width: true, height: true },
     vault: { width: true, height: true },
     updater: { width: true, height: true, minWidth: 480, minHeight: 320 },
-    phrases_inline: { width: true, height: false },
 };
 
 export default function App() {

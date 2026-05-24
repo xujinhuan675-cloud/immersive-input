@@ -178,12 +178,12 @@ export default function Explain() {
     }, [output]);
 
     const s = {
-        root: { display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: APP_FONT_FAMILY_VAR, fontSize: '13px', background: '#fafafa', color: '#333' },
-        sourceBox: { padding: '6px 12px', background: '#fff8e1', borderBottom: '1px solid #ffe082', fontSize: '12px', color: '#666', maxHeight: '56px', overflow: 'hidden', flexShrink: 0, lineHeight: 1.5 },
-        outputArea: { flex: 1, overflow: 'auto', padding: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '13px' },
-        footer: { display: 'flex', gap: '6px', padding: '6px 10px', background: '#fff', borderTop: '1px solid #e5e5e5', flexShrink: 0 },
-        input: { flex: 1, padding: '5px 9px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px', outline: 'none' },
-        btn: (p) => ({ padding: '4px 12px', borderRadius: '5px', border: p ? 'none' : '1px solid #ccc', background: p ? '#4a7cfa' : '#fff', color: p ? '#fff' : '#444', cursor: 'pointer', fontSize: '12px' }),
+        root: { display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: APP_FONT_FAMILY_VAR, fontSize: '13px', background: '#fff', color: '#0f172a' },
+        sourceBox: { padding: '8px 14px', background: '#fff', borderBottom: '1px solid rgba(226, 232, 240, 0.72)', fontSize: '12px', color: '#64748b', maxHeight: '58px', overflow: 'hidden', flexShrink: 0, lineHeight: 1.5 },
+        outputArea: { flex: 1, overflow: 'auto', padding: '14px', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '13px', background: '#fff' },
+        footer: { display: 'flex', gap: '8px', padding: '10px 12px', background: '#fff', borderTop: '1px solid rgba(226, 232, 240, 0.72)', flexShrink: 0 },
+        input: { flex: 1, padding: '0 12px', height: '38px', border: '1px solid rgba(203, 213, 225, 0.92)', borderRadius: '10px', fontSize: '12px', outline: 'none', color: '#0f172a', background: '#fff' },
+        btn: (p) => ({ minWidth: '68px', height: '38px', padding: '0 14px', borderRadius: '10px', border: p ? '1px solid rgba(15, 23, 42, 0.84)' : '1px solid rgba(226, 232, 240, 0.92)', background: p ? '#0f172a' : '#fff', color: p ? '#fff' : '#475569', fontSize: '12px', fontWeight: 600 }),
     };
 
     return (
@@ -222,22 +222,22 @@ export default function Explain() {
                 {/* 拖动区域 */}
                 <div style={s.dragRegion} data-tauri-drag-region='true' />
                 
-                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>❓ 解析</span>
+                <span style={{ fontWeight: 700, fontSize: '14px', position: 'relative', zIndex: 1 }}>❓ 解释</span>
                 <div style={{ display: 'flex', gap: '6px', position: 'relative', zIndex: 1 }}>
                     {loading
                         ? <button style={s.btn(false)} onClick={() => { abortRef.current?.abort(); setLoading(false); }}>⏹ 停止</button>
-                        : <button style={s.btn(true)} onClick={() => { setOutput(''); setHistory([]); startExplain(sourceText); }}>▶ 重新解析</button>
+                        : <button style={s.btn(true)} onClick={() => { setOutput(''); setHistory([]); startExplain(sourceText); }}>▶ 重新解释</button>
                     }
                     <button style={s.btn(false)} onClick={() => appWindow.close()}>✕</button>
                 </div>
             </div>}
             </>
             <div style={s.sourceBox}>
-                <span style={{ fontWeight: 600, color: '#999', marginRight: 6 }}>解析对象：</span>
+                <span style={{ fontWeight: 600, color: '#999', marginRight: 6 }}>解释对象：</span>
                 {sourceText || <span style={{ color: '#bbb' }}>（等待选中文本…）</span>}
             </div>
             <div ref={outputRef} style={s.outputArea}>
-                {output || (loading ? <span style={{ color: '#aaa' }}>▋ 解析中…</span> : <span style={{ color: '#ccc' }}>解析结果将显示在这里</span>)}
+                {output || (loading ? <span style={{ color: '#aaa' }}>▋ 解释中…</span> : <span style={{ color: '#ccc' }}>解释结果将显示在这里</span>)}
             </div>
             <div style={s.footer}>
                 <input

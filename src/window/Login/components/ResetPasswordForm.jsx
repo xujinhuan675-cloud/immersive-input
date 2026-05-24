@@ -179,7 +179,7 @@ export default function ResetPasswordForm({ onBack, onSuccess }) {
                         value={emailDomain}
                         onChange={(e) => setEmailDomain(e.target.value)}
                         className='h-[36px] w-[120px] border border-default-200 rounded-xl bg-background text-default-700 text-xs px-2
-                                   focus:border-primary focus:outline-none hover:border-primary transition-colors cursor-pointer'
+                                   focus:border-primary focus:outline-none hover:border-primary transition-colors'
                     >
                         {EMAIL_DOMAINS.map((d) => (
                             <option

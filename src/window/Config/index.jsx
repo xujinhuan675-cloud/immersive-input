@@ -17,7 +17,7 @@ export default function Config() {
 
     return (
         <div
-            className={`bg-content1 h-screen flex flex-col overflow-hidden select-none cursor-default ${
+            className={`bg-content1 h-screen flex flex-col overflow-hidden select-none ${
                 osType === 'Linux' && 'rounded-[10px] border-1 border-default-100'
             }`}
         >

@@ -378,10 +378,10 @@ export default function SourceArea(props) {
         <div className={hideSource && windowType !== '[INPUT_TRANSLATE]' ? 'hidden' : ''}>
             <Card
                 shadow='none'
-                className='mt-[1px] overflow-hidden rounded-[14px] border border-default-200/80 bg-content1/94 pb-0'
+                className='mt-0 overflow-hidden rounded-none border-0 border-b border-default-200/70 bg-white pb-0'
             >
                 <Toaster />
-                <CardBody className='max-h-[28vh] overflow-y-auto bg-content1 px-3 py-2.5 pb-1.5'>
+                <CardBody className='max-h-[28vh] overflow-y-auto bg-white px-4 py-3 pb-2'>
                     <textarea
                         autoFocus
                         ref={textAreaRef}
@@ -399,7 +399,7 @@ export default function SourceArea(props) {
                     />
                 </CardBody>
 
-                <CardFooter className='flex items-center justify-between gap-2 border-t border-default-200/70 bg-default-50/40 px-3 py-1.5'>
+                <CardFooter className='flex items-center justify-between gap-2 border-t border-default-200/70 bg-white px-4 py-2'>
                     <div className='flex items-center gap-1'>
                         <Tooltip content={t('translate.speak')}>
                             <Button

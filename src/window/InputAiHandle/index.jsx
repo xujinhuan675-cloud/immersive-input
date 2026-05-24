@@ -39,7 +39,6 @@ const BUTTON_STYLE = {
     borderRadius: '8px',
     background: BUTTON_PALETTE.restBg,
     color: BUTTON_PALETTE.color,
-    cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -155,8 +154,8 @@ export default function InputAiHandle() {
             <div style={CARD_STYLE}>
                 <button
                     type='button'
-                    title='AI 编辑器'
-                    aria-label='AI 编辑器'
+                    title='文本助手'
+                    aria-label='文本助手'
                     style={BUTTON_STYLE}
                     onMouseDown={(event) => {
                         event.preventDefault();

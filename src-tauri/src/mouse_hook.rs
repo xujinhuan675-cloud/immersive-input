@@ -8,7 +8,7 @@ use crate::StringWrapper;
 use crate::APP;
 use log::{debug, warn};
 use rdev::{listen, Button, Event, EventType};
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use tauri::Manager;
 
 // Atomic state shared between the rdev callback and spawned threads
@@ -17,6 +17,25 @@ static LAST_X: AtomicI64 = AtomicI64::new(0);
 static LAST_Y: AtomicI64 = AtomicI64::new(0);
 static PRESS_X: AtomicI64 = AtomicI64::new(0);
 static PRESS_Y: AtomicI64 = AtomicI64::new(0);
+static MOVE_INTENT_NEXT_GUARD_ID: AtomicU64 = AtomicU64::new(1);
+static MOVE_INTENT_ACTIVE_GUARD_ID: AtomicU64 = AtomicU64::new(0);
+static MOVE_INTENT_PRESS_ACTIVE: AtomicBool = AtomicBool::new(false);
+static MOVE_INTENT_PRESS_X: AtomicI64 = AtomicI64::new(0);
+static MOVE_INTENT_PRESS_Y: AtomicI64 = AtomicI64::new(0);
+static MOVE_INTENT_CANCEL_GUARD_ID: AtomicU64 = AtomicU64::new(0);
+static MOVE_INTENT_SUPPRESS_CURRENT_RELEASE: AtomicBool = AtomicBool::new(false);
+static FLOAT_TOOLBAR_PRESS_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
+const MOVE_INTENT_DRAG_SQ: i64 = 8 * 8;
+
+fn hide_float_toolbar() {
+    if let Some(app) = APP.get() {
+        if let Some(w) = app.get_window("float_toolbar") {
+            let _ = w.hide();
+        }
+    }
+}
 
 fn point_inside_float_toolbar(x: i64, y: i64) -> bool {
     let Some(app) = APP.get() else {
@@ -68,15 +87,45 @@ fn handle_event(event: Event) {
     match event.event_type {
         // Track mouse position continuously
         EventType::MouseMove { x, y } => {
-            LAST_X.store(x as i64, Ordering::Relaxed);
-            LAST_Y.store(y as i64, Ordering::Relaxed);
+            let current_x = x as i64;
+            let current_y = y as i64;
+            LAST_X.store(current_x, Ordering::Relaxed);
+            LAST_Y.store(current_y, Ordering::Relaxed);
+
+            if MOVE_INTENT_PRESS_ACTIVE.load(Ordering::SeqCst) {
+                let dx = current_x - MOVE_INTENT_PRESS_X.load(Ordering::SeqCst);
+                let dy = current_y - MOVE_INTENT_PRESS_Y.load(Ordering::SeqCst);
+                if dx * dx + dy * dy >= MOVE_INTENT_DRAG_SQ {
+                    let guard_id = MOVE_INTENT_ACTIVE_GUARD_ID.load(Ordering::SeqCst);
+                    MOVE_INTENT_CANCEL_GUARD_ID.store(guard_id, Ordering::SeqCst);
+                    MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.store(true, Ordering::SeqCst);
+                    crate::selection_capture::clear_auto_toolbar_pending_selection();
+                    hide_float_toolbar();
+                }
+            }
         }
 
         // Record press position
         EventType::ButtonPress(Button::Left) => {
+            let press_x = LAST_X.load(Ordering::Relaxed);
+            let press_y = LAST_Y.load(Ordering::Relaxed);
+            let pressed_toolbar = point_inside_float_toolbar(press_x, press_y);
             MOUSE_DOWN.store(true, Ordering::SeqCst);
-            PRESS_X.store(LAST_X.load(Ordering::Relaxed), Ordering::SeqCst);
-            PRESS_Y.store(LAST_Y.load(Ordering::Relaxed), Ordering::SeqCst);
+            PRESS_X.store(press_x, Ordering::SeqCst);
+            PRESS_Y.store(press_y, Ordering::SeqCst);
+            FLOAT_TOOLBAR_PRESS_ACTIVE.store(pressed_toolbar, Ordering::SeqCst);
+
+            if crate::selection_capture::has_auto_toolbar_pending_selection()
+                && !pressed_toolbar
+            {
+                MOVE_INTENT_PRESS_ACTIVE.store(true, Ordering::SeqCst);
+                MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.store(false, Ordering::SeqCst);
+                MOVE_INTENT_PRESS_X.store(press_x, Ordering::SeqCst);
+                MOVE_INTENT_PRESS_Y.store(press_y, Ordering::SeqCst);
+            } else {
+                MOVE_INTENT_PRESS_ACTIVE.store(false, Ordering::SeqCst);
+                MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.store(false, Ordering::SeqCst);
+            }
         }
 
         // On release, check if it was a drag and trigger toolbar if configured
@@ -84,15 +133,31 @@ fn handle_event(event: Event) {
             if !MOUSE_DOWN.swap(false, Ordering::SeqCst) {
                 return;
             }
+            MOVE_INTENT_PRESS_ACTIVE.store(false, Ordering::SeqCst);
+            let was_toolbar_press = FLOAT_TOOLBAR_PRESS_ACTIVE.swap(false, Ordering::SeqCst);
+            if MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.swap(false, Ordering::SeqCst) {
+                return;
+            }
 
             // Calculate drag distance (squared, avoid sqrt for perf)
             let dx = LAST_X.load(Ordering::Relaxed) - PRESS_X.load(Ordering::SeqCst);
             let dy = LAST_Y.load(Ordering::Relaxed) - PRESS_Y.load(Ordering::SeqCst);
             let drag_sq = dx * dx + dy * dy;
-            const MIN_DRAG_SQ: i64 = 10 * 10; // 10 px minimum drag
             let click_x = LAST_X.load(Ordering::Relaxed);
             let click_y = LAST_Y.load(Ordering::Relaxed);
             let selection_marker = crate::selection_capture::current_marker();
+            let mut move_guard_id = 0;
+
+            if drag_sq >= MIN_DRAG_SQ && !was_toolbar_press {
+                move_guard_id = MOVE_INTENT_NEXT_GUARD_ID.fetch_add(1, Ordering::SeqCst);
+                MOVE_INTENT_ACTIVE_GUARD_ID.store(move_guard_id, Ordering::SeqCst);
+                MOVE_INTENT_PRESS_ACTIVE.store(false, Ordering::SeqCst);
+                crate::selection_capture::set_auto_toolbar_pending_selection(
+                    selection_marker,
+                    click_x.clamp(i32::MIN as i64, i32::MAX as i64) as i32,
+                    click_y.clamp(i32::MIN as i64, i32::MAX as i64) as i32,
+                );
+            }
 
             // Keep the low-level hook callback minimal. Window queries, config I/O,
             // and selection capture all happen after we return control to USER32.
@@ -107,10 +172,11 @@ fn handle_event(event: Event) {
                     None => "toolbar".to_string(),
                 };
                 if behavior == "disabled" {
+                    crate::selection_capture::clear_auto_toolbar_pending_selection();
                     return;
                 }
 
-                if drag_sq < MIN_DRAG_SQ {
+                if drag_sq < MIN_DRAG_SQ || was_toolbar_press {
                     // Single click (no drag): hide the floating toolbar if it is visible.
                     // Clicking inside the toolbar should be handled by the toolbar itself.
                     // Clicking outside still dismisses it.
@@ -120,6 +186,7 @@ fn handle_event(event: Event) {
                         }
 
                         std::thread::sleep(std::time::Duration::from_millis(50));
+                        crate::selection_capture::clear_auto_toolbar_pending_selection();
                         if let Some(app) = APP.get() {
                             if let Some(w) = app.get_window("float_toolbar") {
                                 let _ = w.hide();
@@ -137,11 +204,6 @@ fn handle_event(event: Event) {
                     ),
                 );
 
-                // Read timing config.
-                let delay_ms: u64 = match get("text_select_delay_ms") {
-                    Some(v) => v.as_i64().unwrap_or(300).clamp(50, 3000) as u64,
-                    None => 300,
-                };
                 let min_len: usize = match get("text_select_min_length") {
                     Some(v) => v.as_i64().unwrap_or(2).max(1) as usize,
                     None => 2,
@@ -149,49 +211,54 @@ fn handle_event(event: Event) {
 
                 // Save foreground window BEFORE showing toolbar so paste_result can restore it.
                 save_foreground_window();
-                std::thread::sleep(std::time::Duration::from_millis(delay_ms));
 
-                let text = crate::selection_capture::get_text_without_clipboard_fallback(Some(
-                    selection_marker,
-                ));
-                let trimmed = text.trim().to_string();
-                crash_log::record(
-                    "mouse_hook",
-                    format!("selection captured chars={}", trimmed.len()),
-                );
-
-                // Vault quick add capture: consume this selection and skip normal toolbar flow.
-                // Deliberately placed before min_len check so short passwords are also accepted.
-                if crate::vault::handle_quick_add_capture(&trimmed) {
+                let move_intent_cancelled =
+                    MOVE_INTENT_CANCEL_GUARD_ID.load(Ordering::SeqCst) == move_guard_id;
+                if move_intent_cancelled {
+                    crash_log::record("mouse_hook", "skip capture: post-selection move intent");
                     return;
                 }
 
-                if trimmed.len() < min_len {
+                if crate::vault::quick_add_capture_active() {
+                    let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                    let trimmed = text.trim().to_string();
+                    let _ = crate::vault::handle_quick_add_capture(&trimmed);
                     return;
                 }
 
-                // Write text into shared state.
-                if let Some(app) = APP.get() {
-                    let state: tauri::State<StringWrapper> = app.state();
-                    state.0.lock().unwrap().replace_range(.., &trimmed);
-                }
-
-                let text_len = trimmed.len();
                 match behavior.as_str() {
                     "direct_translate" => {
+                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let trimmed = text.trim().to_string();
+                        if crate::vault::handle_quick_add_capture(&trimmed)
+                            || trimmed.len() < min_len
+                        {
+                            return;
+                        }
                         crash_log::record("mouse_hook", "opening direct translate");
                         direct_translate_selection(trimmed);
                     }
                     "direct_explain" => {
+                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let trimmed = text.trim().to_string();
+                        if crate::vault::handle_quick_add_capture(&trimmed)
+                            || trimmed.len() < min_len
+                        {
+                            return;
+                        }
                         crash_log::record("mouse_hook", "opening direct explain");
                         chat_explain_window_with_text(trimmed);
                     }
                     _ => {
+                        if let Some(app) = APP.get() {
+                            let state: tauri::State<StringWrapper> = app.state();
+                            state.0.lock().unwrap().clear();
+                        }
                         crash_log::record("mouse_hook", "opening float toolbar");
                         float_toolbar_window();
                     }
                 }
-                debug!("Auto-select toolbar triggered ({}chars)", text_len);
+                debug!("Auto-select toolbar triggered");
             });
         }
 

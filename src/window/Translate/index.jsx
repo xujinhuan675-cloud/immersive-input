@@ -43,6 +43,22 @@ let blurTimeout = null;
 let unlisten = null;
 const TRANSLATE_SERVICE_CATALOG_VERSION_KEY = 'translate_service_catalog_version';
 
+const TRANSLATE_WINDOW_STYLE = {
+    background: '#fff',
+};
+
+const TRANSLATE_HEADER_STYLE = {
+    ...TRAY_WINDOW_HEADER_STYLE,
+    background: '#fff',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+};
+
+const TRANSLATE_BODY_STYLE = {
+    padding: 0,
+    background: '#fff',
+};
+
 const listenBlur = () => {
     return listen('tauri://blur', () => {
         if (appWindow.label === 'translate') {
@@ -281,9 +297,9 @@ export default function Translate() {
 
     return (
         pluginList && (
-            <TrayWindow>
+            <TrayWindow style={TRANSLATE_WINDOW_STYLE}>
                 <WindowHeader
-                    style={TRAY_WINDOW_HEADER_STYLE}
+                    style={TRANSLATE_HEADER_STYLE}
                     centerStyle={{ justifyContent: 'flex-start' }}
                     center={
                         <WindowHeaderTitle
@@ -315,8 +331,11 @@ export default function Translate() {
                         </div>
                     }
                 />
-                <TrayWindowBody className='overflow-y-auto'>
-                    <div className='mx-auto flex min-h-full max-w-[980px] flex-col gap-1.5'>
+                <TrayWindowBody
+                    className='overflow-y-auto'
+                    style={TRANSLATE_BODY_STYLE}
+                >
+                    <div className='mx-auto flex min-h-full max-w-[980px] flex-col gap-0 bg-white'>
                         <div>
                             {serviceInstanceConfigMap !== null && (
                                 <SourceArea

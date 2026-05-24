@@ -243,6 +243,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             reload_store,
             get_text,
+            get_auto_toolbar_text,
+            clear_auto_toolbar_pending_selection,
             cut_image,
             get_base64,
             copy_img,

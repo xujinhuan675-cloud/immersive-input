@@ -18,6 +18,34 @@ pub fn get_text(state: tauri::State<StringWrapper>) -> String {
 }
 
 #[tauri::command]
+pub fn get_auto_toolbar_text(
+    text_state: tauri::State<StringWrapper>,
+    _prev_window_state: tauri::State<PrevForegroundWindow>,
+) -> String {
+    let existing = text_state.0.lock().unwrap().trim().to_string();
+    if !crate::selection_capture::has_auto_toolbar_pending_selection() {
+        return existing;
+    }
+
+    #[cfg(target_os = "windows")]
+    restore_previous_window(&_prev_window_state);
+
+    let captured = crate::selection_capture::capture_auto_toolbar_pending_selection();
+    let trimmed = captured.trim().to_string();
+    if !trimmed.is_empty() {
+        text_state.0.lock().unwrap().replace_range(.., &trimmed);
+        return trimmed;
+    }
+
+    existing
+}
+
+#[tauri::command]
+pub fn clear_auto_toolbar_pending_selection() {
+    crate::selection_capture::clear_auto_toolbar_pending_selection();
+}
+
+#[tauri::command]
 pub fn take_pending_chat_draft_text(state: tauri::State<PendingChatDraftTextWrapper>) -> String {
     let mut guard = state.0.lock().unwrap();
     let text = guard.clone();
@@ -229,7 +257,7 @@ pub fn write_clipboard(text: String) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-fn restore_previous_window(state: &tauri::State<PrevForegroundWindow>) {
+pub(crate) fn restore_previous_window(state: &tauri::State<PrevForegroundWindow>) {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
 

@@ -558,7 +558,7 @@ fn translate_window() -> Window {
             Position { x: 0, y: 0 }
         }
     };
-    let (window, _) = build_window("translate", "Translate");
+    let (window, _) = build_window("translate", "翻译");
     window.set_skip_taskbar(true).unwrap();
     let (width, height) = get_saved_window_size("translate", 350, 420);
 
@@ -932,6 +932,7 @@ pub fn float_toolbar_window() {
     .skip_taskbar(true)
     .focused(false)
     .visible(false)
+    .resizable(false)
     .inner_size(600.0, 100.0) // frontend will resize dynamically
     .additional_browser_args("--disable-web-security");
     #[cfg(not(target_os = "macos"))]
@@ -1070,7 +1071,7 @@ pub fn light_ai_window() {
         drop(guard);
         s
     };
-    let (window, exists) = build_window("light_ai", "AI 编辑器");
+    let (window, exists) = build_window("light_ai", "文本助手");
     window.set_skip_taskbar(true).unwrap_or_default();
     if exists {
         show_app_window(&window);
@@ -1181,7 +1182,7 @@ pub fn chat_window() {
         w.set_focus().unwrap_or_default();
         return;
     }
-    let (window, _) = build_window("chat", "\u{89E3}\u{6790}");
+    let (window, _) = build_window("chat", "\u{89E3}\u{91CA}");
     window
         .set_min_size(Some(tauri::LogicalSize::new(400, 300)))
         .unwrap_or_default();
@@ -1489,9 +1490,7 @@ pub fn open_translate_from_toolbar() {
 pub fn phrases_inline_window() {
     use mouse_position::mouse_position::{Mouse, Position};
     const QUICK_W: f64 = 372.0;
-    const QUICK_H: f64 = 96.0;
-    let quick_width =
-        (get_saved_window_dimension("phrases_inline", "width", QUICK_W as i64) as f64).max(QUICK_W);
+    const QUICK_H: f64 = 75.0;
     let mouse_pos = match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => Position { x, y },
         Mouse::Error => Position { x: 0, y: 0 },
@@ -1499,9 +1498,10 @@ pub fn phrases_inline_window() {
     let app_handle = APP.get().unwrap();
 
     if let Some(w) = app_handle.get_window("phrases_inline") {
+        w.set_resizable(false).unwrap_or_default();
         let monitor = get_window_monitor(&w);
         let dpi = monitor.scale_factor();
-        let w_w = (quick_width * dpi) as i32;
+        let w_w = (QUICK_W * dpi) as i32;
         let w_h = (QUICK_H * dpi) as i32;
         let monitor_size = monitor.size();
         let monitor_pos = monitor.position();
@@ -1528,12 +1528,13 @@ pub fn phrases_inline_window() {
     let (window, _) = build_window("phrases_inline", "常用语");
     window.set_skip_taskbar(true).unwrap_or_default();
     window.set_always_on_top(true).unwrap_or_default();
+    window.set_resizable(false).unwrap_or_default();
 
     let monitor = get_window_monitor(&window);
     let dpi = monitor.scale_factor();
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    let w_w = quick_width;
+    let w_w = QUICK_W;
     let w_h = QUICK_H;
     window
         .set_size(tauri::LogicalSize::new(w_w, w_h))

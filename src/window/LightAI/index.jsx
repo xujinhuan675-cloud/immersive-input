@@ -4,6 +4,7 @@ import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { HiOutlineVolumeUp, HiSparkles } from 'react-icons/hi';
+import { MdContentCopy } from 'react-icons/md';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -80,6 +81,22 @@ const LANGUAGE_LABELS_ZH = {
     he: '希伯来语',
 };
 
+const NON_DRAG_SELECTOR =
+    'button, input, textarea, select, option, a, [role="button"], [role="switch"], [role="checkbox"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"], [data-no-window-drag="true"], [data-clickable="true"]';
+
+function handlePanelDragStart(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(NON_DRAG_SELECTOR)) {
+        return;
+    }
+
+    void appWindow.startDragging().catch(() => {});
+}
+
 function getSourceModeLabel(targetMode, sourceText) {
     if (targetMode === 'focused_input') return '整个输入框';
     if (targetMode === 'clipboard') return '剪贴板文本';
@@ -89,35 +106,41 @@ function getSourceModeLabel(targetMode, sourceText) {
 }
 
 const styles = {
+    window: {
+        background: '#fff',
+    },
+    body: {
+        padding: 0,
+        background: '#fff',
+    },
     topSection: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        padding: '10px 12px 8px',
+        gap: '6px',
+        padding: '8px 12px 7px',
         borderBottom: '1px solid rgba(226, 232, 240, 0.74)',
-        background: 'rgba(255, 255, 255, 0.96)',
+        background: '#fff',
     },
     tabRow: {
         display: 'inline-flex',
         flexWrap: 'wrap',
         alignSelf: 'flex-start',
-        gap: '4px',
-        padding: '4px',
-        borderRadius: '14px',
-        border: '1px solid rgba(226, 232, 240, 0.92)',
-        background: '#f8fafc',
+        gap: '2px',
+        padding: '2px',
+        borderRadius: '9px',
+        border: '1px solid rgba(226, 232, 240, 0.78)',
+        background: '#fff',
     },
     tabButton: (active) => ({
-        minWidth: '72px',
-        height: '34px',
-        padding: '0 14px',
+        minWidth: '58px',
+        height: '28px',
+        padding: '0 10px',
         border: 'none',
-        borderRadius: '10px',
-        background: active ? '#ffffff' : 'transparent',
+        borderRadius: '7px',
+        background: active ? 'rgba(248, 250, 252, 0.98)' : 'transparent',
         color: active ? '#0f172a' : '#64748b',
-        boxShadow: active ? '0 1px 2px rgba(15, 23, 42, 0.08)' : 'none',
-        cursor: 'pointer',
-        fontSize: '13px',
+        boxShadow: 'none',
+        fontSize: '12px',
         fontWeight: 600,
         lineHeight: 1,
         transition: 'background 140ms ease, color 140ms ease, box-shadow 140ms ease',
@@ -156,26 +179,24 @@ const styles = {
         color: '#0f172a',
         fontSize: '12px',
         fontWeight: 600,
-        cursor: 'pointer',
         fontFamily: APP_FONT_FAMILY_VAR,
         minWidth: '72px',
     },
     styleRow: {
         display: 'flex',
         flexWrap: 'wrap',
-        gap: '6px',
+        gap: '4px',
     },
     styleChip: (active) => ({
-        height: '32px',
-        padding: '0 12px',
+        height: '26px',
+        padding: '0 9px',
         borderRadius: '999px',
         border: active
-            ? '1px solid rgba(147, 197, 253, 0.95)'
-            : '1px solid rgba(226, 232, 240, 0.92)',
-        background: active ? 'rgba(239, 246, 255, 0.96)' : '#ffffff',
+            ? '1px solid rgba(59, 130, 246, 0.38)'
+            : '1px solid rgba(226, 232, 240, 0.78)',
+        background: active ? 'rgba(239, 246, 255, 0.72)' : '#ffffff',
         color: active ? '#1d4ed8' : '#475569',
-        cursor: 'pointer',
-        fontSize: '12px',
+        fontSize: '11px',
         fontWeight: 600,
         lineHeight: 1,
         transition: 'border-color 140ms ease, background 140ms ease, color 140ms ease',
@@ -189,12 +210,13 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
+        background: '#fff',
     },
     card: {
         borderRadius: '14px',
         border: '1px solid rgba(226, 232, 240, 0.92)',
         background: '#ffffff',
-        boxShadow: '0 10px 28px -26px rgba(15, 23, 42, 0.22)',
+        boxShadow: 'none',
         overflow: 'hidden',
     },
     cardHeader: {
@@ -224,15 +246,13 @@ const styles = {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: '30px',
-        height: '30px',
-        borderRadius: '9px',
-        border: '1px solid rgba(226, 232, 240, 0.92)',
-        background: '#ffffff',
-        color: '#64748b',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        width: '28px',
+        height: '28px',
+        padding: 0,
+        borderRadius: '8px',
+        border: 'none',
         opacity: disabled ? 0.42 : 1,
-        transition: 'border-color 140ms ease, background 140ms ease, color 140ms ease',
+        transition: 'background 140ms ease, color 140ms ease, opacity 140ms ease',
         flexShrink: 0,
     }),
     cardBody: {
@@ -265,18 +285,18 @@ const styles = {
     },
     footer: {
         display: 'flex',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         gap: '8px',
-        padding: '10px 12px 12px',
+        padding: '8px 12px 10px',
         borderTop: '1px solid rgba(241, 245, 249, 0.96)',
-        background: 'rgba(248, 250, 252, 0.76)',
+        background: '#fff',
         alignItems: 'center',
     },
     promptInput: {
-        flex: '1 1 220px',
+        flex: '1 1 auto',
         minWidth: 0,
-        height: '40px',
-        borderRadius: '10px',
+        height: '36px',
+        borderRadius: '9px',
         border: '1px solid rgba(226, 232, 240, 0.96)',
         background: '#ffffff',
         padding: '0 12px',
@@ -288,22 +308,22 @@ const styles = {
     },
     actionGroup: {
         display: 'flex',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
         gap: '8px',
         marginLeft: 'auto',
         justifyContent: 'flex-end',
+        flexShrink: 0,
     },
     secondaryButton: (disabled) => ({
-        height: '40px',
-        minWidth: '70px',
-        padding: '0 14px',
-        borderRadius: '10px',
+        height: '36px',
+        minWidth: '64px',
+        padding: '0 12px',
+        borderRadius: '9px',
         border: '1px solid rgba(226, 232, 240, 0.96)',
         background: '#ffffff',
         color: '#475569',
         fontSize: '12px',
         fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.46 : 1,
         whiteSpace: 'nowrap',
         lineHeight: 1,
@@ -312,14 +332,13 @@ const styles = {
     }),
     primaryButton: (disabled) => ({
         ...TRAY_WINDOW_PRIMARY_BUTTON_STYLE,
-        height: '40px',
-        minWidth: '92px',
-        padding: '0 18px',
-        borderRadius: '10px',
+        height: '36px',
+        minWidth: '82px',
+        padding: '0 16px',
+        borderRadius: '9px',
         fontSize: '12px',
         fontWeight: 600,
         lineHeight: 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.46 : 1,
         boxShadow: '0 8px 18px -16px rgba(15, 23, 42, 0.35)',
     }),
@@ -329,7 +348,9 @@ const headerStyle = {
     ...TRAY_WINDOW_HEADER_STYLE,
     minHeight: '42px',
     padding: '4px 10px',
-    background: 'rgba(255, 255, 255, 0.96)',
+    background: '#fff',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
 };
 
 const headerTitleStyle = {
@@ -344,10 +365,12 @@ const headerTitleTextStyle = {
 };
 
 const surfaceStyle = {
-    borderRadius: '14px',
-    border: '1px solid rgba(226, 232, 240, 0.9)',
+    borderRadius: 0,
+    border: 'none',
     background: '#ffffff',
-    boxShadow: '0 16px 36px -32px rgba(15, 23, 42, 0.24)',
+    boxShadow: 'none',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
 };
 
 function useApiConfig() {
@@ -630,7 +653,12 @@ export default function LightAI() {
 
     const handleCopy = async () => {
         if (!currentResult) return;
-        await invoke('write_clipboard', { text: currentResult }).catch(() => {});
+        try {
+            await invoke('write_clipboard', { text: currentResult });
+            toast.success('已复制结果', { style: toastStyle });
+        } catch {
+            toast.error('复制失败', { style: toastStyle });
+        }
     };
 
     const handleSourceTextChange = useCallback(
@@ -713,7 +741,7 @@ export default function LightAI() {
     const promptVisible = activeTab !== 'fix';
 
     return (
-        <TrayWindow style={{ background: '#f6f8fb' }}>
+        <TrayWindow style={styles.window}>
             <Toaster />
             <WindowHeader
                 style={headerStyle}
@@ -723,15 +751,18 @@ export default function LightAI() {
                         style={headerTitleStyle}
                         textStyle={headerTitleTextStyle}
                     >
-                        AI 编辑器
+                        文本助手
                     </WindowHeaderTitle>
                 }
                 right={<WindowHeaderCloseButton onClick={() => void handleDismiss()} />}
             />
 
-            <TrayWindowBody style={{ padding: '10px 12px 12px' }}>
+            <TrayWindowBody style={styles.body}>
                 <TrayWindowSurface style={surfaceStyle}>
-                    <div style={styles.topSection}>
+                    <div
+                        style={styles.topSection}
+                        onMouseDown={handlePanelDragStart}
+                    >
                         <div style={styles.tabRow}>
                             {TAB_OPTIONS.map((tab) => (
                                 <button
@@ -808,9 +839,6 @@ export default function LightAI() {
                             <div style={styles.cardHeader}>
                                 <span>原文</span>
                                 <div style={styles.cardHeaderActions}>
-                                    <span style={styles.cardMeta}>
-                                        {getSourceModeLabel(targetMode, sourceText)}
-                                    </span>
                                     <button
                                         type='button'
                                         title='朗读'
@@ -833,7 +861,7 @@ export default function LightAI() {
                                     autoFocus
                                     spellCheck={false}
                                     style={styles.sourceInput}
-                                    placeholder='输入需要润色的文本'
+                                    placeholder='输入、粘贴或划词后,内容会显示在这里'
                                     value={sourceText}
                                     onChange={(event) => {
                                         handleSourceTextChange(event.target.value);
@@ -859,16 +887,23 @@ export default function LightAI() {
                             <div style={styles.cardHeader}>
                                 <span>{panelTitle}</span>
                                 <div style={styles.cardHeaderActions}>
-                                    {activeTab === 'style' ? (
-                                        <span style={styles.cardMeta}>
-                                            {STYLE_LABELS_ZH[resolvedSelectedStyle] ??
-                                                STYLE_NAMES[resolvedSelectedStyle] ??
-                                                resolvedSelectedStyle}
-                                        </span>
-                                    ) : null}
+                                    <button
+                                        type='button'
+                                        title='复制结果'
+                                        aria-label='复制结果'
+                                        className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
+                                        style={styles.cardIconButton(!currentResult)}
+                                        disabled={!currentResult}
+                                        onClick={() => {
+                                            void handleCopy();
+                                        }}
+                                    >
+                                        <MdContentCopy className='text-[15px]' />
+                                    </button>
                                     <button
                                         type='button'
                                         title='朗读'
+                                        className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!currentResult)}
                                         disabled={!currentResult}
                                         onClick={() => {
@@ -917,7 +952,10 @@ export default function LightAI() {
                             />
                         ) : null}
 
-                        <div style={styles.actionGroup}>
+                        <div
+                            style={styles.actionGroup}
+                            data-no-window-drag='true'
+                        >
                             <button
                                 type='button'
                                 style={styles.secondaryButton(!canRun)}
@@ -931,17 +969,6 @@ export default function LightAI() {
                                 disabled={!canRun}
                             >
                                 {loading ? '停止' : '生成'}
-                            </button>
-
-                            <button
-                                type='button'
-                                style={styles.secondaryButton(!canCopy)}
-                                onClick={() => {
-                                    void handleCopy();
-                                }}
-                                disabled={!canCopy}
-                            >
-                                复制
                             </button>
 
                             <button

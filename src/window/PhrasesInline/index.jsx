@@ -3,7 +3,13 @@ import { invoke } from '@tauri-apps/api/tauri';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AiOutlineClose } from 'react-icons/ai';
-import { HiOutlineCollection, HiOutlinePencilAlt, HiOutlineTag, HiOutlineTrash } from 'react-icons/hi';
+import {
+    HiOutlineClipboardList,
+    HiOutlineCollection,
+    HiOutlinePencilAlt,
+    HiOutlineTag,
+    HiOutlineTrash,
+} from 'react-icons/hi';
 
 import WindowHeader, { WindowHeaderCloseButton, WindowHeaderTitle } from '../../components/WindowHeader';
 import {
@@ -31,14 +37,14 @@ import {
     updateTag,
 } from '../Phrases/phrasesDb';
 
-const QUICK_COLLAPSED_HEIGHT = 96;
+const QUICK_COLLAPSED_HEIGHT = 75;
 const QUICK_MAX_HEIGHT = 408;
 const QUICK_ROW_ESTIMATED_HEIGHT = 50;
 const QUICK_EMPTY_HEIGHT = 72;
 const QUICK_WINDOW_WIDTH = 372;
 const PANEL_WINDOW_WIDTH = 408;
 const PANEL_WINDOW_HEIGHT = 480;
-const QUICK_MANAGE_LABEL = '\u7ba1\u7406';
+const QUICK_MANAGE_TOOLTIP = '\u7ba1\u7406\u5e38\u7528\u8bed';
 const QUICK_CLOSE_LABEL = '\u5173\u95ed';
 const QUICK_VISIBLE_TAGS = 5;
 
@@ -51,6 +57,41 @@ const styles = {
         overflow: 'hidden',
         fontFamily: APP_FONT_FAMILY_VAR,
         color: '#0f172a',
+    },
+    manageWindow: {
+        background: '#fff',
+    },
+    manageBody: {
+        padding: 0,
+    },
+    manageSurface: {
+        border: 'none',
+        borderRadius: 0,
+        background: '#fff',
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
+    quickWindow: {
+        background: '#fff',
+    },
+    quickBody: {
+        padding: 0,
+    },
+    quickSurface: {
+        border: 'none',
+        borderRadius: '10px',
+        background: '#fff',
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
+    manageHeader: {
+        ...TRAY_WINDOW_HEADER_STYLE,
+        background: '#fff',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.78)',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
     },
     searchInput: {
         height: '34px',
@@ -66,21 +107,22 @@ const styles = {
     quickHeaderRow: {
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '7px 8px 5px',
+        gap: '6px',
+        padding: '9px 10px 3px',
+        background: '#fff',
         flexShrink: 0,
-        cursor: 'grab',
     },
     quickListWrap: {
         overflowY: 'auto',
-        padding: '0 8px 6px',
+        padding: '0 10px 0',
+        background: '#fff',
     },
     quickListPanel: {
-        border: '1px solid rgba(226, 232, 240, 0.92)',
-        borderRadius: '12px',
-        background: 'rgba(255, 255, 255, 0.96)',
+        border: 'none',
+        borderRadius: '10px',
+        background: '#fff',
         overflow: 'hidden',
-        boxShadow: '0 10px 28px -28px rgba(15, 23, 42, 0.22)',
+        boxShadow: 'none',
     },
     quickList: {
         display: 'flex',
@@ -95,7 +137,6 @@ const styles = {
         borderBottom: last ? 'none' : '1px solid rgba(241, 245, 249, 0.96)',
         background: active ? 'rgba(241, 245, 249, 0.98)' : 'transparent',
         boxShadow: active ? 'inset 2px 0 0 rgba(15, 23, 42, 0.88)' : 'none',
-        cursor: 'pointer',
         transition: 'background 120ms ease, box-shadow 120ms ease',
     }),
     quickItemMain: {
@@ -122,16 +163,17 @@ const styles = {
         WebkitBoxOrient: 'vertical',
         WebkitLineClamp: 1,
     },
-    item: (active) => ({
+    item: (active, last = false) => ({
         display: 'flex',
         alignItems: 'flex-start',
         gap: '10px',
-        padding: '9px 11px',
-        borderRadius: '12px',
-        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.16)' : 'rgba(226, 232, 240, 0.88)'}`,
-        background: active ? 'rgba(241, 245, 249, 0.96)' : 'rgba(255, 255, 255, 0.92)',
-        boxShadow: active ? '0 14px 30px -28px rgba(15, 23, 42, 0.3)' : 'none',
-        cursor: 'pointer',
+        padding: '12px 18px',
+        borderRadius: 0,
+        border: 'none',
+        borderBottom: last ? 'none' : '1px solid rgba(226, 232, 240, 0.72)',
+        background: active ? 'rgba(248, 250, 252, 0.96)' : '#fff',
+        boxShadow: 'none',
+        transition: 'background 120ms ease',
     }),
     itemMain: {
         minWidth: 0,
@@ -179,7 +221,6 @@ const styles = {
         background: danger ? 'rgba(255, 241, 242, 0.92)' : 'rgba(255, 255, 255, 0.92)',
         color: danger ? '#dc2626' : '#475569',
         fontSize: '11px',
-        cursor: 'pointer',
     }),
     empty: {
         padding: '56px 16px',
@@ -205,7 +246,7 @@ const styles = {
     },
     quickTagScroll: {
         display: 'flex',
-        gap: '6px',
+        gap: '5px',
         alignItems: 'center',
         overflow: 'hidden',
         width: '100%',
@@ -215,15 +256,14 @@ const styles = {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        height: '28px',
-        padding: '0 8px',
+        height: '24px',
+        padding: '0 7px',
         borderRadius: '999px',
-        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.84)' : 'rgba(226, 232, 240, 0.92)'}`,
+        border: `1px solid ${active ? 'rgba(15, 23, 42, 0.82)' : 'rgba(226, 232, 240, 0.76)'}`,
         background: active ? '#0f172a' : 'rgba(255, 255, 255, 0.94)',
         color: active ? '#ffffff' : '#475569',
         fontSize: '12px',
         fontWeight: 500,
-        cursor: 'pointer',
         whiteSpace: 'nowrap',
         flexShrink: 0,
         transition: 'background 120ms ease, border-color 120ms ease, color 120ms ease',
@@ -238,62 +278,46 @@ const styles = {
         border: 'none',
         background: hovered ? 'rgba(15, 23, 42, 0.06)' : 'transparent',
         color: hovered ? '#334155' : '#64748b',
-        cursor: 'pointer',
         flexShrink: 0,
         transition: 'background 120ms ease, color 120ms ease',
     }),
     quickDock: {
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '0 8px 0',
-        borderTop: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.82)',
-        cursor: 'grab',
+        gap: '6px',
+        padding: '1px 10px 3px',
+        borderTop: 'none',
+        background: '#fff',
     },
     quickSearchWrap: {
         flex: 1,
         minWidth: 0,
     },
     quickSearchInput: {
-        height: '36px',
+        height: '32px',
         width: '100%',
-        borderRadius: '10px',
-        border: '1px solid rgba(203, 213, 225, 0.92)',
+        borderRadius: '9px',
+        border: '1px solid rgba(203, 213, 225, 0.84)',
         background: 'rgba(255, 255, 255, 0.96)',
-        padding: '0 12px',
+        padding: '0 11px',
         outline: 'none',
         fontSize: '13px',
         color: '#0f172a',
     },
-    quickManageButton: (expanded) => ({
+    quickManageButton: {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: expanded ? '6px' : '0',
-        height: '36px',
-        minWidth: expanded ? '70px' : '36px',
-        padding: expanded ? '0 11px' : '0',
-        borderRadius: '10px',
-        border: '1px solid rgba(226, 232, 240, 0.92)',
+        width: '32px',
+        height: '32px',
+        padding: 0,
+        borderRadius: '9px',
+        border: '1px solid rgba(226, 232, 240, 0.84)',
         background: 'rgba(255, 255, 255, 0.94)',
         color: '#475569',
-        fontSize: '12px',
-        fontWeight: 600,
-        cursor: 'pointer',
         flexShrink: 0,
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        transition: 'min-width 120ms ease, padding 120ms ease, gap 120ms ease',
-    }),
-    quickManageLabel: (expanded) => ({
-        maxWidth: expanded ? '32px' : '0',
-        overflow: 'hidden',
-        opacity: expanded ? 1 : 0,
-        whiteSpace: 'nowrap',
-        fontSize: '12px',
-        transition: 'max-width 120ms ease, opacity 120ms ease',
-    }),
+        transition: 'background 120ms ease, border-color 120ms ease, color 120ms ease',
+    },
     subtleButton: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -306,7 +330,6 @@ const styles = {
         color: '#475569',
         fontSize: '12px',
         fontWeight: 600,
-        cursor: 'pointer',
         flexShrink: 0,
     },
     filterBar: {
@@ -316,7 +339,7 @@ const styles = {
         minHeight: '42px',
         padding: '7px 12px',
         borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.72)',
+        background: '#fff',
     },
     filterScroll: {
         display: 'flex',
@@ -337,18 +360,18 @@ const styles = {
         background: active ? '#0f172a' : 'rgba(255, 255, 255, 0.9)',
         color: active ? '#ffffff' : '#475569',
         fontSize: '12px',
-        cursor: 'pointer',
         whiteSpace: 'nowrap',
     }),
     listWrap: {
         flex: 1,
         overflow: 'auto',
-        padding: '8px 12px 10px',
+        padding: 0,
+        background: '#fff',
     },
     list: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '6px',
+        gap: 0,
     },
     statusBar: {
         display: 'flex',
@@ -356,7 +379,7 @@ const styles = {
         gap: '8px',
         padding: '9px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.78)',
+        background: '#fff',
         color: '#64748b',
         fontSize: '11px',
     },
@@ -382,7 +405,6 @@ const styles = {
         color: '#ffffff',
         fontSize: '13px',
         fontWeight: 600,
-        cursor: 'pointer',
     },
     formScroll: {
         flex: 1,
@@ -391,7 +413,7 @@ const styles = {
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        background: 'rgba(248, 250, 252, 0.58)',
+        background: '#fff',
     },
     section: {
         display: 'flex',
@@ -425,7 +447,7 @@ const styles = {
         gap: '8px',
         padding: '10px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.72)',
-        background: 'rgba(248, 250, 252, 0.76)',
+        background: '#fff',
     },
     footerButton: (primary = false) => ({
         height: '40px',
@@ -437,25 +459,25 @@ const styles = {
         color: primary ? '#ffffff' : '#475569',
         fontSize: '13px',
         fontWeight: 600,
-        cursor: 'pointer',
     }),
     managerList: {
         flex: 1,
         overflow: 'auto',
-        padding: '10px 12px 12px',
+        padding: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        background: 'rgba(248, 250, 252, 0.58)',
+        gap: 0,
+        background: '#fff',
     },
     tagRow: {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        padding: '9px 11px',
-        borderRadius: '12px',
-        border: '1px solid rgba(226, 232, 240, 0.88)',
-        background: 'rgba(255, 255, 255, 0.92)',
+        padding: '12px 18px',
+        borderRadius: 0,
+        border: 'none',
+        borderBottom: '1px solid rgba(226, 232, 240, 0.72)',
+        background: '#fff',
     },
     tagDot: (color) => ({
         width: '10px',
@@ -517,6 +539,7 @@ function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }
     return (
         <div
             data-quick-interactive='true'
+            data-clickable='true'
             style={styles.quickItem(active, last)}
             onMouseEnter={onHover}
             onClick={() => {
@@ -549,10 +572,11 @@ function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }
     );
 }
 
-function PhraseRow({ phrase, tag, query, active, hovered, onHover, onPrimary, onEdit, onDelete, t }) {
+function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrimary, onEdit, onDelete, t }) {
     return (
         <div
-            style={styles.item(active)}
+            data-clickable='true'
+            style={styles.item(active, last)}
             onMouseEnter={onHover}
             onClick={() => onPrimary(phrase)}
         >
@@ -653,7 +677,7 @@ function TagsView({ onBack, onChanged, onClose }) {
     return (
         <div style={styles.view}>
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={styles.manageHeader}
                 center={
                     <WindowHeaderTitle
                         icon={<HiOutlineTag className='text-[15px] text-default-500' />}
@@ -841,7 +865,7 @@ function EditView({ phrase, allTags, onSaved, onCancel, onClose }) {
     return (
         <div style={styles.view}>
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={styles.manageHeader}
                 center={
                     <WindowHeaderTitle
                         icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
@@ -961,7 +985,6 @@ export default function PhrasesInline() {
     const [search, setSearch] = useState('');
     const [activeIdx, setActiveIdx] = useState(0);
     const [hoverId, setHoverId] = useState(null);
-    const [manageHovered, setManageHovered] = useState(false);
     const [quickCloseHovered, setQuickCloseHovered] = useState(false);
     const searchRef = useRef(null);
     const quickResultsRef = useRef(null);
@@ -976,7 +999,6 @@ export default function PhrasesInline() {
         setSelectedTagId(null);
         setActiveIdx(0);
         setHoverId(null);
-        setManageHovered(false);
         setQuickCloseHovered(false);
     }, []);
 
@@ -1270,6 +1292,7 @@ export default function PhrasesInline() {
     const targetWindowFrame = useMemo(() => {
         if (view === 'quick') {
             return {
+                width: QUICK_WINDOW_WIDTH,
                 height: Math.min(QUICK_COLLAPSED_HEIGHT + quickResultsHeight, QUICK_MAX_HEIGHT),
             };
         }
@@ -1294,10 +1317,7 @@ export default function PhrasesInline() {
                     const currentY = position.y / scaleFactor;
                     const currentWidth = size.width / scaleFactor;
                     const currentHeight = size.height / scaleFactor;
-                    const nextWidth =
-                        view === 'quick'
-                            ? Math.max(QUICK_WINDOW_WIDTH, currentWidth)
-                            : Math.max(targetWindowFrame.width, currentWidth);
+                    const nextWidth = targetWindowFrame.width;
                     const anchorX = currentX + currentWidth / 2;
                     const anchorBottom = currentY + currentHeight;
                     let nextX = anchorX - nextWidth / 2;
@@ -1411,7 +1431,7 @@ export default function PhrasesInline() {
         content = (
             <div style={styles.view}>
                 <WindowHeader
-                    style={TRAY_WINDOW_HEADER_STYLE}
+                    style={styles.manageHeader}
                     left={
                         <WindowHeaderTitle
                             icon={<HiOutlineCollection className='text-[15px] text-default-500' />}
@@ -1470,7 +1490,7 @@ export default function PhrasesInline() {
                         </div>
                     ) : (
                         <div style={styles.list}>
-                            {managePhrases.map((phrase) => (
+                            {managePhrases.map((phrase, index) => (
                                 <PhraseRow
                                     key={phrase.id}
                                     phrase={phrase}
@@ -1478,6 +1498,7 @@ export default function PhrasesInline() {
                                     query={search.trim()}
                                     active={hoverId === phrase.id}
                                     hovered={hoverId === phrase.id}
+                                    last={index === managePhrases.length - 1}
                                     onHover={() => setHoverId(phrase.id)}
                                     onPrimary={(item) => {
                                         setEditPhrase(item);
@@ -1612,21 +1633,16 @@ export default function PhrasesInline() {
                     </div>
                     <button
                         type='button'
-                        title={QUICK_MANAGE_LABEL}
-                        style={styles.quickManageButton(manageHovered)}
-                        onMouseEnter={() => setManageHovered(true)}
-                        onMouseLeave={() => setManageHovered(false)}
-                        onFocus={() => setManageHovered(true)}
-                        onBlur={() => setManageHovered(false)}
+                        title={QUICK_MANAGE_TOOLTIP}
+                        aria-label={QUICK_MANAGE_TOOLTIP}
+                        style={styles.quickManageButton}
                         onClick={() => {
                             setView('manage');
                             setHoverId(null);
-                            setManageHovered(false);
                             setQuickCloseHovered(false);
                         }}
                     >
-                        <HiOutlineCollection className='text-[15px]' />
-                        <span style={styles.quickManageLabel(manageHovered)}>{QUICK_MANAGE_LABEL}</span>
+                        <HiOutlineClipboardList className='text-[15px]' />
                     </button>
                 </div>
             </div>
@@ -1634,16 +1650,30 @@ export default function PhrasesInline() {
     }
 
     return (
-        <TrayWindow>
-            <TrayWindowBody style={view === 'quick' ? { padding: '6px 8px 0' } : undefined}>
+        <TrayWindow
+            style={
+                view === 'manage'
+                    ? styles.manageWindow
+                    : view === 'quick'
+                      ? styles.quickWindow
+                      : undefined
+            }
+        >
+            <TrayWindowBody
+                style={
+                    view === 'quick'
+                        ? styles.quickBody
+                        : view === 'manage'
+                          ? styles.manageBody
+                          : undefined
+                }
+            >
                 <TrayWindowSurface
                     style={
                         view === 'quick'
-                            ? {
-                                  borderRadius: '12px',
-                                  boxShadow:
-                                      '0 14px 28px -26px rgba(15, 23, 42, 0.32), 0 1px 5px rgba(255, 255, 255, 0.4) inset',
-                              }
+                            ? styles.quickSurface
+                            : view === 'manage'
+                              ? styles.manageSurface
                             : undefined
                     }
                 >

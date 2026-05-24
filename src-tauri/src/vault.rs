@@ -67,6 +67,11 @@ pub fn handle_quick_add_capture(text: &str) -> bool {
     }
 }
 
+pub fn quick_add_capture_active() -> bool {
+    let cap = QUICK_ADD_CAPTURE.lock().unwrap_or_else(|e| e.into_inner());
+    matches!(cap.0, 1 | 2)
+}
+
 /// 打开密码本窗口并在 React 挂载后发送预填数据事件。
 fn open_vault_with_prefilled(account: String, password: String) {
     vault_window();

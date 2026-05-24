@@ -86,6 +86,27 @@ const S = {
         color: '#334155',
         overflow: 'hidden',
     },
+    window: {
+        background: '#fff',
+    },
+    body: {
+        padding: 0,
+    },
+    surface: {
+        border: 'none',
+        borderRadius: 0,
+        background: '#fff',
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
+    modernHeader: {
+        ...TRAY_WINDOW_HEADER_STYLE,
+        background: '#fff',
+        borderBottom: '1px solid rgba(226,232,240,0.78)',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+    },
     header: {
         display: 'flex',
         alignItems: 'center',
@@ -102,14 +123,13 @@ const S = {
         left: 0,
         right: 0,
         bottom: 0,
-        cursor: 'move',
     },
     toolbar: {
         display: 'flex',
         gap: '8px',
         padding: '10px 12px',
         flexWrap: 'wrap',
-        background: 'rgba(248,250,252,0.78)',
+        background: '#fff',
         borderBottom: '1px solid rgba(226,232,240,0.8)',
         flexShrink: 0,
     },
@@ -118,7 +138,7 @@ const S = {
         gap: '8px',
         alignItems: 'center',
         padding: '8px 12px',
-        background: 'rgba(255,255,255,0.72)',
+        background: '#fff',
         borderBottom: '1px solid rgba(226,232,240,0.72)',
         flexShrink: 0,
     },
@@ -155,16 +175,16 @@ const S = {
         background: active ? '#0f172a' : 'rgba(248,250,252,0.9)',
         color: active ? '#fff' : '#475569',
         fontSize: '11px',
-        cursor: 'pointer',
         whiteSpace: 'nowrap',
     }),
     list: {
         flex: 1,
         overflow: 'auto',
-        padding: '10px 12px 12px',
+        padding: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: 0,
+        background: '#fff',
     },
     listShell: {
         flex: 1,
@@ -176,7 +196,7 @@ const S = {
         width: '96px',
         flexShrink: 0,
         borderRight: '1px solid rgba(226,232,240,0.88)',
-        background: 'rgba(248,250,252,0.62)',
+        background: '#fff',
         display: 'flex',
         flexDirection: 'column',
         gap: '6px',
@@ -193,7 +213,6 @@ const S = {
         color: active ? '#fff' : '#475569',
         fontSize: '12px',
         fontWeight: active ? 600 : 500,
-        cursor: 'pointer',
         textAlign: 'left',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -207,16 +226,16 @@ const S = {
         overflow: 'hidden',
     },
     card: (selected) => ({
-        background: selected ? 'rgba(241,245,249,0.94)' : 'rgba(255,255,255,0.9)',
-        border: `1px solid ${selected ? 'rgba(15,23,42,0.18)' : 'rgba(226,232,240,0.9)'}`,
-        borderRadius: '12px',
-        padding: '10px 12px',
-        cursor: 'pointer',
+        background: selected ? 'rgba(248,250,252,0.96)' : '#fff',
+        border: 'none',
+        borderBottom: '1px solid rgba(226,232,240,0.72)',
+        borderRadius: 0,
+        padding: '12px 14px',
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        boxShadow: '0 12px 28px -26px rgba(15,23,42,0.28)',
-        transition: 'border-color 0.15s, background 0.15s',
+        boxShadow: 'none',
+        transition: 'background 0.15s',
     }),
     cardLeft: { flex: 1, minWidth: 0 },
     cardAccount: {
@@ -242,7 +261,7 @@ const S = {
         alignItems: 'center',
         gap: '8px',
         padding: '7px 12px',
-        background: 'rgba(248,250,252,0.78)',
+        background: '#fff',
         borderTop: '1px solid rgba(226,232,240,0.72)',
         fontSize: '11px',
         color: '#64748b',
@@ -292,7 +311,6 @@ const S = {
         background: checked ? '#0f172a' : 'rgba(248,250,252,0.92)',
         color: checked ? '#fff' : '#475569',
         fontSize: '11px',
-        cursor: 'pointer',
         margin: '2px',
     }),
     strengthBar: (strength) => ({
@@ -317,14 +335,13 @@ const S = {
     genTitle: { fontWeight: 600, fontSize: '12px', color: '#555' },
     genRow: { display: 'flex', alignItems: 'center', gap: '8px' },
     slider: { flex: 1 },
-    checkbox: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', cursor: 'pointer' },
+    checkbox: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' },
     // 闁氨鏁ら幐澶愭尦
     btn: (variant = 'default', small = false) => {
         const base = {
             padding: small ? '3px 9px' : '6px 14px',
             borderRadius: '9px',
             fontSize: small ? '11px' : '12px',
-            cursor: 'pointer',
             border: '1px solid transparent',
             fontWeight: variant === 'primary' ? 600 : 400,
         };
@@ -555,7 +572,7 @@ function EditView({ record, allTags, onSave, onCancel }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* 閺嶅洭顣介弽?*/}
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={S.modernHeader}
                 center={
                     <WindowHeaderTitle
                         icon={<FiLock size={15} style={{ color: '#64748b', flexShrink: 0 }} />}
@@ -914,7 +931,7 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* 妞ゅ爼鍎撮弽鍥暯閺?*/}
             <WindowHeader
-                style={TRAY_WINDOW_HEADER_STYLE}
+                style={S.modernHeader}
                 center={
                     <WindowHeaderTitle
                         icon={<FiLock size={15} style={{ color: '#64748b', flexShrink: 0 }} />}
@@ -1084,6 +1101,7 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed }) {
                         {filtered.map((r) => (
                             <div
                                 key={r.id}
+                                data-clickable='true'
                                 style={S.card(selectedId === r.id)}
                                 onClick={() => setSelectedId(r.id)}
                             >
@@ -1229,9 +1247,9 @@ export default function Vault() {
 
     // 閸ュ搫鐣鹃弽鐟邦啇閸ｃ劎鈥樻穱婵囨殻娑擃亣顫嬮崣锝嗘箒娑撳秹鈧繑妲戦懗灞炬珯閿涘湵auri 缁愭褰涢弰?transparent=true閿?
     return (
-        <TrayWindow>
-            <TrayWindowBody>
-                <TrayWindowSurface>
+        <TrayWindow style={S.window}>
+            <TrayWindowBody style={S.body}>
+                <TrayWindowSurface style={S.surface}>
                     {view === 'edit' ? (
                         <EditView
                             record={editRecord}

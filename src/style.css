@@ -5,6 +5,9 @@
 :root {
     --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei',
         sans-serif;
+    --app-cursor-drag: default;
+    --app-cursor-click: pointer;
+    --app-cursor-disabled: default;
 }
 
 * {
@@ -33,6 +36,46 @@ textarea,
 select,
 option {
     font-family: var(--app-font-family);
+}
+
+[data-tauri-drag-region='true'] {
+    cursor: var(--app-cursor-drag);
+}
+
+button,
+a,
+select,
+option,
+summary,
+[data-clickable='true'],
+[data-quick-interactive='true'],
+[role='button'],
+[role='switch'],
+[role='checkbox'],
+[role='radio'],
+[role='tab'],
+[role='menuitem'],
+[role='option'] {
+    cursor: var(--app-cursor-click);
+}
+
+button[disabled],
+button:disabled,
+select[disabled],
+select:disabled,
+option[disabled],
+option:disabled,
+[disabled],
+[data-disabled='true'],
+[aria-disabled='true'],
+[role='button'][aria-disabled='true'],
+[role='switch'][aria-disabled='true'],
+[role='checkbox'][aria-disabled='true'],
+[role='radio'][aria-disabled='true'],
+[role='tab'][aria-disabled='true'],
+[role='menuitem'][aria-disabled='true'],
+[role='option'][aria-disabled='true'] {
+    cursor: var(--app-cursor-disabled);
 }
 
 *::-webkit-scrollbar {

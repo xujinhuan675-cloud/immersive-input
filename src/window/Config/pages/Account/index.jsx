@@ -500,7 +500,7 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                             <button
                                 type='button'
                                 disabled={viewModel.inviteShareDisabled}
-                                className='inline-flex h-8 items-center justify-center rounded-lg border border-default-200 bg-white px-3 text-xs font-medium text-default-600 transition hover:border-default-300 hover:text-default-800 disabled:cursor-not-allowed disabled:opacity-50'
+                                className='inline-flex h-8 items-center justify-center rounded-lg border border-default-200 bg-white px-3 text-xs font-medium text-default-600 transition hover:border-default-300 hover:text-default-800 disabled:opacity-50'
                                 title={viewModel.inviteShareLabel}
                                 onClick={onCopyInviteLink}
                             >
@@ -658,7 +658,7 @@ const SubscriptionPlanStaticBody = React.memo(function SubscriptionPlanStaticBod
                     disabled={viewModel.ctaDisabled}
                     onClick={viewModel.isFreePlan ? undefined : () => onPrepareSubscription(viewModel.plan)}
                     className={`flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium transition-colors ${viewModel.ctaToneClass} ${
-                        viewModel.ctaDisabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
+                        viewModel.ctaDisabled ? ' opacity-70' : ''
                     }`}
                 >
                     {viewModel.ctaLabel}
@@ -794,7 +794,7 @@ const PaymentProviderButton = React.memo(function PaymentProviderButton({
                 selected
                     ? 'border-primary-500 bg-primary-50 text-default-900 shadow-sm'
                     : 'border-default-200 bg-white text-default-700 hover:border-default-300'
-            } ${available ? '' : 'cursor-not-allowed opacity-50'}`}
+            } ${available ? '' : ' opacity-50'}`}
             onClick={() => available && onSelect(name)}
         >
             <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${getProviderToneClass(name)}`}>

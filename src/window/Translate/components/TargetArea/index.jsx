@@ -678,7 +678,7 @@ export default function TargetArea(props) {
     };
 
     return (
-        <div className='overflow-hidden rounded-[14px] border border-default-200/80 bg-content1'>
+        <div className='overflow-hidden border-b border-default-200/70 bg-white'>
             <Toaster />
             <div
                 className='flex items-center justify-between gap-2 px-3 py-2'
@@ -799,7 +799,7 @@ export default function TargetArea(props) {
                                             ) : null}
                                             {pronunciation.voice ? (
                                                 <HiOutlineVolumeUp
-                                                    className='cursor-pointer text-default-500'
+                                                    className=' text-default-500'
                                                     style={{ fontSize: DEFAULT_APP_FONT_SIZE }}
                                                     onClick={() => {
                                                         speak(pronunciation.voice);

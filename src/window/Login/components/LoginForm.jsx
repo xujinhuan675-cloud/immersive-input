@@ -99,7 +99,7 @@ export default function LoginForm({ onSuccess, onForgotPassword }) {
                 </Checkbox>
                 <button
                     type='button'
-                    className='text-xs text-primary hover:underline cursor-pointer'
+                    className='text-xs text-primary hover:underline'
                     onClick={handleForgotPassword}
                 >
                     {t('login.forgot')}

@@ -29,9 +29,9 @@ import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../utils/aiGat
 import { saveHistory } from '../../utils/aiHistory';
 
 const DEFAULT_TEXTAREA_HEIGHT = 40;
-const MAX_TEXTAREA_HEIGHT = 132;
+const MAX_TEXTAREA_HEIGHT = 40;
 const SYSTEM_PROMPT =
-    '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u6790\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
+    '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u91CA\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
 
 async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
     try {
@@ -109,7 +109,6 @@ function getMessageSpeechText(content = '') {
 function resizeTextarea(textarea) {
     if (!textarea) return;
     textarea.style.height = `${DEFAULT_TEXTAREA_HEIGHT}px`;
-    textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
 }
 
 function appendExplainDraft(previousText, incomingText) {
@@ -202,7 +201,6 @@ const styles = {
         border: '1px solid rgba(226, 232, 240, 0.9)',
         background: 'rgba(255, 255, 255, 0.9)',
         color: '#64748b',
-        cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.42 : 1,
         flexShrink: 0,
     }),
@@ -225,21 +223,24 @@ const styles = {
         padding: '10px 12px',
         borderTop: '1px solid rgba(226, 232, 240, 0.8)',
         background: 'rgba(248, 250, 252, 0.72)',
-        alignItems: 'flex-end',
+        alignItems: 'center',
     },
     input: {
         flex: 1,
+        height: `${DEFAULT_TEXTAREA_HEIGHT}px`,
         minHeight: `${DEFAULT_TEXTAREA_HEIGHT}px`,
         maxHeight: `${MAX_TEXTAREA_HEIGHT}px`,
         resize: 'none',
+        overflowY: 'auto',
         outline: 'none',
         border: '1px solid rgba(203, 213, 225, 0.9)',
         borderRadius: '10px',
         background: 'rgba(255, 255, 255, 0.88)',
         padding: '9px 12px',
+        boxSizing: 'border-box',
         fontFamily: APP_FONT_FAMILY_VAR,
         fontSize: '14px',
-        lineHeight: 1.5,
+        lineHeight: '20px',
         color: '#0f172a',
     },
     footerTools: {
@@ -265,7 +266,6 @@ const styles = {
             : '1px solid rgba(226, 232, 240, 0.9)',
         background: active ? 'rgba(219, 234, 254, 0.92)' : 'rgba(255, 255, 255, 0.84)',
         color: active ? '#2563eb' : '#475569',
-        cursor: 'pointer',
     }),
     footerMenu: {
         position: 'absolute',
@@ -291,7 +291,6 @@ const styles = {
         color: danger ? '#dc2626' : '#334155',
         fontSize: '12px',
         fontWeight: 600,
-        cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.45 : 1,
     }),
     footerButton: (primary) => ({
@@ -305,7 +304,6 @@ const styles = {
         color: primary ? '#ffffff' : '#475569',
         fontSize: '13px',
         fontWeight: 600,
-        cursor: 'pointer',
         opacity: primary ? 1 : 1,
     }),
     codeInline: {
@@ -641,7 +639,7 @@ export default function Chat() {
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        {'\u89E3\u6790'}
+                        {'\u89E3\u91CA'}
                     </WindowHeaderTitle>
                 }
                 right={
@@ -657,7 +655,7 @@ export default function Chat() {
                     <div style={styles.messageList}>
                         {messages.length === 0 ? (
                             <div style={styles.empty}>
-                                {'\u53D1\u9001\u6587\u672C\u5F00\u59CB\u89E3\u6790'}
+                                {'\u5212\u8BCD\u3001\u7C98\u8D34\u6216\u8F93\u5165\u6587\u672C\u540E\uFF0C\u89E3\u91CA\u4F1A\u663E\u793A\u5728\u8FD9\u91CC'}
                                 <br />
                                 <span style={{ fontSize: '11px' }}>
                                     {apiConfig === undefined
@@ -786,9 +784,7 @@ export default function Chat() {
                         <textarea
                             ref={textareaRef}
                             style={styles.input}
-                            placeholder={
-                                '\u8F93\u5165\u8981\u89E3\u6790\u7684\u6587\u672C\uFF0CEnter \u53D1\u9001\uFF0CShift+Enter \u6362\u884C'
-                            }
+                            placeholder={'\u8F93\u5165\u6587\u672C\u6216\u7EE7\u7EED\u8FFD\u95EE'}
                             value={input}
                             rows={1}
                             onChange={(event) => {
@@ -804,7 +800,7 @@ export default function Chat() {
                         <div style={styles.footerTools}>
                             <button
                                 type='button'
-                                title={'\u6458\u5F55\u89E3\u6790'}
+                                title={'\u8FDE\u7EED\u89E3\u91CA'}
                                 style={styles.footerIconButton(excerptMode)}
                                 onClick={() => {
                                     setExcerptMode((previous) => !previous);
@@ -814,14 +810,13 @@ export default function Chat() {
                             </button>
                             <button
                                 type='button'
-                                title={'\u6E05\u7A7A\u89E3\u6790'}
+                                title={'\u6E05\u7A7A\u89E3\u91CA'}
                                 style={{
                                     ...styles.footerIconButton(false),
                                     border: '1px solid rgba(254, 202, 202, 0.95)',
                                     background: 'rgba(254, 242, 242, 0.92)',
                                     color: '#dc2626',
                                     opacity: loading || !hasContentToClear ? 0.45 : 1,
-                                    cursor: loading || !hasContentToClear ? 'default' : 'pointer',
                                 }}
                                 onClick={clearMessages}
                                 disabled={loading || !hasContentToClear}
