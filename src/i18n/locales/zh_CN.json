@@ -50,7 +50,7 @@
             "general": {
                 "label": "通用",
                 "title": "通用",
-                "auto_start": "开机时启动应用",
+                "auto_start": "开机后台运行",
                 "auto_start_background": "开机后台启动",
                 "check_update": "后台自动更新",
                 "server_port": "监听端口",

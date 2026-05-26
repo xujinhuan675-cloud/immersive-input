@@ -99,13 +99,7 @@ fn is_autostart_launch() -> bool {
 }
 
 fn should_open_config_on_startup() -> bool {
-    if !is_autostart_launch() {
-        return true;
-    }
-
-    !get("auto_start_background")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false)
+    !is_autostart_launch()
 }
 
 #[cfg(target_os = "windows")]

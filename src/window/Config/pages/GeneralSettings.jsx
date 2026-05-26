@@ -60,7 +60,6 @@ function SettingRow({ label, hidden = false, children }) {
 export default function GeneralSettings() {
     const [autoStart, setAutoStart] = useState(false);
     const [fontList, setFontList] = useState(null);
-    const [autoStartBackground, setAutoStartBackground] = useConfig('auto_start_background', false);
     const [checkUpdate, setCheckUpdate] = useConfig('check_update', true);
     const [appLanguage, setAppLanguage] = useConfig('app_language', 'en');
     const [appTheme, setAppTheme] = useConfig('app_theme', 'system');
@@ -108,17 +107,6 @@ export default function GeneralSettings() {
                             }
                         }}
                     />
-                </SettingRow>
-                <SettingRow label={t('config.general.auto_start_background')}>
-                    {autoStartBackground !== null && (
-                        <Switch
-                            size='sm'
-                            isSelected={autoStartBackground}
-                            onValueChange={(value) => {
-                                setAutoStartBackground(value);
-                            }}
-                        />
-                    )}
                 </SettingRow>
                 <SettingRow label={t('config.general.check_update')}>
                     {checkUpdate !== null && (

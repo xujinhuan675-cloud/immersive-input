@@ -50,7 +50,7 @@
             "general": {
                 "label": "General",
                 "title": "General Settings",
-                "auto_start": "Auto Startup",
+                "auto_start": "Run in Background on Startup",
                 "auto_start_background": "Start In Background On Login",
                 "check_update": "Check Update",
                 "server_port": "Listening Port",
