@@ -47,6 +47,7 @@ pub struct FocusedInputRect {
 pub struct FocusedInputSnapshot {
     pub available: bool,
     pub text: String,
+    pub text_complete: bool,
     #[allow(dead_code)]
     pub rect: Option<FocusedInputRect>,
     pub caret_rect: Option<FocusedInputRect>,
@@ -81,6 +82,7 @@ struct InputHandleMonitorState {
     last_applied_trigger_ms: u64,
     trigger_anchor_rect: Option<FocusedInputRect>,
     last_available_snapshot: Option<FocusedInputSnapshot>,
+    last_complete_text_snapshot: Option<FocusedInputSnapshot>,
     last_available_ms: u64,
     enabled: bool,
     last_config_reload_ms: u64,
@@ -129,7 +131,7 @@ pub fn start_input_ai_handle_monitor() {
                 let should_capture_detailed = trigger_is_fresh
                     && (latest_trigger_ms > monitor_state.last_applied_trigger_ms
                         || monitor_state.trigger_anchor_rect.is_none());
-                let snapshot = if should_capture_detailed {
+                let mut snapshot = if should_capture_detailed {
                     capture_focused_input_snapshot_detailed()
                         .or_else(capture_focused_input_snapshot_basic)
                         .unwrap_or_default()
@@ -138,6 +140,15 @@ pub fn start_input_ai_handle_monitor() {
                 };
 
                 if snapshot.available {
+                    if !snapshot.text_complete {
+                        snapshot = with_last_complete_text(
+                            snapshot,
+                            monitor_state.last_complete_text_snapshot.as_ref(),
+                        );
+                    }
+                    if snapshot.text_complete {
+                        monitor_state.last_complete_text_snapshot = Some(snapshot.clone());
+                    }
                     monitor_state.last_available_snapshot = Some(snapshot.clone());
                     monitor_state.last_available_ms = current_ms;
                 }
@@ -216,6 +227,12 @@ pub fn handle_key_press(key: Key) {
                         .unwrap_or(false)
                 ),
             );
+            if let (Some(app_handle), Some(snapshot_value)) = (APP.get(), snapshot.as_ref()) {
+                if snapshot_value.available {
+                    let state: tauri::State<FocusedInputSnapshotWrapper> = app_handle.state();
+                    *state.0.lock().unwrap() = snapshot_value.clone();
+                }
+            }
             *LAST_SHIFT_ENTER_SNAPSHOT.lock().unwrap() = snapshot;
         });
     }
@@ -254,8 +271,32 @@ fn reset_monitor_state(monitor_state: &mut InputHandleMonitorState) {
     monitor_state.last_applied_trigger_ms = 0;
     monitor_state.trigger_anchor_rect = None;
     monitor_state.last_available_snapshot = None;
+    monitor_state.last_complete_text_snapshot = None;
     monitor_state.last_available_ms = 0;
     monitor_state.last_logged_status = None;
+}
+
+fn with_last_complete_text(
+    mut snapshot: FocusedInputSnapshot,
+    last_complete_snapshot: Option<&FocusedInputSnapshot>,
+) -> FocusedInputSnapshot {
+    if snapshot.text_complete {
+        return snapshot;
+    }
+
+    let Some(last_complete_snapshot) = last_complete_snapshot else {
+        return snapshot;
+    };
+
+    if last_complete_snapshot.available
+        && last_complete_snapshot.text_complete
+        && last_complete_snapshot.target_key == snapshot.target_key
+    {
+        snapshot.text = last_complete_snapshot.text.clone();
+        snapshot.text_complete = true;
+    }
+
+    snapshot
 }
 
 fn log_monitor_status_if_changed(
@@ -798,10 +839,12 @@ fn capture_focused_input_snapshot_basic() -> Option<FocusedInputSnapshot> {
     let context = create_focused_automation_context()?;
 
     let mut text = String::new();
+    let mut text_complete = false;
     let editable = if let Some(value_pattern) = capture_editable_value_pattern(&context.element) {
         text = unsafe { value_pattern.CurrentValue() }
             .map(|value| value.to_string())
             .unwrap_or_default();
+        text_complete = true;
         true
     } else {
         capture_editable_text_pattern(&context.element).is_some()
@@ -818,6 +861,7 @@ fn capture_focused_input_snapshot_basic() -> Option<FocusedInputSnapshot> {
     Some(FocusedInputSnapshot {
         available: true,
         text,
+        text_complete,
         rect,
         caret_rect: None,
         target_key,
@@ -872,6 +916,7 @@ fn capture_focused_input_snapshot_detailed() -> Option<FocusedInputSnapshot> {
     Some(FocusedInputSnapshot {
         available: true,
         text,
+        text_complete: true,
         rect,
         caret_rect,
         target_key,
@@ -914,10 +959,19 @@ pub fn open_light_ai_from_input_handle(
     save_foreground_window();
 
     let mut snapshot = snapshot_state.0.lock().unwrap().clone();
-    if !snapshot.available || snapshot.text.is_empty() {
+    let trigger_snapshot = LAST_SHIFT_ENTER_SNAPSHOT.lock().unwrap().clone();
+    if snapshot.available && !snapshot.text_complete {
+        snapshot = with_last_complete_text(snapshot, trigger_snapshot.as_ref());
+    }
+    if !snapshot.available {
+        if let Some(trigger_snapshot) = trigger_snapshot {
+            snapshot = trigger_snapshot;
+        }
+    }
+    if !snapshot.available {
         snapshot = capture_focused_input_snapshot_detailed()
             .or_else(capture_focused_input_snapshot_basic)
-            .unwrap_or(snapshot);
+            .unwrap_or_default();
     }
 
     {
