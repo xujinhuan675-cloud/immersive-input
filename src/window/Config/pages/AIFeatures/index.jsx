@@ -1,27 +1,55 @@
-import { Card, CardBody, Switch, Tab, Tabs, Textarea } from '@nextui-org/react';
+import { Button, Switch, Tab, Tabs, Textarea } from '@nextui-org/react';
 import React, { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { MdDeleteOutline, MdKeyboardArrowDown } from 'react-icons/md';
 
 import { useConfig } from '../../../../hooks/useConfig';
 import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
 import AIConfig from '../Service/AIConfig';
 import TextSelection from '../TextSelection';
 
-function SettingSection({ title, description, action, children, bordered = false }) {
+function SettingPanel({ children }) {
     return (
-        <section className={`${bordered ? 'border-t border-default-200/70' : ''} px-4 py-4`}>
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>{children}</section>
+    );
+}
+
+function SettingRow({ title, description, action, children }) {
+    return (
+        <div className='min-h-[62px] border-b border-default-100 px-5 py-4 last:border-b-0'>
+            <div className='flex items-start justify-between gap-5'>
                 <div className='min-w-0 flex-1'>
-                    <h3 className='text-[15px] font-semibold text-foreground'>{title}</h3>
+                    <h3 className='text-[14px] font-medium text-foreground'>{title}</h3>
                     {description ? (
-                        <p className='mt-1 text-sm leading-6 text-default-500'>{description}</p>
+                        <p className='mt-1 max-w-[640px] text-xs leading-5 text-default-500'>{description}</p>
                     ) : null}
                 </div>
+                {action ? <div className='flex shrink-0 items-center justify-end pt-0.5'>{action}</div> : null}
+            </div>
+            {children ? <div className='mt-4'>{children}</div> : null}
+        </div>
+    );
+}
+
+function PromptRuleEditor({ label, value, setValue, placeholder, description, action }) {
+    return (
+        <div className='rounded-lg border border-default-200/80 bg-default-50/60 p-3'>
+            <div className='mb-2 flex items-center justify-between gap-3'>
+                <div className='min-w-0 text-[13px] font-medium text-default-700'>{label}</div>
                 {action ? <div className='shrink-0'>{action}</div> : null}
             </div>
-            {children ? <div className='mt-3'>{children}</div> : null}
-        </section>
+            <Textarea
+                placeholder={placeholder}
+                value={value ?? ''}
+                onValueChange={(nextValue) => setValue(nextValue)}
+                size='sm'
+                variant='bordered'
+                minRows={2}
+                maxRows={6}
+                description={description}
+            />
+        </div>
     );
 }
 
@@ -33,30 +61,25 @@ export default function AIFeatures() {
     const [promptStrict, setPromptStrict] = useConfig('ai_prompt_strict', '');
     const [promptStructured, setPromptStructured] = useConfig('ai_prompt_structured', '');
     const [promptNatural, setPromptNatural] = useConfig('ai_prompt_natural', '');
+    const [extraPromptRules, setExtraPromptRules] = useConfig('ai_extra_prompt_rules', []);
     const [showPromptEditor, setShowPromptEditor] = useState(false);
 
     const isChineseUI = i18n.language?.startsWith('zh');
-    const inputHandleTitle = isChineseUI
-        ? '\u8f93\u5165\u6846 AI \u53e5\u67c4'
-        : 'Input AI Handle';
+    const inputHandleTitle = isChineseUI ? '输入框 AI 句柄' : 'Input AI Handle';
     const inputHandleDescription = isChineseUI
-        ? '\u5728\u8f93\u5165\u6846\u5185\u6309 Shift+Enter \u65f6\u663e\u793a AI \u53e5\u67c4\u3002'
+        ? '在输入框内按 Shift+Enter 时显示 AI 句柄。'
         : 'Show the AI handle when you press Shift+Enter in an input field.';
-    const globalPreferenceTitle = isChineseUI
-        ? '\u5168\u5c40\u8f93\u51fa\u504f\u597d'
-        : 'Global Output Preferences';
-    const globalPreferenceDesc = isChineseUI
-        ? '\u7edf\u4e00\u6da6\u8272\u8f93\u51fa\u98ce\u683c\u3002'
-        : 'Apply a consistent polish style.';
+    const globalPreferenceTitle = isChineseUI ? '全局输出偏好' : 'Global Output Preferences';
+    const globalPreferenceDesc = isChineseUI ? '统一润色输出风格。' : 'Apply a consistent polish style.';
     const globalPreferencePlaceholder = isChineseUI
-        ? '\u4f8b\u5982\uff1a\u7b80\u6d01\u3001\u514b\u5236\u3001\u77ed\u53e5\u3002'
+        ? '例如：简洁、克制、短句。'
         : 'For example: concise, restrained, shorter sentences.';
-    const advancedTitle = isChineseUI
-        ? '\u9ad8\u7ea7\u98ce\u683c\u89c4\u5219'
-        : 'Advanced Style Rules';
-    const advancedDescription = isChineseUI
-        ? '\u4ec5\u5728\u9700\u8981\u8986\u76d6\u9ed8\u8ba4\u89c4\u5219\u65f6\u7f16\u8f91\u3002'
-        : 'Edit only to override the defaults.';
+    const outputRulesTitle = isChineseUI ? '输出规则' : 'Output Rules';
+    const outputRulesDescription = isChineseUI
+        ? '统一管理文本助手的输出偏好和高级 prompt。'
+        : 'Manage AI polish preferences and advanced prompts together.';
+    const advancedTitle = isChineseUI ? '高级风格规则' : 'Advanced Style Rules';
+    const advancedDescription = isChineseUI ? '仅在需要覆盖默认规则时编辑。' : 'Edit only to override the defaults.';
     const styleOptions = [
         {
             key: 'strict',
@@ -77,6 +100,18 @@ export default function AIFeatures() {
             setValue: setPromptNatural,
         },
     ];
+    const normalizedExtraPromptRules = Array.isArray(extraPromptRules) ? extraPromptRules : [];
+    const updateExtraPromptRule = (index, value) => {
+        setExtraPromptRules(
+            normalizedExtraPromptRules.map((item, itemIndex) => (itemIndex === index ? value : item))
+        );
+    };
+    const addExtraPromptRule = () => {
+        setExtraPromptRules([...normalizedExtraPromptRules, '']);
+    };
+    const deleteExtraPromptRule = (index) => {
+        setExtraPromptRules(normalizedExtraPromptRules.filter((_, itemIndex) => itemIndex !== index));
+    };
 
     return (
         <>
@@ -92,93 +127,157 @@ export default function AIFeatures() {
                     tabContent: 'text-sm text-default-500 group-data-[selected=true]:text-foreground',
                 }}
             >
-                <Tab key='ai_features' title={t('config.ai.label')}>
+                <Tab
+                    key='ai_features'
+                    title={t('config.ai.label')}
+                >
                     <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
-                        <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
-                            <CardBody className='p-0'>
-                                <SettingSection
-                                    title={inputHandleTitle}
-                                    description={inputHandleDescription}
-                                    action={
-                                        <Switch
-                                            size='sm'
-                                            isSelected={inputAiHandleEnabled ?? true}
-                                            onValueChange={setInputAiHandleEnabled}
-                                        />
-                                    }
-                                />
-
-                                <SettingSection
-                                    title={t('config.ai.incremental_explain')}
-                                    description={t('config.ai.incremental_explain_desc')}
-                                    action={
-                                        <Switch
-                                            size='sm'
-                                            isSelected={incrementalExplain ?? false}
-                                            onValueChange={setIncrementalExplain}
-                                        />
-                                    }
-                                />
-
-                                <SettingSection
-                                    title={globalPreferenceTitle}
-                                    description={globalPreferenceDesc}
-                                >
-                                    <Textarea
-                                        placeholder={globalPreferencePlaceholder}
-                                        value={userPref ?? ''}
-                                        onValueChange={(value) => setUserPref(value)}
+                        <SettingPanel>
+                            <SettingRow
+                                title={inputHandleTitle}
+                                description={inputHandleDescription}
+                                action={
+                                    <Switch
                                         size='sm'
-                                        variant='bordered'
-                                        minRows={3}
-                                        maxRows={6}
+                                        isSelected={inputAiHandleEnabled ?? true}
+                                        onValueChange={setInputAiHandleEnabled}
                                     />
-                                </SettingSection>
+                                }
+                            />
 
-                                <SettingSection
-                                    bordered
-                                    title={advancedTitle}
-                                    description={advancedDescription}
-                                    action={
-                                        <Switch
-                                            size='sm'
-                                            isSelected={showPromptEditor}
-                                            onValueChange={setShowPromptEditor}
+                            <SettingRow
+                                title={t('config.ai.incremental_explain')}
+                                description={t('config.ai.incremental_explain_desc')}
+                                action={
+                                    <Switch
+                                        size='sm'
+                                        isSelected={incrementalExplain ?? false}
+                                        onValueChange={setIncrementalExplain}
+                                    />
+                                }
+                            />
+
+                            <SettingRow
+                                title={outputRulesTitle}
+                                description={outputRulesDescription}
+                                action={
+                                    <Button
+                                        isIconOnly
+                                        size='sm'
+                                        variant='light'
+                                        className='h-8 w-8 min-w-8 rounded-lg text-default-500'
+                                        aria-label={
+                                            showPromptEditor
+                                                ? t('common.collapse', { defaultValue: 'Collapse' })
+                                                : t('common.expand', { defaultValue: 'Expand' })
+                                        }
+                                        onPress={() => setShowPromptEditor((value) => !value)}
+                                    >
+                                        <MdKeyboardArrowDown
+                                            className={`text-[22px] transition-transform ${
+                                                showPromptEditor ? 'rotate-180' : ''
+                                            }`}
                                         />
-                                    }
-                                >
-                                    {showPromptEditor ? (
-                                        <div className='space-y-3'>
-                                            {styleOptions.map(({ key, label, value, setValue }) => (
-                                                <div
-                                                    key={key}
-                                                    className='rounded-[14px] border border-default-200/70 bg-default-50/50 p-3'
-                                                >
-                                                    <div className='mb-2 text-[13px] font-medium text-default-700'>
-                                                        {label}
-                                                    </div>
-                                                    <Textarea
-                                                        placeholder={DEFAULT_STYLE_PROMPTS[key]?.system ?? ''}
-                                                        value={value ?? ''}
-                                                        onValueChange={(nextValue) => setValue(nextValue)}
-                                                        size='sm'
-                                                        variant='bordered'
-                                                        minRows={2}
-                                                        maxRows={6}
-                                                        description={t('config.ai.prompt_empty')}
-                                                    />
+                                    </Button>
+                                }
+                            >
+                                {showPromptEditor ? (
+                                    <div className='space-y-4'>
+                                        <PromptRuleEditor
+                                            label={globalPreferenceTitle}
+                                            value={userPref}
+                                            setValue={setUserPref}
+                                            placeholder={globalPreferencePlaceholder}
+                                            description={globalPreferenceDesc}
+                                        />
+
+                                        <div className='space-y-3 border-t border-default-100 pt-3'>
+                                            <div>
+                                                <div className='text-[13px] font-medium text-default-700'>
+                                                    {advancedTitle}
                                                 </div>
+                                                <div className='mt-1 text-xs leading-5 text-default-500'>
+                                                    {advancedDescription}
+                                                </div>
+                                            </div>
+
+                                            {styleOptions.map(({ key, label, value, setValue }) => (
+                                                <PromptRuleEditor
+                                                    key={key}
+                                                    label={label}
+                                                    value={value}
+                                                    setValue={setValue}
+                                                    placeholder={DEFAULT_STYLE_PROMPTS[key]?.system ?? ''}
+                                                    description={t('config.ai.prompt_empty')}
+                                                    action={
+                                                        <Button
+                                                            isIconOnly
+                                                            size='sm'
+                                                            color='danger'
+                                                            variant='light'
+                                                            className='h-8 w-8 min-w-8 rounded-lg text-danger'
+                                                            aria-label={t('common.clear')}
+                                                            onPress={() => setValue('')}
+                                                        >
+                                                            <MdDeleteOutline className='text-[18px]' />
+                                                        </Button>
+                                                    }
+                                                />
                                             ))}
+
+                                            {normalizedExtraPromptRules.map((value, index) => (
+                                                <PromptRuleEditor
+                                                    key={`extra-prompt-${index}`}
+                                                    label={t('config.ai.prompt_extra_label', {
+                                                        index: index + 1,
+                                                        defaultValue: `Prompt ${index + 1}`,
+                                                    })}
+                                                    value={value}
+                                                    setValue={(nextValue) => updateExtraPromptRule(index, nextValue)}
+                                                    placeholder={t('config.ai.prompt_extra_placeholder', {
+                                                        defaultValue:
+                                                            'Add an extra rule appended to every AI polish request.',
+                                                    })}
+                                                    description={t('config.ai.prompt_empty')}
+                                                    action={
+                                                        <Button
+                                                            isIconOnly
+                                                            size='sm'
+                                                            color='danger'
+                                                            variant='flat'
+                                                            className='h-8 w-8 min-w-8 rounded-lg'
+                                                            aria-label={t('common.delete')}
+                                                            onPress={() => deleteExtraPromptRule(index)}
+                                                        >
+                                                            <MdDeleteOutline className='text-[18px]' />
+                                                        </Button>
+                                                    }
+                                                />
+                                            ))}
+
+                                            <div className='flex justify-end'>
+                                                <Button
+                                                    size='sm'
+                                                    variant='flat'
+                                                    className='h-8 rounded-md px-3 text-[13px] font-medium'
+                                                    onPress={addExtraPromptRule}
+                                                >
+                                                    {t('config.ai.prompt_add', { defaultValue: 'Add Prompt' })}
+                                                </Button>
+                                            </div>
                                         </div>
-                                    ) : null}
-                                </SettingSection>
-                            </CardBody>
-                        </Card>
+                                    </div>
+                                ) : null}
+                            </SettingRow>
+                        </SettingPanel>
                         <AIConfig />
                     </div>
                 </Tab>
 
-                <Tab key='text_selection' title={t('config.text_selection.label')}>
+                <Tab
+                    key='text_selection'
+                    title={t('config.text_selection.label')}
+                >
                     <TextSelection />
                 </Tab>
             </Tabs>

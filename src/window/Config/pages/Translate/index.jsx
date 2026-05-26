@@ -1,14 +1,29 @@
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
-import { CardBody } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
-import { Card } from '@nextui-org/react';
 import React from 'react';
 
 import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { languageList } from '../../../../utils/language';
 import { useConfig } from '../../../../hooks/useConfig';
 import { invoke } from '@tauri-apps/api';
+
+const DROPDOWN_CLASS_NAME = 'h-10 w-[176px] rounded-lg px-3 py-0 shadow-none';
+
+function SettingSection({ children }) {
+    return (
+        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>{children}</section>
+    );
+}
+
+function SettingRow({ label, children }) {
+    return (
+        <div className='flex min-h-[58px] items-center justify-between gap-5 border-b border-default-100 px-5 py-3 last:border-b-0'>
+            <h3 className='text-[14px] font-medium text-foreground'>{label}</h3>
+            <div className='flex shrink-0 items-center justify-end'>{children}</div>
+        </div>
+    );
+}
 
 export default function Translate() {
     const [sourceLanguage, setSourceLanguage] = useConfig('translate_source_language', 'auto');
@@ -21,104 +36,97 @@ export default function Translate() {
     const { t } = useTranslation();
 
     return (
-        <Card>
-            <CardBody>
-                <h2 className='mb-[10px] text-[16px] font-bold'>
-                    {t('config.translate.label')}
-                </h2>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.source_language')}</h3>
-                    {sourceLanguage !== null && (
-                        <SettingsDropdown
-                            label={t(`languages.${sourceLanguage}`)}
-                            ariaLabel='source language'
-                            selectedKey={sourceLanguage}
-                            menuClassName='max-h-[50vh] overflow-y-auto'
-                            onAction={(key) => {
-                                setSourceLanguage(key);
-                            }}
-                        >
-                            <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
-                            {languageList.map((item) => {
-                                return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                            })}
-                        </SettingsDropdown>
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.target_language')}</h3>
-                    {targetLanguage !== null && (
-                        <SettingsDropdown
-                            label={t(`languages.${targetLanguage}`)}
-                            ariaLabel='target language'
-                            selectedKey={targetLanguage}
-                            menuClassName='max-h-[50vh] overflow-y-auto'
-                            onAction={(key) => {
-                                setTargetLanguage(key);
-                            }}
-                        >
-                            {languageList.map((item) => {
-                                return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                            })}
-                        </SettingsDropdown>
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.auto_copy')}</h3>
-                    {autoCopy !== null && (
-                        <SettingsDropdown
-                            label={t(`config.translate.${autoCopy}`)}
-                            ariaLabel='auto copy'
-                            selectedKey={autoCopy}
-                            menuClassName='max-h-[50vh] overflow-y-auto'
-                            onAction={(key) => {
-                                setAutoCopy(key);
-                                invoke('update_tray', { language: '', copyMode: key });
-                            }}
-                        >
-                            <DropdownItem key='source'>{t('config.translate.source')}</DropdownItem>
-                            <DropdownItem key='target'>{t('config.translate.target')}</DropdownItem>
-                            <DropdownItem key='source_target'>
-                                {t('config.translate.source_target')}
-                            </DropdownItem>
-                            <DropdownItem key='disable'>{t('config.translate.disable')}</DropdownItem>
-                        </SettingsDropdown>
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.incremental_translate')}</h3>
-                    {incrementalTranslate !== null && (
-                        <Switch
-                            isSelected={incrementalTranslate}
-                            onValueChange={(v) => {
-                                setIncrementalTranslate(v);
-                            }}
-                        />
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.dynamic_translate')}</h3>
-                    {dynamicTranslate !== null && (
-                        <Switch
-                            isSelected={dynamicTranslate}
-                            onValueChange={(v) => {
-                                setDynamicTranslate(v);
-                            }}
-                        />
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.translate.delete_newline')}</h3>
-                    {deleteNewline !== null && (
-                        <Switch
-                            isSelected={deleteNewline}
-                            onValueChange={(v) => {
-                                setDeleteNewline(v);
-                            }}
-                        />
-                    )}
-                </div>
-            </CardBody>
-        </Card>
+        <SettingSection>
+            <SettingRow label={t('config.translate.source_language')}>
+                {sourceLanguage !== null && (
+                    <SettingsDropdown
+                        label={t(`languages.${sourceLanguage}`)}
+                        ariaLabel='source language'
+                        selectedKey={sourceLanguage}
+                        className={DROPDOWN_CLASS_NAME}
+                        menuClassName='max-h-[50vh] overflow-y-auto'
+                        onAction={(key) => {
+                            setSourceLanguage(key);
+                        }}
+                    >
+                        <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
+                        {languageList.map((item) => {
+                            return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                        })}
+                    </SettingsDropdown>
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.translate.target_language')}>
+                {targetLanguage !== null && (
+                    <SettingsDropdown
+                        label={t(`languages.${targetLanguage}`)}
+                        ariaLabel='target language'
+                        selectedKey={targetLanguage}
+                        className={DROPDOWN_CLASS_NAME}
+                        menuClassName='max-h-[50vh] overflow-y-auto'
+                        onAction={(key) => {
+                            setTargetLanguage(key);
+                        }}
+                    >
+                        {languageList.map((item) => {
+                            return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                        })}
+                    </SettingsDropdown>
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.translate.auto_copy')}>
+                {autoCopy !== null && (
+                    <SettingsDropdown
+                        label={t(`config.translate.${autoCopy}`)}
+                        ariaLabel='auto copy'
+                        selectedKey={autoCopy}
+                        className={DROPDOWN_CLASS_NAME}
+                        menuClassName='max-h-[50vh] overflow-y-auto'
+                        onAction={(key) => {
+                            setAutoCopy(key);
+                            invoke('update_tray', { language: '', copyMode: key });
+                        }}
+                    >
+                        <DropdownItem key='source'>{t('config.translate.source')}</DropdownItem>
+                        <DropdownItem key='target'>{t('config.translate.target')}</DropdownItem>
+                        <DropdownItem key='source_target'>{t('config.translate.source_target')}</DropdownItem>
+                        <DropdownItem key='disable'>{t('config.translate.disable')}</DropdownItem>
+                    </SettingsDropdown>
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.translate.incremental_translate')}>
+                {incrementalTranslate !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={incrementalTranslate}
+                        onValueChange={(v) => {
+                            setIncrementalTranslate(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.translate.dynamic_translate')}>
+                {dynamicTranslate !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={dynamicTranslate}
+                        onValueChange={(v) => {
+                            setDynamicTranslate(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.translate.delete_newline')}>
+                {deleteNewline !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={deleteNewline}
+                        onValueChange={(v) => {
+                            setDeleteNewline(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+        </SettingSection>
     );
 }

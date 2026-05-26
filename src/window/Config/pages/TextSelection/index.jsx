@@ -16,7 +16,7 @@ import { invoke } from '@tauri-apps/api';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { useTranslation } from 'react-i18next';
-import { LuPencilLine } from 'react-icons/lu';
+import { MdKeyboardArrowDown } from 'react-icons/md';
 
 import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { useConfig } from '../../../../hooks/useConfig';
@@ -27,10 +27,7 @@ import {
     SMART_TOOLBAR_BUTTONS,
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
 } from '../../../../utils/textSelectionToolbar';
-import {
-    ConfigServiceIconButton,
-    ConfigServiceListRow,
-} from '../Service/AIConfig/ServiceItem/ServiceRow';
+import { ConfigServiceIconButton, ConfigServiceListRow } from '../Service/AIConfig/ServiceItem/ServiceRow';
 
 const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai'];
 
@@ -43,11 +40,7 @@ function getButtonActionOptions(button, t, isChineseUI) {
         {
             key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW,
             label: t('config.text_selection.lightai_action_window', {
-                defaultValue: getLocalizedDefaultValue(
-                    isChineseUI,
-                    '打开窗口',
-                    'Open Window'
-                ),
+                defaultValue: getLocalizedDefaultValue(isChineseUI, '打开窗口', 'Open Window'),
             }),
             description: getLocalizedDefaultValue(
                 isChineseUI,
@@ -58,11 +51,7 @@ function getButtonActionOptions(button, t, isChineseUI) {
         {
             key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY,
             label: t('config.text_selection.lightai_action_apply', {
-                defaultValue: getLocalizedDefaultValue(
-                    isChineseUI,
-                    '直接应用结果',
-                    'Direct Apply'
-                ),
+                defaultValue: getLocalizedDefaultValue(isChineseUI, '直接应用结果', 'Direct Apply'),
             }),
             description: getLocalizedDefaultValue(
                 isChineseUI,
@@ -76,11 +65,7 @@ function getButtonActionOptions(button, t, isChineseUI) {
         options.push({
             key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY,
             label: t('config.text_selection.lightai_action_stream_apply', {
-                defaultValue: getLocalizedDefaultValue(
-                    isChineseUI,
-                    '流式输入结果',
-                    'Stream Input Result'
-                ),
+                defaultValue: getLocalizedDefaultValue(isChineseUI, '流式输入结果', 'Stream Input Result'),
             }),
             description: getLocalizedDefaultValue(
                 isChineseUI,
@@ -95,30 +80,15 @@ function getButtonActionOptions(button, t, isChineseUI) {
 
 function getButtonActionSummary(button, actionBehavior, t, isChineseUI) {
     const options = getButtonActionOptions(button, t, isChineseUI);
-    return (
-        options.find((option) => option.key === actionBehavior)?.description ??
-        options[0].description
-    );
+    return options.find((option) => option.key === actionBehavior)?.description ?? options[0].description;
 }
 
 function ToolbarButtonActionModal(props) {
-    const {
-        button,
-        label,
-        actionBehavior,
-        setActionBehavior,
-        t,
-        isChineseUI,
-    } = props;
+    const { button, label, actionBehavior, setActionBehavior, t, isChineseUI } = props;
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [draftBehavior, setDraftBehavior] = useState(
-        actionBehavior ?? TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW
-    );
+    const [draftBehavior, setDraftBehavior] = useState(actionBehavior ?? TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW);
     const Icon = button.Icon;
-    const options = useMemo(
-        () => getButtonActionOptions(button, t, isChineseUI),
-        [button, t, isChineseUI]
-    );
+    const options = useMemo(() => getButtonActionOptions(button, t, isChineseUI), [button, t, isChineseUI]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -130,11 +100,18 @@ function ToolbarButtonActionModal(props) {
 
     return (
         <>
-            <ConfigServiceIconButton onPress={onOpen}>
-                <LuPencilLine className='text-[18px]' />
+            <ConfigServiceIconButton
+                className='h-8 w-8 min-w-8 rounded-md'
+                onPress={onOpen}
+            >
+                <MdKeyboardArrowDown className='rotate-[-90deg] text-[20px]' />
             </ConfigServiceIconButton>
 
-            <Modal isOpen={isOpen} onOpenChange={onOpenChange} scrollBehavior='inside'>
+            <Modal
+                isOpen={isOpen}
+                onOpenChange={onOpenChange}
+                scrollBehavior='inside'
+            >
                 <ModalContent className='max-h-[80vh]'>
                     {(onClose) => (
                         <>
@@ -144,9 +121,7 @@ function ToolbarButtonActionModal(props) {
                                         <Icon size={16} />
                                     </div>
                                     <div className='flex flex-col'>
-                                        <span className='text-sm font-semibold text-foreground'>
-                                            {label}
-                                        </span>
+                                        <span className='text-sm font-semibold text-foreground'>{label}</span>
                                         <span className='text-xs font-normal text-default-400'>
                                             {getLocalizedDefaultValue(
                                                 isChineseUI,
@@ -205,13 +180,12 @@ function ToolbarButtonActionModal(props) {
                             </ModalBody>
 
                             <ModalFooter>
-                                <Button variant='light' onPress={onClose}>
+                                <Button
+                                    variant='light'
+                                    onPress={onClose}
+                                >
                                     {t('common.cancel', {
-                                        defaultValue: getLocalizedDefaultValue(
-                                            isChineseUI,
-                                            '取消',
-                                            'Cancel'
-                                        ),
+                                        defaultValue: getLocalizedDefaultValue(isChineseUI, '取消', 'Cancel'),
                                     })}
                                 </Button>
                                 <Button
@@ -222,11 +196,7 @@ function ToolbarButtonActionModal(props) {
                                     }}
                                 >
                                     {t('common.save', {
-                                        defaultValue: getLocalizedDefaultValue(
-                                            isChineseUI,
-                                            '保存',
-                                            'Save'
-                                        ),
+                                        defaultValue: getLocalizedDefaultValue(isChineseUI, '保存', 'Save'),
                                     })}
                                 </Button>
                             </ModalFooter>
@@ -252,12 +222,7 @@ function ConfigurableToolbarButtonRow(props) {
             dragHandleProps={dragHandleProps}
             icon={<Icon size={18} />}
             title={label}
-            description={getButtonActionSummary(
-                button,
-                actionBehavior,
-                t,
-                isChineseUI
-            )}
+            description={getButtonActionSummary(button, actionBehavior, t, isChineseUI)}
             actions={
                 <>
                     <Switch
@@ -319,9 +284,9 @@ export default function TextSelection() {
     const { t, i18n } = useTranslation();
     const [behavior, setBehavior] = useConfig('text_select_behavior', 'toolbar');
     const [btnOrder, setBtnOrder] = useConfig('toolbar_btn_order', DEFAULT_BTN_ORDER);
-    const isChineseUI = String(
-        i18n?.resolvedLanguage || i18n?.language || ''
-    ).toLowerCase().startsWith('zh');
+    const isChineseUI = String(i18n?.resolvedLanguage || i18n?.language || '')
+        .toLowerCase()
+        .startsWith('zh');
 
     const behaviorLabelKey =
         behavior === 'direct_translate'
@@ -357,11 +322,7 @@ export default function TextSelection() {
         if (!result.destination) return;
 
         const currentOrder = Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER;
-        const newOrder = reorder(
-            currentOrder,
-            result.source.index,
-            result.destination.index
-        );
+        const newOrder = reorder(currentOrder, result.source.index, result.destination.index);
 
         setBtnOrder(newOrder);
     };
@@ -381,14 +342,10 @@ export default function TextSelection() {
                                 selectedKey={behavior}
                                 onAction={(key) => {
                                     setBehavior(key);
-                                    invoke('update_tray', { language: '', copyMode: '' }).catch(
-                                        () => {}
-                                    );
+                                    invoke('update_tray', { language: '', copyMode: '' }).catch(() => {});
                                 }}
                             >
-                                <DropdownItem key='toolbar'>
-                                    {t('config.text_selection.behavior_toolbar')}
-                                </DropdownItem>
+                                <DropdownItem key='toolbar'>{t('config.text_selection.behavior_toolbar')}</DropdownItem>
                                 <DropdownItem key='direct_translate'>
                                     {t('config.text_selection.behavior_direct')}
                                 </DropdownItem>
@@ -406,11 +363,12 @@ export default function TextSelection() {
 
             <Card className='mb-[10px] border border-default-200/70 bg-content1/90 shadow-none'>
                 <CardBody className='p-4'>
-                    <h3 className='mb-4 text-[16px] font-bold'>
-                        {t('config.text_selection.buttons_title')}
-                    </h3>
+                    <h3 className='mb-4 text-[16px] font-bold'>{t('config.text_selection.buttons_title')}</h3>
                     <DragDropContext onDragEnd={onDragEnd}>
-                        <Droppable droppableId='toolbar-buttons' direction='vertical'>
+                        <Droppable
+                            droppableId='toolbar-buttons'
+                            direction='vertical'
+                        >
                             {(provided) => (
                                 <div
                                     className='space-y-3'
@@ -431,9 +389,7 @@ export default function TextSelection() {
                                                     <ToolbarButtonItem
                                                         button={button}
                                                         label={button.label}
-                                                        dragHandleProps={
-                                                            draggableProvided.dragHandleProps
-                                                        }
+                                                        dragHandleProps={draggableProvided.dragHandleProps}
                                                         t={t}
                                                         isChineseUI={isChineseUI}
                                                     />
@@ -474,9 +430,7 @@ export default function TextSelection() {
                                     placement='top'
                                     content={
                                         <div className='max-w-[220px] px-1 py-0.5'>
-                                            <div className='text-sm font-semibold text-foreground'>
-                                                {button.label}
-                                            </div>
+                                            <div className='text-sm font-semibold text-foreground'>{button.label}</div>
                                             <div className='mt-1 text-xs leading-5 text-default-500'>
                                                 {button.matchLabel}
                                             </div>
@@ -490,9 +444,7 @@ export default function TextSelection() {
                                         <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-default-100 text-primary'>
                                             <Icon size={14} />
                                         </div>
-                                        <span className='whitespace-nowrap'>
-                                            {button.label}
-                                        </span>
+                                        <span className='whitespace-nowrap'>{button.label}</span>
                                     </div>
                                 </Tooltip>
                             );

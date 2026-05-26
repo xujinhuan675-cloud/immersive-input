@@ -1,5 +1,5 @@
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Card, CardBody, Spacer, Button, useDisclosure } from '@nextui-org/react';
+import { Button, useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useState } from 'react';
@@ -191,67 +191,65 @@ export default function Recognize(props) {
     return (
         <>
             <Toaster />
-            <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
-                <CardBody className='p-4'>
-                    <h2 className='mb-4 text-[16px] font-bold'>
-                        {t('config.service.label')}
-                    </h2>
-                    <DragDropContext onDragEnd={onDragEnd}>
-                        <Droppable
-                            droppableId='droppable'
-                            direction='vertical'
-                        >
-                            {(provided) => (
-                                <div
-                                    className='max-h-[420px] overflow-y-auto pr-1'
-                                    ref={provided.innerRef}
-                                    {...provided.droppableProps}
-                                >
-                                    {recognizeServiceInstanceList !== null &&
-                                        recognizeServiceInstanceList.map((x, i) => {
-                                            return (
-                                                <Draggable
-                                                    key={x}
-                                                    draggableId={x}
-                                                    index={i}
-                                                >
-                                                    {(provided) => {
-                                                        return (
-                                                            <div
-                                                                ref={provided.innerRef}
-                                                                {...provided.draggableProps}
-                                                            >
-                                                                <ServiceItem
-                                                                    {...provided.dragHandleProps}
-                                                                    serviceInstanceKey={x}
-                                                                    key={x}
-                                                                    pluginList={pluginList}
-                                                                    activeServiceInstanceKey={activeServiceInstanceKey}
-                                                                    activateServiceInstance={activateServiceInstance}
-                                                                    deleteServiceInstance={deleteServiceInstance}
-                                                                    setCurrentConfigKey={setCurrentConfigKey}
-                                                                    onConfigOpen={onConfigOpen}
-                                                                />
-                                                                <Spacer y={2} />
-                                                            </div>
-                                                        );
-                                                    }}
-                                                </Draggable>
-                                            );
-                                        })}
-                                    {provided.placeholder}
-                                </div>
-                            )}
-                        </Droppable>
-                    </DragDropContext>
-                    <Spacer y={2} />
-                    <div className='flex'>
-                        <Button fullWidth variant='flat' onPress={onAddOpen}>
-                            {t('config.service.add_service')}
-                        </Button>
-                    </div>
-                </CardBody>
-            </Card>
+            <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>
+                <div className='flex items-center justify-between gap-3 border-b border-default-100 px-5 py-3'>
+                    <h2 className='text-[15px] font-semibold text-foreground'>{t('config.service.label')}</h2>
+                    <Button
+                        size='sm'
+                        variant='flat'
+                        className='h-8 min-w-[72px] rounded-md bg-default-100 px-3 text-[13px] font-medium text-default-600 hover:bg-default-200'
+                        onPress={onAddOpen}
+                    >
+                        {t('config.service.add_service')}
+                    </Button>
+                </div>
+                <DragDropContext onDragEnd={onDragEnd}>
+                    <Droppable
+                        droppableId='droppable'
+                        direction='vertical'
+                    >
+                        {(provided) => (
+                            <div
+                                className='max-h-[420px] overflow-y-auto'
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                            >
+                                {recognizeServiceInstanceList !== null &&
+                                    recognizeServiceInstanceList.map((x, i) => {
+                                        return (
+                                            <Draggable
+                                                key={x}
+                                                draggableId={x}
+                                                index={i}
+                                            >
+                                                {(provided) => {
+                                                    return (
+                                                        <div
+                                                            ref={provided.innerRef}
+                                                            {...provided.draggableProps}
+                                                        >
+                                                            <ServiceItem
+                                                                {...provided.dragHandleProps}
+                                                                serviceInstanceKey={x}
+                                                                key={x}
+                                                                pluginList={pluginList}
+                                                                activeServiceInstanceKey={activeServiceInstanceKey}
+                                                                activateServiceInstance={activateServiceInstance}
+                                                                deleteServiceInstance={deleteServiceInstance}
+                                                                updateServiceInstanceList={updateServiceInstanceList}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }}
+                                            </Draggable>
+                                        );
+                                    })}
+                                {provided.placeholder}
+                            </div>
+                        )}
+                    </Droppable>
+                </DragDropContext>
+            </section>
             <AddServiceModal
                 isOpen={isAddOpen}
                 onOpenChange={onAddOpenChange}
@@ -262,6 +260,8 @@ export default function Recognize(props) {
                 pluginList={pluginList}
                 serviceInstanceList={recognizeServiceInstanceList}
                 deletePluginServices={deletePluginServices}
+                inlineConfig
+                updateServiceInstanceList={updateServiceInstanceList}
             />
             <ConfigModal
                 serviceInstanceKey={currentConfigKey}

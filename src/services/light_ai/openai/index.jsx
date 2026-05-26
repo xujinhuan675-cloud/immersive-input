@@ -46,6 +46,23 @@ async function getUserPreference() {
     return '';
 }
 
+async function getExtraPromptRules() {
+    try {
+        await store.load();
+        const rules = await store.get('ai_extra_prompt_rules');
+
+        if (!Array.isArray(rules)) {
+            return [];
+        }
+
+        return rules
+            .map((rule) => (typeof rule === 'string' ? rule.trim() : ''))
+            .filter(Boolean);
+    } catch {}
+
+    return [];
+}
+
 export async function streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal) {
     try {
         const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig ?? {});
@@ -114,11 +131,19 @@ export async function streamOpenAiMessages(messages, apiConfig, onChunk, onCompl
 export async function lightAiStream(text, styleKey, extraPrompt, apiConfig, onChunk, onComplete, onError, signal) {
     const systemPrompt = await getSystemPrompt(styleKey);
     const preference = await getUserPreference();
+    const extraPromptRules = await getExtraPromptRules();
+    const systemContent = [
+        systemPrompt,
+        preference ? `User preference:\n${preference}` : '',
+        extraPromptRules.length ? `Additional prompt rules:\n${extraPromptRules.join('\n')}` : '',
+    ]
+        .filter(Boolean)
+        .join('\n\n');
 
     const messages = [
         {
             role: 'system',
-            content: preference ? `${systemPrompt}\n\nUser preference:\n${preference}` : systemPrompt,
+            content: systemContent,
         },
         {
             role: 'user',

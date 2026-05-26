@@ -16,7 +16,6 @@ import {
     getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
-import { INSTANCE_NAME_CONFIG_KEY } from '../../../../../../utils/service_instance';
 
 async function testAiConnection(config) {
     const resolvedConfig = await requireAiGatewayConfig(config);
@@ -40,20 +39,26 @@ async function testAiConnection(config) {
     throw new Error(JSON.stringify(data).slice(0, 120));
 }
 
-function ConfigSection({ title, description, children }) {
+const FIELD_CLASS_NAMES = {
+    base: 'w-full',
+    mainWrapper: 'w-full',
+    inputWrapper: 'h-10 rounded-lg shadow-none',
+};
+
+function FormRow({ label, description, children, alignTop = false }) {
     return (
-        <div className='mt-5 border-t border-default-200/70 pt-5 first:mt-0 first:border-t-0 first:pt-0'>
-            <div className='mb-4'>
-                <div className='text-sm font-semibold text-foreground'>{title}</div>
-                {description ? <div className='mt-1 text-xs text-default-500'>{description}</div> : null}
+        <div className={`grid grid-cols-[160px_minmax(0,1fr)] gap-4 ${alignTop ? 'items-start' : 'items-center'}`}>
+            <div className='text-sm font-medium text-foreground'>{label}</div>
+            <div className='w-full min-w-0'>
+                {children}
+                {description ? <div className='mt-1.5 text-xs leading-5 text-default-500'>{description}</div> : null}
             </div>
-            {children}
         </div>
     );
 }
 
 function AIApiConfigForm(props) {
-    const { instanceKey, updateServiceInstanceList, onClose } = props;
+    const { instanceKey, updateServiceInstanceList, onClose, onDelete } = props;
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
     const [isSaving, setIsSaving] = useState(false);
@@ -62,15 +67,9 @@ function AIApiConfigForm(props) {
 
     if (aiConfig) {
         const mergedConfig = getMergedAiApiConfig(aiConfig);
-        const needsRepair = [
-            INSTANCE_NAME_CONFIG_KEY,
-            'provider',
-            'apiUrl',
-            'apiKey',
-            'model',
-            'temperature',
-            'enable',
-        ].some((key) => aiConfig[key] === undefined);
+        const needsRepair = ['provider', 'apiUrl', 'apiKey', 'model', 'temperature', 'enable'].some(
+            (key) => aiConfig[key] === undefined
+        );
 
         if (needsRepair) {
             setAiConfig(mergedConfig);
@@ -117,7 +116,10 @@ function AIApiConfigForm(props) {
         try {
             const message = await testAiConnection(nextConfig);
             toast.success(
-                t('ai_config.test_success', { msg: String(message).slice(0, 30), defaultValue: `Connected: ${message}` }),
+                t('ai_config.test_success', {
+                    msg: String(message).slice(0, 30),
+                    defaultValue: `Connected: ${message}`,
+                }),
                 { style: toastStyle }
             );
         } catch (error) {
@@ -143,102 +145,65 @@ function AIApiConfigForm(props) {
             >
                 <Toaster />
 
-                <ConfigSection
-                    title={t('ai_config.text_section_title', { defaultValue: 'Text Model' })}
-                    description={t('ai_config.text_section_desc', {
-                        defaultValue: 'This configuration is used by AI explain and light AI features.',
-                    })}
-                >
-                    <div className='config-item'>
+                <div className='space-y-5'>
+                    <FormRow
+                        label='API URL'
+                        description={t('ai_config.url_desc', {
+                            provider: providerTitle,
+                            defaultValue: 'Compatible with OpenAI API format.',
+                        })}
+                    >
                         <Input
-                            label={t('services.instance_name')}
-                            labelPlacement='outside-left'
-                            value={aiConfig[INSTANCE_NAME_CONFIG_KEY] ?? ''}
-                            variant='bordered'
-                            classNames={{
-                                base: 'justify-between',
-                                label: 'text-[length:--nextui-font-size-medium]',
-                                mainWrapper: 'max-w-[55%]',
-                            }}
-                            onValueChange={(value) => {
-                                updateConfig({
-                                    [INSTANCE_NAME_CONFIG_KEY]: value,
-                                });
-                            }}
-                        />
-                    </div>
-
-                    <div className='config-item'>
-                        <Input
-                            label='API URL'
-                            labelPlacement='outside-left'
                             placeholder={providerPreset?.apiUrl || AI_API_DEFAULT_URL}
                             value={aiConfig.apiUrl ?? ''}
                             variant='bordered'
-                            description={t('ai_config.url_desc', {
-                                provider: providerTitle,
-                                defaultValue: 'Compatible with OpenAI API format.',
-                            })}
-                            classNames={{
-                                base: 'justify-between',
-                                label: 'text-[length:--nextui-font-size-medium]',
-                                mainWrapper: 'max-w-[55%]',
-                            }}
+                            classNames={FIELD_CLASS_NAMES}
                             onValueChange={(value) => {
                                 updateConfig({ apiUrl: value });
                             }}
                         />
-                    </div>
+                    </FormRow>
 
-                    <div className='config-item'>
+                    <FormRow label='API Key'>
                         <Input
-                            label='API Key'
-                            labelPlacement='outside-left'
                             type='password'
                             placeholder='sk-...'
                             value={aiConfig.apiKey ?? ''}
                             variant='bordered'
-                            classNames={{
-                                base: 'justify-between',
-                                label: 'text-[length:--nextui-font-size-medium]',
-                                mainWrapper: 'max-w-[55%]',
-                            }}
+                            classNames={FIELD_CLASS_NAMES}
                             onValueChange={(value) => {
                                 updateConfig({ apiKey: value });
                             }}
                         />
-                    </div>
+                    </FormRow>
 
-                    <div className='config-item'>
+                    <FormRow
+                        label={t('ai_config.model_label')}
+                        description={t('ai_config.model_desc')}
+                    >
                         <Input
-                            label={t('ai_config.model_label')}
-                            labelPlacement='outside-left'
                             placeholder={providerPreset?.model || AI_API_DEFAULT_MODEL}
                             value={aiConfig.model ?? ''}
                             variant='bordered'
-                            description={t('ai_config.model_desc')}
-                            classNames={{
-                                base: 'justify-between',
-                                label: 'text-[length:--nextui-font-size-medium]',
-                                mainWrapper: 'max-w-[55%]',
-                            }}
+                            classNames={FIELD_CLASS_NAMES}
                             onValueChange={(value) => {
                                 updateConfig({ model: value });
                             }}
                         />
-                    </div>
+                    </FormRow>
 
-                    <div className='config-item items-start'>
-                        <div className='my-auto'>
-                            {t('ai_config.temperature', { n: Number(aiConfig.temperature ?? 0.7).toFixed(1) })}
-                        </div>
-                        <div className='w-full max-w-[55%] pt-[6px]'>
+                    <FormRow
+                        label={t('ai_config.temperature', { n: Number(aiConfig.temperature ?? 0.7).toFixed(1) })}
+                        alignTop
+                    >
+                        <div className='flex h-10 items-center'>
                             <Slider
                                 size='sm'
                                 step={0.1}
                                 minValue={0}
                                 maxValue={2}
                                 value={Number(aiConfig.temperature ?? 0.7)}
+                                className='w-full'
                                 onChange={(value) => {
                                     updateConfig({
                                         temperature: Array.isArray(value) ? value[0] : value,
@@ -246,21 +211,53 @@ function AIApiConfigForm(props) {
                                 }}
                             />
                         </div>
-                    </div>
-                </ConfigSection>
+                    </FormRow>
+                </div>
 
-                <div className='mt-[20px] flex justify-end gap-[8px]'>
-                    <Button type='button' variant='light' onPress={handleTestConnection} isLoading={isTesting}>
-                        {isTesting
-                            ? t('ai_config.test_loading')
-                            : t('ai_config.test_btn', { defaultValue: 'Test Connection' })}
+                <div className='mt-5 flex items-center justify-between border-t border-default-100 pt-3'>
+                    <Button
+                        type='button'
+                        size='sm'
+                        color='danger'
+                        variant='light'
+                        className='h-8 px-3 text-[13px] font-medium'
+                        isDisabled={!onDelete}
+                        onPress={onDelete}
+                    >
+                        {t('config.service.delete_service', { defaultValue: 'Delete service' })}
                     </Button>
-                    <Button type='button' color='danger' variant='light' onPress={onClose}>
-                        {t('common.cancel')}
-                    </Button>
-                    <Button type='submit' isLoading={isSaving} color='primary'>
-                        {t('common.save')}
-                    </Button>
+                    <div className='flex items-center gap-2'>
+                        <Button
+                            type='button'
+                            size='sm'
+                            variant='flat'
+                            className='h-8 rounded-md px-3 text-[13px] font-medium'
+                            onPress={handleTestConnection}
+                            isLoading={isTesting}
+                        >
+                            {isTesting
+                                ? t('ai_config.test_loading')
+                                : t('ai_config.test_btn', { defaultValue: 'Test Connection' })}
+                        </Button>
+                        <Button
+                            type='button'
+                            size='sm'
+                            variant='light'
+                            className='h-8 px-3 text-[13px] font-medium text-default-600'
+                            onPress={onClose}
+                        >
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            type='submit'
+                            size='sm'
+                            isLoading={isSaving}
+                            color='primary'
+                            className='h-8 min-w-[72px] rounded-md px-3 text-[13px] font-medium'
+                        >
+                            {t('common.save')}
+                        </Button>
+                    </div>
                 </div>
             </form>
         )
@@ -268,11 +265,22 @@ function AIApiConfigForm(props) {
 }
 
 export default function ConfigModal(props) {
-    const { serviceInstanceKey, isOpen, onOpenChange, updateServiceInstanceList, customServicesAllowed = true } = props;
+    const {
+        serviceInstanceKey,
+        isOpen,
+        onOpenChange,
+        updateServiceInstanceList,
+        deleteServiceInstance,
+        customServicesAllowed = true,
+    } = props;
     const { t } = useTranslation();
 
     return (
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} scrollBehavior='inside'>
+        <Modal
+            isOpen={isOpen}
+            onOpenChange={onOpenChange}
+            scrollBehavior='inside'
+        >
             <ModalContent className='max-h-[80vh]'>
                 {(onClose) => (
                     <>
@@ -291,6 +299,12 @@ export default function ConfigModal(props) {
                                     instanceKey={serviceInstanceKey}
                                     updateServiceInstanceList={updateServiceInstanceList}
                                     onClose={onClose}
+                                    onDelete={() => {
+                                        const deleted = deleteServiceInstance?.(serviceInstanceKey);
+                                        if (deleted) {
+                                            onClose();
+                                        }
+                                    }}
                                 />
                             ) : (
                                 <div className='pb-5'>
@@ -308,7 +322,10 @@ export default function ConfigModal(props) {
                                         </div>
                                     </div>
                                     <div className='mt-5 flex justify-end'>
-                                        <Button color='primary' onPress={onClose}>
+                                        <Button
+                                            color='primary'
+                                            onPress={onClose}
+                                        >
                                             {t('common.confirm', { defaultValue: 'OK' })}
                                         </Button>
                                     </div>

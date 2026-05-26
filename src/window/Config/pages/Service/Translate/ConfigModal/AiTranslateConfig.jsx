@@ -1,17 +1,11 @@
-import { Button, Switch, Textarea } from '@nextui-org/react';
+import { Button, Textarea } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MdDeleteOutline } from 'react-icons/md';
 
-import AiProviderIcon from '../../../../../../components/AiProviderIcon';
 import { useConfig } from '../../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../../hooks';
-import {
-    getAiProviderId,
-    getAiProviderTitle,
-    getMergedAiApiConfig,
-} from '../../../../../../utils/aiConfig';
+import { getMergedAiApiConfig } from '../../../../../../utils/aiConfig';
 import {
     AI_TRANSLATE_DEFAULT_PROMPT_LIST,
     AI_TRANSLATE_DEFAULT_REQUEST_ARGUMENTS,
@@ -31,16 +25,33 @@ const AI_TRANSLATE_CONFIG_KEYS = [
     'requestArguments',
 ];
 
-function SectionBlock({ title, description, children }) {
+function SectionBlock({ title, description, children, compact = false }) {
     return (
-        <div className='mt-5 border-t border-default-200/70 pt-5 first:mt-0 first:border-t-0 first:pt-0'>
-            <div className='mb-4'>
+        <div className='mt-4 border-t border-default-200/70 pt-4 first:mt-0 first:border-t-0 first:pt-0'>
+            <div className={compact ? 'mb-2' : 'mb-3'}>
                 <div className='text-sm font-semibold text-foreground'>{title}</div>
                 {description ? <div className='mt-1 text-xs text-default-500'>{description}</div> : null}
             </div>
             {children}
         </div>
     );
+}
+
+function buildTranslatePromptList(systemPrompt) {
+    const defaultSystemPrompt = AI_TRANSLATE_DEFAULT_PROMPT_LIST[0] ?? {
+        role: 'system',
+        content: '',
+    };
+    const fixedPromptTail = AI_TRANSLATE_DEFAULT_PROMPT_LIST.slice(1);
+
+    return [
+        {
+            ...defaultSystemPrompt,
+            role: 'system',
+            content: systemPrompt,
+        },
+        ...fixedPromptTail,
+    ];
 }
 
 export default function AiTranslateConfig(props) {
@@ -90,11 +101,19 @@ export default function AiTranslateConfig(props) {
 
     const mergedAiTranslateConfig = getMergedAiTranslateConfig(aiTranslateConfig, instanceKey);
     const mergedAiConfig = getMergedAiApiConfig(linkedAiConfig ?? {});
-    const providerId = getAiProviderId(mergedAiConfig);
-    const providerTitle = t(`ai_config.providers.${providerId}`, {
-        defaultValue: getAiProviderTitle(providerId),
-    });
-    const displayName = providerTitle;
+    const translateSystemPrompt =
+        mergedAiTranslateConfig.promptList?.[0]?.content ?? AI_TRANSLATE_DEFAULT_PROMPT_LIST[0]?.content ?? '';
+    const getNormalizedTranslateConfig = () => {
+        const nextConfig = getMergedAiTranslateConfig(aiTranslateConfig, instanceKey);
+        const systemPrompt = nextConfig.promptList?.[0]?.content ?? AI_TRANSLATE_DEFAULT_PROMPT_LIST[0]?.content ?? '';
+
+        return {
+            ...nextConfig,
+            stream: true,
+            requestArguments: AI_TRANSLATE_DEFAULT_REQUEST_ARGUMENTS,
+            promptList: buildTranslatePromptList(systemPrompt),
+        };
+    };
 
     const updateConfig = (patch) => {
         setAiTranslateConfig({
@@ -106,7 +125,7 @@ export default function AiTranslateConfig(props) {
     const saveConfig = async () => {
         setIsSaving(true);
         try {
-            const nextConfig = getMergedAiTranslateConfig(aiTranslateConfig, instanceKey);
+            const nextConfig = getNormalizedTranslateConfig();
             setAiTranslateConfig(
                 {
                     ...nextConfig,
@@ -122,7 +141,7 @@ export default function AiTranslateConfig(props) {
     };
 
     const handleTestTranslation = async () => {
-        const nextConfig = getMergedAiTranslateConfig(aiTranslateConfig, instanceKey);
+        const nextConfig = getNormalizedTranslateConfig();
         const languageEnum = getAiTranslateLanguageEnum();
 
         if (!mergedAiConfig.apiUrl || !mergedAiConfig.model) {
@@ -174,180 +193,60 @@ export default function AiTranslateConfig(props) {
             <Toaster />
 
             <SectionBlock
-                title={t('ai_config.translate_binding_title', {
-                    defaultValue: 'Linked AI Service',
+                title={t('ai_config.translate_prompt_title', { defaultValue: 'Translation Prompt' })}
+                description={t('ai_config.translate_prompt_desc', {
+                    defaultValue: '$text, $from, $to and $detect will be replaced automatically.',
                 })}
-                description={t('ai_config.translate_binding_desc', {
-                    defaultValue:
-                        'Base URL, API key, and model come from AI Services. Translation-specific behavior stays here.',
-                })}
+                compact
             >
-                <div className='rounded-[16px] border border-default-200/70 bg-default-50/60 p-4'>
-                    <div className='flex items-center gap-3'>
-                        <div className='flex h-10 w-10 items-center justify-center rounded-[14px] bg-content1 text-default-600 shadow-sm'>
-                            <AiProviderIcon providerId={providerId} className='text-[20px]' />
-                        </div>
-                        <div className='min-w-0 flex-1'>
-                            <div className='truncate text-sm font-semibold text-foreground'>{displayName}</div>
-                            <div className='mt-1 text-xs text-default-500'>{providerTitle}</div>
-                        </div>
-                    </div>
-                </div>
-            </SectionBlock>
-
-            <SectionBlock
-                title={t('ai_config.translate_runtime_title', {
-                    defaultValue: 'Runtime Options',
-                })}
-                description={t('ai_config.translate_runtime_desc', {
-                    defaultValue:
-                        'These options only affect translation for this AI item and do not change the shared AI service.',
-                })}
-            >
-                <div className='config-item'>
-                    <Switch
-                        isSelected={Boolean(mergedAiTranslateConfig.stream)}
+                <div className='rounded-lg bg-default-50/70 p-3'>
+                    <Textarea
+                        variant='faded'
+                        value={translateSystemPrompt}
+                        placeholder={AI_TRANSLATE_DEFAULT_PROMPT_LIST[0]?.content ?? ''}
+                        minRows={5}
+                        maxRows={8}
+                        classNames={{
+                            inputWrapper: 'rounded-lg shadow-none',
+                        }}
                         onValueChange={(value) => {
                             updateConfig({
-                                stream: value,
+                                promptList: buildTranslatePromptList(value),
                             });
                         }}
-                        classNames={{
-                            base: 'flex w-full max-w-full flex-row-reverse justify-between',
-                        }}
-                    >
-                        {t('ai_config.translate_stream', {
-                            defaultValue: 'Use streaming response',
-                        })}
-                    </Switch>
+                    />
                 </div>
             </SectionBlock>
 
-            <SectionBlock
-                title='Prompt List'
-                description={t('ai_config.translate_prompt_desc', {
-                    defaultValue:
-                        'Customize the translation prompt. $text $from $to $detect will be replaced with the source text, source language, target language, and detected language.',
-                })}
-            >
-                <div className='rounded-[14px] bg-content2 p-3'>
-                    {mergedAiTranslateConfig.promptList.map((prompt, index) => (
-                        <div className='config-item' key={`${prompt.role}-${index}`}>
-                            <Textarea
-                                label={prompt.role}
-                                labelPlacement='outside'
-                                variant='faded'
-                                value={prompt.content}
-                                placeholder={`Input some ${prompt.role} prompt`}
-                                onValueChange={(value) => {
-                                    updateConfig({
-                                        promptList: mergedAiTranslateConfig.promptList.map((item, itemIndex) => {
-                                            if (itemIndex !== index) {
-                                                return item;
-                                            }
-
-                                            if (itemIndex === 0) {
-                                                return {
-                                                    role: 'system',
-                                                    content: value,
-                                                };
-                                            }
-
-                                            return {
-                                                role: itemIndex % 2 !== 0 ? 'user' : 'assistant',
-                                                content: value,
-                                            };
-                                        }),
-                                    });
-                                }}
-                            />
-                            <Button
-                                isIconOnly
-                                color='danger'
-                                className='my-auto mx-1'
-                                variant='flat'
-                                onPress={() => {
-                                    updateConfig({
-                                        promptList: mergedAiTranslateConfig.promptList.filter(
-                                            (_, itemIndex) => itemIndex !== index
-                                        ),
-                                    });
-                                }}
-                            >
-                                <MdDeleteOutline className='text-[18px]' />
-                            </Button>
-                        </div>
-                    ))}
-                    <div className='mt-3 flex gap-2'>
-                        <Button
-                            onPress={() => {
-                                updateConfig({
-                                    promptList: [
-                                        ...mergedAiTranslateConfig.promptList,
-                                        {
-                                            role:
-                                                mergedAiTranslateConfig.promptList.length === 0
-                                                    ? 'system'
-                                                    : mergedAiTranslateConfig.promptList.length % 2 === 0
-                                                      ? 'assistant'
-                                                      : 'user',
-                                            content: '',
-                                        },
-                                    ],
-                                });
-                            }}
-                        >
-                            {t('ai_config.translate_add_prompt', {
-                                defaultValue: 'Add Prompt',
-                            })}
-                        </Button>
-                        <Button
-                            variant='flat'
-                            onPress={() => {
-                                updateConfig({
-                                    promptList: AI_TRANSLATE_DEFAULT_PROMPT_LIST,
-                                });
-                            }}
-                        >
-                            {t('common.reset', { defaultValue: 'Reset' })}
-                        </Button>
-                    </div>
-                </div>
-            </SectionBlock>
-
-            <SectionBlock
-                title='Request Arguments'
-                description={t('ai_config.translate_request_args_desc', {
-                    defaultValue:
-                        'Optional JSON body fields merged into the translation request, such as temperature or top_p.',
-                })}
-            >
-                <Textarea
-                    value={
-                        mergedAiTranslateConfig.requestArguments ??
-                        AI_TRANSLATE_DEFAULT_REQUEST_ARGUMENTS
-                    }
-                    variant='faded'
-                    minRows={5}
-                    placeholder='{"temperature":0.1}'
-                    onValueChange={(value) => {
-                        updateConfig({
-                            requestArguments: value,
-                        });
-                    }}
-                />
-            </SectionBlock>
-
-            <div className='mt-[20px] flex justify-end gap-[8px]'>
-                <Button type='button' variant='light' onPress={handleTestTranslation} isLoading={isTesting}>
+            <div className='mt-5 flex justify-end gap-2 border-t border-default-100 pt-3'>
+                <Button
+                    type='button'
+                    size='sm'
+                    variant='flat'
+                    className='h-8 rounded-md px-3 text-[13px] font-medium'
+                    onPress={handleTestTranslation}
+                    isLoading={isTesting}
+                >
                     {isTesting
                         ? t('ai_config.test_loading')
-                        : t('ai_config.test_btn', { defaultValue: 'Test Translation' })}
+                        : t('ai_config.translate_test_btn', { defaultValue: 'Test Translation' })}
                 </Button>
-                <Button type='button' color='danger' variant='light' onPress={onClose}>
+                <Button
+                    type='button'
+                    size='sm'
+                    variant='light'
+                    className='h-8 px-3 text-[13px] font-medium text-default-600'
+                    onPress={onClose}
+                >
                     {t('common.cancel')}
                 </Button>
-                <Button type='submit' isLoading={isSaving} color='primary'>
+                <Button
+                    type='submit'
+                    size='sm'
+                    isLoading={isSaving}
+                    color='primary'
+                    className='h-8 min-w-[72px] rounded-md px-3 text-[13px] font-medium'
+                >
                     {t('common.save')}
                 </Button>
             </div>

@@ -9,38 +9,77 @@ import { invoke } from '@tauri-apps/api';
 import { emit } from '@tauri-apps/api/event';
 import React, { useState } from 'react';
 
-import { createServiceInstanceKey, getServiceName } from '../../../../../utils/service_instance';
+import { createServiceInstanceKey, getServiceName, whetherPluginService } from '../../../../../utils/service_instance';
 import { useToastStyle } from '../../../../../hooks';
+import * as translateServices from '../../../../../services/translate';
+import * as recognizeServices from '../../../../../services/recognize';
+import { PluginConfig } from '../PluginConfig';
 
 function SectionTitle({ children }) {
-    return <div className='mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-default-400 first:mt-0'>{children}</div>;
+    return (
+        <div className='mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-default-400 first:mt-0'>
+            {children}
+        </div>
+    );
 }
 
-function ServiceSelectRow({ icon, label, onPress, trailing, disabled = false }) {
+const SERVICE_CONFIG_MAP = {
+    translate: translateServices,
+    recognize: recognizeServices,
+};
+
+function InlinePluginConfig(props) {
     return (
-        <div className='mb-2 flex items-center gap-2'>
-            <button
-                type='button'
-                onClick={onPress}
-                disabled={disabled}
-                className={`flex min-h-[56px] flex-1 items-center gap-3 rounded-xl border border-divider/70 bg-default-50 px-4 py-3 text-left transition-colors ${
-                    disabled ? ' opacity-60' : 'hover:bg-default-100'
-                }`}
-            >
-                <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-content1 text-default-600 shadow-sm'>
-                    {typeof icon === 'string' ? (
-                        <img
-                            src={icon}
-                            className='h-[22px] w-[22px] object-contain'
-                            draggable={false}
-                        />
-                    ) : (
-                        icon
-                    )}
-                </div>
-                <div className='min-w-0 flex-1 text-sm font-medium text-foreground'>{label}</div>
-            </button>
-            {trailing}
+        <PluginConfig
+            {...props}
+            hideInstanceName={props.pluginType === 'translate'}
+        />
+    );
+}
+
+function getConfigComponent({ pluginType, instanceKey, pluginList }) {
+    if (!pluginType || !instanceKey) return null;
+
+    const serviceName = getServiceName(instanceKey);
+    const pluginService = whetherPluginService(instanceKey);
+
+    if (pluginService) {
+        return pluginList?.[serviceName] ? InlinePluginConfig : null;
+    }
+
+    return SERVICE_CONFIG_MAP[pluginType]?.[serviceName]?.Config ?? null;
+}
+
+function ServiceSelectRow({ icon, label, onPress, trailing, disabled = false, active = false, children }) {
+    return (
+        <div className='mb-2'>
+            <div className='flex items-center gap-2'>
+                <button
+                    type='button'
+                    onClick={onPress}
+                    disabled={disabled}
+                    className={`flex min-h-[56px] w-full flex-1 items-center gap-3 rounded-xl border border-default-200/80 bg-default-50 px-4 py-3 text-left transition-colors ${
+                        disabled ? 'opacity-60' : active ? 'border-default-300 bg-default-100' : 'hover:bg-default-100'
+                    }`}
+                >
+                    <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-content1 text-default-600'>
+                        {typeof icon === 'string' ? (
+                            <img
+                                src={icon}
+                                className='h-[22px] w-[22px] object-contain'
+                                draggable={false}
+                            />
+                        ) : (
+                            icon
+                        )}
+                    </div>
+                    <div className='min-w-0 flex-1 text-sm font-medium text-foreground'>{label}</div>
+                </button>
+                {trailing}
+            </div>
+            {children ? (
+                <div className='mt-2 rounded-xl border border-default-200/80 bg-default-50/60 p-4'>{children}</div>
+            ) : null}
         </div>
     );
 }
@@ -58,11 +97,16 @@ export default function AddServiceModal(props) {
         pluginList = {},
         serviceInstanceList = [],
         deletePluginServices,
+        inlineConfig = false,
+        updateServiceInstanceList,
     } = props;
     const [installing, setInstalling] = useState(false);
+    const [expandedService, setExpandedService] = useState(null);
     const { t } = useTranslation();
     const toastStyle = useToastStyle();
-    const addedServiceNameSet = new Set((serviceInstanceList ?? []).map((serviceInstanceKey) => getServiceName(serviceInstanceKey)));
+    const addedServiceNameSet = new Set(
+        (serviceInstanceList ?? []).map((serviceInstanceKey) => getServiceName(serviceInstanceKey))
+    );
     const pluginEntries = Object.entries(pluginList ?? {})
         .filter(([pluginKey]) => !addedServiceNameSet.has(pluginKey))
         .sort((left, right) =>
@@ -78,8 +122,47 @@ export default function AddServiceModal(props) {
                   defaultValue: 'No built-in services available.',
               });
 
-    const getVisibleServices = (services = []) =>
-        services.filter((service) => !addedServiceNameSet.has(service.key));
+    const getVisibleServices = (services = []) => services.filter((service) => !addedServiceNameSet.has(service.key));
+
+    const getServiceInstanceKey = (service) => service.instanceKey ?? createServiceInstanceKey(service.key);
+
+    const collapseInlineConfig = () => {
+        setExpandedService(null);
+    };
+
+    const completeInlineConfig = (onClose) => {
+        setExpandedService(null);
+        onClose?.();
+    };
+
+    const renderInlineConfig = (service, onClose) => {
+        if (!inlineConfig || !expandedService || expandedService.key !== service.key) return null;
+
+        const ConfigComponent = getConfigComponent({
+            pluginType,
+            instanceKey: expandedService.instanceKey,
+            pluginList,
+        });
+
+        if (!ConfigComponent) return null;
+
+        const serviceName = getServiceName(expandedService.instanceKey);
+
+        return (
+            <ConfigComponent
+                key={expandedService.instanceKey}
+                name={serviceName}
+                instanceKey={expandedService.instanceKey}
+                pluginType={pluginType}
+                pluginList={pluginList}
+                updateServiceList={(instanceKey) => {
+                    updateServiceInstanceList?.(instanceKey);
+                    completeInlineConfig(onClose);
+                }}
+                onClose={collapseInlineConfig}
+            />
+        );
+    };
 
     const renderServiceSection = (title, services = [], emptyMessage = null, onClose = null) => {
         const visibleServices = getVisibleServices(services);
@@ -97,18 +180,31 @@ export default function AddServiceModal(props) {
                         key={service.key}
                         icon={service.icon}
                         label={service.label}
+                        active={inlineConfig && expandedService?.key === service.key}
                         onPress={() => {
                             if (service.onSelect) {
                                 service.onSelect();
+                                onClose?.();
+                            } else if (inlineConfig) {
+                                setExpandedService((current) => {
+                                    if (current?.key === service.key) return null;
+                                    return {
+                                        key: service.key,
+                                        instanceKey: getServiceInstanceKey(service),
+                                    };
+                                });
                             } else if (onBuiltinSelect) {
                                 onBuiltinSelect(service);
+                                onClose?.();
                             } else {
                                 setCurrentConfigKey(createServiceInstanceKey(service.key));
                                 onConfigOpen();
+                                onClose?.();
                             }
-                            onClose?.();
                         }}
-                    />
+                    >
+                        {renderInlineConfig(service, onClose)}
+                    </ServiceSelectRow>
                 ))}
             </>
         );
@@ -153,7 +249,12 @@ export default function AddServiceModal(props) {
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={onOpenChange}
+            onOpenChange={(open) => {
+                if (!open) {
+                    setExpandedService(null);
+                }
+                onOpenChange?.(open);
+            }}
             scrollBehavior='inside'
         >
             <Toaster />
@@ -198,7 +299,19 @@ export default function AddServiceModal(props) {
                                             key={pluginKey}
                                             icon={pluginInfo.icon}
                                             label={pluginInfo.display}
+                                            active={inlineConfig && expandedService?.key === pluginKey}
                                             onPress={() => {
+                                                if (inlineConfig) {
+                                                    setExpandedService((current) => {
+                                                        if (current?.key === pluginKey) return null;
+                                                        return {
+                                                            key: pluginKey,
+                                                            instanceKey: createServiceInstanceKey(pluginKey),
+                                                        };
+                                                    });
+                                                    return;
+                                                }
+
                                                 setCurrentConfigKey(createServiceInstanceKey(pluginKey));
                                                 onConfigOpen();
                                                 onClose();
@@ -235,7 +348,9 @@ export default function AddServiceModal(props) {
                                                     <MdDeleteOutline className='text-xl' />
                                                 </Button>
                                             }
-                                        />
+                                        >
+                                            {renderInlineConfig({ key: pluginKey }, onClose)}
+                                        </ServiceSelectRow>
                                     ))}
                                 </>
                             ) : null}

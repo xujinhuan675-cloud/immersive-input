@@ -1,13 +1,28 @@
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
-import { CardBody } from '@nextui-org/react';
 import { Switch } from '@nextui-org/react';
-import { Card } from '@nextui-org/react';
 import React from 'react';
 
 import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { languageList } from '../../../../utils/language';
 import { useConfig } from '../../../../hooks';
+
+const DROPDOWN_CLASS_NAME = 'h-10 w-[176px] rounded-lg px-3 py-0 shadow-none';
+
+function SettingSection({ children }) {
+    return (
+        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>{children}</section>
+    );
+}
+
+function SettingRow({ label, children }) {
+    return (
+        <div className='flex min-h-[58px] items-center justify-between gap-5 border-b border-default-100 px-5 py-3 last:border-b-0'>
+            <h3 className='text-[14px] font-medium text-foreground'>{label}</h3>
+            <div className='flex shrink-0 items-center justify-end'>{children}</div>
+        </div>
+    );
+}
 
 export default function Recognize() {
     const [recognizeLanguage, setRecognizeLanguage] = useConfig('recognize_language', 'auto');
@@ -17,75 +32,70 @@ export default function Recognize() {
     const [closeOnBlur, setCloseOnBlur] = useConfig('recognize_close_on_blur', false);
     const { t } = useTranslation();
     return (
-        <Card>
-            <CardBody>
-                <h2 className='mb-[10px] text-[16px] font-bold'>
-                    {t('config.recognize.label')}
-                </h2>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.recognize.language')}</h3>
-                    {recognizeLanguage !== null && (
-                        <SettingsDropdown
-                            label={t(`languages.${recognizeLanguage}`)}
-                            ariaLabel='recognize language'
-                            selectedKey={recognizeLanguage}
-                            menuClassName='max-h-[50vh] overflow-y-auto'
-                            onAction={(key) => {
-                                setRecognizeLanguage(key);
-                            }}
-                        >
-                            <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
-                            {languageList.map((item) => {
-                                return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
-                            })}
-                        </SettingsDropdown>
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.recognize.delete_newline')}</h3>
-                    {deleteNewline !== null && (
-                        <Switch
-                            isSelected={deleteNewline}
-                            onValueChange={(v) => {
-                                setDeleteNewline(v);
-                            }}
-                        />
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.recognize.auto_copy')}</h3>
-                    {autoCopy !== null && (
-                        <Switch
-                            isSelected={autoCopy}
-                            onValueChange={(v) => {
-                                setAutoCopy(v);
-                            }}
-                        />
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.recognize.close_on_blur')}</h3>
-                    {closeOnBlur !== null && (
-                        <Switch
-                            isSelected={closeOnBlur}
-                            onValueChange={(v) => {
-                                setCloseOnBlur(v);
-                            }}
-                        />
-                    )}
-                </div>
-                <div className='config-item'>
-                    <h3 className='my-auto mx-0'>{t('config.recognize.hide_window')}</h3>
-                    {hideWindow !== null && (
-                        <Switch
-                            isSelected={hideWindow}
-                            onValueChange={(v) => {
-                                setHideWindow(v);
-                            }}
-                        />
-                    )}
-                </div>
-            </CardBody>
-        </Card>
+        <SettingSection>
+            <SettingRow label={t('config.recognize.language')}>
+                {recognizeLanguage !== null && (
+                    <SettingsDropdown
+                        label={t(`languages.${recognizeLanguage}`)}
+                        ariaLabel='recognize language'
+                        selectedKey={recognizeLanguage}
+                        className={DROPDOWN_CLASS_NAME}
+                        menuClassName='max-h-[50vh] overflow-y-auto'
+                        onAction={(key) => {
+                            setRecognizeLanguage(key);
+                        }}
+                    >
+                        <DropdownItem key='auto'>{t('languages.auto')}</DropdownItem>
+                        {languageList.map((item) => {
+                            return <DropdownItem key={item}>{t(`languages.${item}`)}</DropdownItem>;
+                        })}
+                    </SettingsDropdown>
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.recognize.delete_newline')}>
+                {deleteNewline !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={deleteNewline}
+                        onValueChange={(v) => {
+                            setDeleteNewline(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.recognize.auto_copy')}>
+                {autoCopy !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={autoCopy}
+                        onValueChange={(v) => {
+                            setAutoCopy(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.recognize.close_on_blur')}>
+                {closeOnBlur !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={closeOnBlur}
+                        onValueChange={(v) => {
+                            setCloseOnBlur(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+            <SettingRow label={t('config.recognize.hide_window')}>
+                {hideWindow !== null && (
+                    <Switch
+                        size='sm'
+                        isSelected={hideWindow}
+                        onValueChange={(v) => {
+                            setHideWindow(v);
+                        }}
+                    />
+                )}
+            </SettingRow>
+        </SettingSection>
     );
 }

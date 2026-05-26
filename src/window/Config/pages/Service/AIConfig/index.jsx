@@ -1,9 +1,10 @@
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
-import { Button, Card, CardBody, Spacer, Switch, useDisclosure } from '@nextui-org/react';
+import { Button, Switch, useDisclosure } from '@nextui-org/react';
 import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LuPencilLine, LuVolume2 } from 'react-icons/lu';
+import { LuVolume2 } from 'react-icons/lu';
+import { MdKeyboardArrowDown } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 
 import AiProviderIcon from '../../../../../components/AiProviderIcon';
@@ -84,7 +85,12 @@ function renderSpeechProviderIcon(providerId) {
     }
 
     if (providerId === BUILTIN_TTS_PROVIDER_IDS.OPENAI) {
-        return <AiProviderIcon providerId={AI_PROVIDER_IDS.OPENAI} className='text-[18px]' />;
+        return (
+            <AiProviderIcon
+                providerId={AI_PROVIDER_IDS.OPENAI}
+                className='text-[18px]'
+            />
+        );
     }
 
     return (
@@ -120,22 +126,16 @@ function reorder(list, startIndex, endIndex) {
 }
 
 function SpeechProviderItem(props) {
-    const {
-        providerId,
-        isActive,
-        onSelect,
-        onFallbackToSystem,
-        onConfigOpen,
-        dragHandleProps,
-        isChineseUI,
-    } = props;
+    const { providerId, isActive, onSelect, onFallbackToSystem, onConfigOpen, dragHandleProps, isChineseUI } = props;
 
     return (
         <ConfigServiceListRow
             dragHandleProps={dragHandleProps}
+            variant='list'
             icon={renderSpeechProviderIcon(providerId)}
             title={getSpeechProviderTitle(providerId, isChineseUI)}
             description={getSpeechProviderDescription(providerId, isChineseUI)}
+            onPress={onConfigOpen}
             actions={
                 <>
                     <Switch
@@ -152,8 +152,11 @@ function SpeechProviderItem(props) {
                             }
                         }}
                     />
-                    <ConfigServiceIconButton onPress={onConfigOpen}>
-                        <LuPencilLine className='text-[18px]' />
+                    <ConfigServiceIconButton
+                        className='h-8 w-8 min-w-8 rounded-md'
+                        onPress={onConfigOpen}
+                    >
+                        <MdKeyboardArrowDown className='rotate-[-90deg] text-[20px]' />
                     </ConfigServiceIconButton>
                 </>
             }
@@ -176,11 +179,9 @@ export default function AIConfig() {
     const [currentConfigKey, setCurrentConfigKey] = useState(null);
     const [currentSpeechProvider, setCurrentSpeechProvider] = useState(null);
     const [aiApiServiceInstanceList, setAiApiServiceInstanceList] = useConfig(AI_API_SERVICE_LIST_KEY, []);
-    const [speechConfig, setSpeechConfig] = useConfig(
-        BUILTIN_TTS_CONFIG_KEY,
-        createDefaultBuiltInTtsConfig(),
-        { sync: false }
-    );
+    const [speechConfig, setSpeechConfig] = useConfig(BUILTIN_TTS_CONFIG_KEY, createDefaultBuiltInTtsConfig(), {
+        sync: false,
+    });
     const [customAiServicesAllowed, setCustomAiServicesAllowed] = useState(null);
 
     useEffect(() => {
@@ -227,9 +228,19 @@ export default function AIConfig() {
     };
 
     const deleteServiceInstance = (instanceKey) => {
+        if (!instanceKey) return false;
+
+        if (!aiApiServiceInstanceList.includes(instanceKey)) {
+            deleteKey(instanceKey);
+            if (currentConfigKey === instanceKey) {
+                setCurrentConfigKey(aiApiServiceInstanceList[0] ?? null);
+            }
+            return true;
+        }
+
         if (aiApiServiceInstanceList.length === 1) {
             toast.error(t('config.service.least'), { style: toastStyle });
-            return;
+            return false;
         }
 
         setAiApiServiceInstanceList(aiApiServiceInstanceList.filter((item) => item !== instanceKey));
@@ -238,6 +249,8 @@ export default function AIConfig() {
             const nextKey = aiApiServiceInstanceList.find((item) => item !== instanceKey) ?? null;
             setCurrentConfigKey(nextKey);
         }
+
+        return true;
     };
 
     const updateServiceInstanceList = (instanceKey) => {
@@ -251,9 +264,12 @@ export default function AIConfig() {
 
     const customAiServicesLocked = customAiServicesAllowed === false;
     const showCustomLockedToast = () => {
-        toast.error(t('ai_config.custom_locked_add', { defaultValue: 'Pro plan is required for custom AI services.' }), {
-            style: toastStyle,
-        });
+        toast.error(
+            t('ai_config.custom_locked_add', { defaultValue: 'Pro plan is required for custom AI services.' }),
+            {
+                style: toastStyle,
+            }
+        );
     };
 
     const builtinServiceItems = AI_PROVIDER_PRIORITY.map((providerId) => {
@@ -264,7 +280,12 @@ export default function AIConfig() {
             label: t(`ai_config.providers.${providerId}`, {
                 defaultValue: preset.label,
             }),
-            icon: <AiProviderIcon providerId={providerId} className='text-[18px]' />,
+            icon: (
+                <AiProviderIcon
+                    providerId={providerId}
+                    className='text-[18px]'
+                />
+            ),
             onSelect: async () => {
                 if (customAiServicesLocked) {
                     showCustomLockedToast();
@@ -327,11 +348,26 @@ export default function AIConfig() {
 
     return (
         <>
-            <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
-                <CardBody className='p-4'>
-                    <h2 className='mb-4 text-[16px] font-bold'>
-                        {t('ai_config.title', { defaultValue: 'AI Services' })}
-                    </h2>
+            <section className='overflow-hidden rounded-[14px] border border-default-200/70 bg-content1/90'>
+                <div className='flex h-14 items-center justify-between border-b border-default-100 px-4'>
+                    <h2 className='text-[16px] font-bold'>{t('ai_config.title', { defaultValue: 'AI Services' })}</h2>
+                    <Button
+                        size='sm'
+                        variant='flat'
+                        className='h-8 rounded-md px-3 text-[13px] font-medium'
+                        isDisabled={customAiServicesAllowed !== true}
+                        onPress={() => {
+                            if (customAiServicesAllowed !== true) {
+                                showCustomLockedToast();
+                                return;
+                            }
+                            onAddOpen();
+                        }}
+                    >
+                        {t('config.service.add_service')}
+                    </Button>
+                </div>
+                <div className='p-4'>
                     {customAiServicesLocked ? (
                         <div className='mb-4 flex flex-col gap-2 rounded-[10px] border border-default-200 bg-default-50 px-3 py-2 text-xs leading-5 text-default-500 sm:flex-row sm:items-center sm:justify-between'>
                             <span className='min-w-0'>
@@ -352,7 +388,10 @@ export default function AIConfig() {
                         </div>
                     ) : null}
                     <DragDropContext onDragEnd={onAiDragEnd}>
-                        <Droppable droppableId='ai-api-droppable' direction='vertical'>
+                        <Droppable
+                            droppableId='ai-api-droppable'
+                            direction='vertical'
+                        >
                             {(provided) => (
                                 <div
                                     className='max-h-[420px] overflow-y-auto pr-1'
@@ -361,7 +400,11 @@ export default function AIConfig() {
                                 >
                                     {aiApiServiceInstanceList !== null &&
                                         aiApiServiceInstanceList.map((instanceKey, index) => (
-                                            <Draggable key={instanceKey} draggableId={instanceKey} index={index}>
+                                            <Draggable
+                                                key={instanceKey}
+                                                draggableId={instanceKey}
+                                                index={index}
+                                            >
                                                 {(draggableProvided) => (
                                                     <div
                                                         ref={draggableProvided.innerRef}
@@ -370,12 +413,10 @@ export default function AIConfig() {
                                                         <ServiceItem
                                                             {...draggableProvided.dragHandleProps}
                                                             serviceInstanceKey={instanceKey}
-                                                            deleteServiceInstance={deleteServiceInstance}
                                                             setCurrentConfigKey={setCurrentConfigKey}
                                                             onConfigOpen={onConfigOpen}
                                                             customServicesAllowed={customAiServicesAllowed === true}
                                                         />
-                                                        <Spacer y={2} />
                                                     </div>
                                                 )}
                                             </Draggable>
@@ -385,35 +426,21 @@ export default function AIConfig() {
                             )}
                         </Droppable>
                     </DragDropContext>
-                    <Spacer y={2} />
-                    <div className='flex'>
-                        <Button
-                            fullWidth
-                            variant='flat'
-                            isDisabled={customAiServicesAllowed !== true}
-                            onPress={() => {
-                                if (customAiServicesAllowed !== true) {
-                                    showCustomLockedToast();
-                                    return;
-                                }
-                                onAddOpen();
-                            }}
-                        >
-                            {t('config.service.add_service')}
-                        </Button>
-                    </div>
-                </CardBody>
-            </Card>
+                </div>
+            </section>
 
-            <Spacer y={2} />
-
-            <Card shadow='none' className='border border-default-200/70 bg-content1/90'>
-                <CardBody className='p-4'>
-                    <h2 className='mb-4 text-[16px] font-bold'>
+            <section className='mt-4 overflow-hidden rounded-[14px] border border-default-200/70 bg-content1/90'>
+                <div className='flex h-14 items-center justify-between border-b border-default-100 px-4'>
+                    <h2 className='text-[16px] font-bold'>
                         {getLocalizedDefaultValue(isChineseUI, '语音配置', 'Speech Configuration')}
                     </h2>
+                </div>
+                <div className='p-4'>
                     <DragDropContext onDragEnd={onSpeechDragEnd}>
-                        <Droppable droppableId='speech-provider-droppable' direction='vertical'>
+                        <Droppable
+                            droppableId='speech-provider-droppable'
+                            direction='vertical'
+                        >
                             {(provided) => (
                                 <div
                                     className='max-h-[420px] overflow-y-auto pr-1'
@@ -421,7 +448,11 @@ export default function AIConfig() {
                                     {...provided.droppableProps}
                                 >
                                     {speechProviderOrder.map((providerId, index) => (
-                                        <Draggable key={providerId} draggableId={providerId} index={index}>
+                                        <Draggable
+                                            key={providerId}
+                                            draggableId={providerId}
+                                            index={index}
+                                        >
                                             {(draggableProvided) => (
                                                 <div
                                                     ref={draggableProvided.innerRef}
@@ -438,7 +469,6 @@ export default function AIConfig() {
                                                         onConfigOpen={() => openSpeechConfig(providerId)}
                                                         isChineseUI={isChineseUI}
                                                     />
-                                                    <Spacer y={2} />
                                                 </div>
                                             )}
                                         </Draggable>
@@ -448,8 +478,8 @@ export default function AIConfig() {
                             )}
                         </Droppable>
                     </DragDropContext>
-                </CardBody>
-            </Card>
+                </div>
+            </section>
 
             <AddServiceModal
                 isOpen={isAddOpen}
@@ -463,6 +493,7 @@ export default function AIConfig() {
                 isOpen={isConfigOpen}
                 onOpenChange={onConfigOpenChange}
                 updateServiceInstanceList={updateServiceInstanceList}
+                deleteServiceInstance={deleteServiceInstance}
                 customServicesAllowed={customAiServicesAllowed === true}
             />
             <SpeechConfigModal

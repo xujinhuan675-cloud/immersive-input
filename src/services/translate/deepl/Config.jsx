@@ -13,7 +13,7 @@ import { translate } from './index';
 import { Language } from './index';
 
 export function Config(props) {
-    const { instanceKey, updateServiceList, onClose } = props;
+    const { instanceKey, updateServiceList, onClose, deleteAction } = props;
     const { t } = useTranslation();
     const [deeplConfig, setDeeplConfig] = useConfig(
         instanceKey,
@@ -27,10 +27,11 @@ export function Config(props) {
     const [isLoading, setIsLoading] = useState(false);
 
     const toastStyle = useToastStyle();
-    const isFreeMode = deeplConfig?.type === 'free';
+    const deeplType = deeplConfig?.type ?? 'free';
+    const isFreeMode = deeplType === 'free';
 
     function saveConfig() {
-        setDeeplConfig({ ...deeplConfig, instanceName: undefined }, true);
+        setDeeplConfig({ ...deeplConfig, type: deeplType, instanceName: undefined }, true);
         updateServiceList(instanceKey);
         onClose();
     }
@@ -64,7 +65,7 @@ export function Config(props) {
                     <h3 className='my-auto'>{t('services.translate.deepl.type')}</h3>
                     <Dropdown>
                         <DropdownTrigger>
-                            <Button variant='bordered'>{t(`services.translate.deepl.${deeplConfig.type}`)}</Button>
+                            <Button variant='bordered'>{t(`services.translate.deepl.${deeplType}`)}</Button>
                         </DropdownTrigger>
                         <DropdownMenu
                             autoFocus='first'
@@ -83,11 +84,9 @@ export function Config(props) {
                     </Dropdown>
                 </div>
                 <div className={`config-item ${!isFreeMode && 'hidden'}`}>
-                    <p className='text-[12px] text-default-500'>
-                        {t('services.translate.deepl.free_note')}
-                    </p>
+                    <p className='text-[12px] text-default-500'>{t('services.translate.deepl.free_note')}</p>
                 </div>
-                <div className={`config-item ${deeplConfig.type !== 'api' && 'hidden'}`}>
+                <div className={`config-item ${deeplType !== 'api' && 'hidden'}`}>
                     <Input
                         label={t('services.translate.deepl.auth_key')}
                         labelPlacement='outside-left'
@@ -107,7 +106,7 @@ export function Config(props) {
                         }}
                     />
                 </div>
-                <div className={`config-item ${deeplConfig.type !== 'deeplx' && 'hidden'}`}>
+                <div className={`config-item ${deeplType !== 'deeplx' && 'hidden'}`}>
                     <Input
                         label={t('services.translate.deepl.custom_url')}
                         labelPlacement='outside-left'
@@ -126,14 +125,29 @@ export function Config(props) {
                         }}
                     />
                 </div>
-                <Button
-                    type='submit'
-                    isLoading={isLoading}
-                    color='primary'
-                    fullWidth
-                >
-                    {t('common.save')}
-                </Button>
+                <div className='mt-4 flex items-center justify-between border-t border-default-100 pt-3'>
+                    <div>{deleteAction}</div>
+                    <div className='flex items-center gap-2'>
+                        <Button
+                            type='button'
+                            size='sm'
+                            variant='light'
+                            className='h-8 px-3 text-[13px] font-medium text-default-600'
+                            onPress={onClose}
+                        >
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            type='submit'
+                            isLoading={isLoading}
+                            color='primary'
+                            size='sm'
+                            className='h-8 min-w-[72px] rounded-md px-3 text-[13px] font-medium'
+                        >
+                            {t('common.save')}
+                        </Button>
+                    </div>
+                </div>
             </form>
         )
     );

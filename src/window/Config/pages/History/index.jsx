@@ -1,9 +1,10 @@
 import { readDir, BaseDirectory, readTextFile, exists, writeTextFile } from '@tauri-apps/api/fs';
-import { Textarea, Button, Tabs, Tab, Card, CardBody, Pagination } from '@nextui-org/react';
+import { Textarea, Button, Tabs, Tab } from '@nextui-org/react';
 import { appConfigDir, join } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
 import { save } from '@tauri-apps/api/dialog';
 import React, { useEffect, useRef, useState } from 'react';
+import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import toast, { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Database from 'tauri-plugin-sql-api';
@@ -23,10 +24,7 @@ import {
     getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../utils/aiConfig';
-import {
-    getLinkedAiServiceInstanceKey,
-    isAiTranslateServiceKey,
-} from '../../../../utils/aiTranslate';
+import { getLinkedAiServiceInstanceKey, isAiTranslateServiceKey } from '../../../../utils/aiTranslate';
 import { normalizeLanguageKey } from '../../../../utils/language';
 import {
     ServiceSourceType,
@@ -36,6 +34,9 @@ import {
     whetherAvailableService,
 } from '../../../../utils/service_instance';
 import { store } from '../../../../utils/store';
+
+const HISTORY_ACTION_BUTTON_CLASS =
+    'h-8 min-w-[64px] rounded-md bg-default-100 px-3 text-[13px] font-medium text-default-600 hover:bg-default-200';
 
 async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, signal) {
     const maxPerField = 500;
@@ -576,6 +577,7 @@ export default function History() {
     const currentTotal = activeTab === 'translate' ? total : aiTotal;
     const totalPages = Math.ceil((activeTab === 'translate' ? total : aiTotal) / pageSize);
     const currentPage = activeTab === 'translate' ? page : aiPage;
+    const normalizedTotalPages = Math.max(totalPages, 1);
     const emptyHistoryText = t('history.empty', { defaultValue: 'No History to display.' });
     const sourceLabel = t('history.modal_before', { defaultValue: '原文' });
     const resultLabel = t('history.modal_after', { defaultValue: '结果' });
@@ -668,15 +670,17 @@ export default function History() {
                 <button
                     type='button'
                     onClick={() => toggleRow(item, activeTab)}
-                    className='grid w-full grid-cols-[minmax(0,116px)_minmax(0,1fr)_56px] items-start gap-[8px] px-[12px] py-[14px] text-left transition-colors hover:bg-default-50'
+                    className='grid w-full grid-cols-[minmax(0,128px)_minmax(0,1fr)_72px] items-start gap-[12px] px-[16px] py-[13px] text-left transition-colors hover:bg-default-50'
                 >
                     <div className='min-w-0'>
                         <ServiceIdentity
                             iconSrc={isAiTab ? null : getTranslateServiceIcon(item.service)}
                             iconNode={
-                                isAiTab
-                                    ? <AiProviderIcon providerId={aiServiceInfo.providerId} />
-                                    : getTranslateServiceIconNode(item.service)
+                                isAiTab ? (
+                                    <AiProviderIcon providerId={aiServiceInfo.providerId} />
+                                ) : (
+                                    getTranslateServiceIconNode(item.service)
+                                )
                             }
                             title={serviceTitle}
                             titleClassName={isAiTab ? 'text-default-700' : ''}
@@ -703,40 +707,101 @@ export default function History() {
         );
     };
 
+    const goToPage = (nextPage) => {
+        const safePage = Math.min(Math.max(nextPage, 1), normalizedTotalPages);
+
+        if (activeTab === 'translate') {
+            setPage(safePage);
+            return;
+        }
+
+        setAiPage(safePage);
+    };
+
     return (
         pluginList !== null && (
             <>
                 <Toaster />
-                <div className='mx-auto flex max-w-[1048px] flex-col gap-[10px] px-[8px] pb-[8px]'>
-                    <Tabs
-                        selectedKey={activeTab}
-                        onSelectionChange={(key) => {
-                            const nextKey = String(key);
-                            setActiveTab(nextKey);
-                            if (nextKey === 'translate') {
-                                setPage(1);
-                                return;
-                            }
-                            initAi(nextKey);
-                        }}
-                        size='sm'
-                        className='flex justify-center'
-                    >
-                        <Tab
-                            key='translate'
-                            title={t('history.translate_tab')}
-                        />
-                        {Object.entries(AI_TYPE_LABELS).map(([key, label]) => (
+                <div className='mx-auto flex max-w-[1000px] flex-col gap-[12px] px-[8px] pb-[8px]'>
+                    <div className='flex justify-center'>
+                        <Tabs
+                            selectedKey={activeTab}
+                            onSelectionChange={(key) => {
+                                const nextKey = String(key);
+                                setActiveTab(nextKey);
+                                if (nextKey === 'translate') {
+                                    setPage(1);
+                                    return;
+                                }
+                                initAi(nextKey);
+                            }}
+                            size='sm'
+                            classNames={{
+                                tabList: 'gap-1 rounded-lg bg-default-100 p-1',
+                                cursor: 'rounded-md shadow-sm',
+                                tab: 'h-8 px-4',
+                                tabContent: 'text-[13px] font-medium',
+                            }}
+                        >
                             <Tab
-                                key={key}
-                                title={label}
+                                key='translate'
+                                title={t('history.translate_tab')}
                             />
-                        ))}
-                    </Tabs>
+                            {Object.entries(AI_TYPE_LABELS).map(([key, label]) => (
+                                <Tab
+                                    key={key}
+                                    title={label}
+                                />
+                            ))}
+                        </Tabs>
+                    </div>
 
-                    {isAiTab && (aiReport || aiGenerating) && (
-                        <Card className='border border-default-100 bg-default-50/70 shadow-none'>
-                            <CardBody className='gap-[8px] p-[12px]'>
+                    <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1 shadow-sm shadow-default-100/40'>
+                        <div className='flex flex-wrap items-center justify-end gap-[8px] border-b border-default-100 px-[16px] py-[10px]'>
+                            <div className='flex flex-wrap items-center gap-[8px]'>
+                                {isAiTab && (
+                                    <Button
+                                        size='sm'
+                                        variant='flat'
+                                        className={HISTORY_ACTION_BUTTON_CLASS}
+                                        isLoading={aiGenerating}
+                                        onPress={generateAiReport}
+                                        isDisabled={aiTotal < 3}
+                                    >
+                                        {aiGenerating ? t('history.generating_btn') : t('history.generate_report')}
+                                    </Button>
+                                )}
+                                {isAiTab && aiGenerating && (
+                                    <Button
+                                        size='sm'
+                                        variant='flat'
+                                        className={HISTORY_ACTION_BUTTON_CLASS}
+                                        onPress={stopAiReport}
+                                    >
+                                        {t('history.stop')}
+                                    </Button>
+                                )}
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={HISTORY_ACTION_BUTTON_CLASS}
+                                    onPress={exportActiveTab}
+                                >
+                                    {t('history.export')}
+                                </Button>
+                                <Button
+                                    size='sm'
+                                    variant='flat'
+                                    className={HISTORY_ACTION_BUTTON_CLASS}
+                                    onPress={clearActiveTab}
+                                >
+                                    {t('common.clear')}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {isAiTab && (aiReport || aiGenerating) && (
+                            <div className='grid gap-[10px] border-b border-default-100 bg-default-50/60 px-[16px] py-[14px]'>
                                 <div className='flex items-center justify-between'>
                                     <span className='text-[13px] font-medium text-default-600'>
                                         {t('history.report_title')}
@@ -744,6 +809,7 @@ export default function History() {
                                     <Button
                                         size='sm'
                                         variant='flat'
+                                        className='h-7 px-3 text-[12px] font-medium'
                                         onPress={() => setAiReport('')}
                                     >
                                         {t('common.close')}
@@ -757,81 +823,56 @@ export default function History() {
                                     variant='bordered'
                                     className='font-mono text-[12px]'
                                 />
-                            </CardBody>
-                        </Card>
-                    )}
-
-                    <Card className='border border-default-100 bg-white shadow-none'>
-                        <CardBody className='gap-[10px] p-[10px]'>
-                            <div className='overflow-hidden rounded-[18px] border border-default-100 bg-white'>
-                                <div className='grid grid-cols-[minmax(0,116px)_minmax(0,1fr)_56px] gap-[8px] px-[12px] py-[11px] text-[11px] font-medium uppercase tracking-[0.08em] text-default-400'>
-                                    <span>{t('history.service', { defaultValue: '服务' })}</span>
-                                    <span>{t('history.content', { defaultValue: '内容' })}</span>
-                                    <span className='text-right'>{t('history.time', { defaultValue: '时间' })}</span>
-                                </div>
-
-                                {visibleItems.length > 0 ? (
-                                    <div>{visibleItems.map((item) => renderHistoryRow(item))}</div>
-                                ) : (
-                                    <div className='px-[18px] py-[48px] text-center text-[13px] text-default-400'>
-                                        {emptyHistoryText}
-                                    </div>
-                                )}
                             </div>
+                        )}
 
-                            <div className='flex flex-wrap items-center justify-between gap-[10px] pt-[4px]'>
-                                <div className='flex flex-wrap items-center gap-[8px]'>
-                                    {isAiTab && (
-                                        <Button
-                                            size='sm'
-                                            color='primary'
-                                            isLoading={aiGenerating}
-                                            onPress={generateAiReport}
-                                            isDisabled={aiTotal < 3}
-                                        >
-                                            {aiGenerating ? t('history.generating_btn') : t('history.generate_report')}
-                                        </Button>
-                                    )}
-                                    {isAiTab && aiGenerating && (
-                                        <Button
-                                            size='sm'
-                                            variant='flat'
-                                            onPress={stopAiReport}
-                                        >
-                                            {t('history.stop')}
-                                        </Button>
-                                    )}
+                        <div className='grid grid-cols-[minmax(0,128px)_minmax(0,1fr)_72px] gap-[12px] bg-default-50/80 px-[16px] py-[10px] text-[11px] font-medium uppercase tracking-[0.08em] text-default-400'>
+                            <span>{t('history.service', { defaultValue: '服务' })}</span>
+                            <span>{t('history.content', { defaultValue: '内容' })}</span>
+                            <span className='text-right'>{t('history.time', { defaultValue: '时间' })}</span>
+                        </div>
+
+                        {visibleItems.length > 0 ? (
+                            <div>{visibleItems.map((item) => renderHistoryRow(item))}</div>
+                        ) : (
+                            <div className='border-t border-default-100 px-[18px] py-[64px] text-center text-[13px] text-default-400'>
+                                {emptyHistoryText}
+                            </div>
+                        )}
+
+                        {(currentTotal > 0 || totalPages > 1) && (
+                            <div className='flex flex-wrap items-center justify-between gap-[12px] border-t border-default-100 px-[16px] py-[12px]'>
+                                <span className='text-[12px] text-default-400'>{countText}</span>
+                                <div className='flex items-center gap-[8px]'>
                                     <Button
+                                        isIconOnly
                                         size='sm'
-                                        variant='flat'
-                                        onPress={exportActiveTab}
+                                        variant='light'
+                                        className='h-8 w-8 min-w-8 rounded-md text-default-500'
+                                        isDisabled={currentPage <= 1}
+                                        onPress={() => goToPage(currentPage - 1)}
                                     >
-                                        {t('history.export')}
+                                        <MdChevronLeft size={18} />
                                     </Button>
+                                    <span className='min-w-[56px] text-center text-[13px] tabular-nums text-default-500'>
+                                        <span className='font-semibold text-foreground'>{currentPage}</span>
+                                        <span className='mx-[6px] text-default-300'>/</span>
+                                        {normalizedTotalPages}
+                                    </span>
                                     <Button
+                                        isIconOnly
                                         size='sm'
-                                        variant='flat'
-                                        onPress={clearActiveTab}
+                                        variant='light'
+                                        className='h-8 w-8 min-w-8 rounded-md text-default-500'
+                                        isDisabled={currentPage >= normalizedTotalPages}
+                                        onPress={() => goToPage(currentPage + 1)}
                                     >
-                                        {t('common.clear')}
+                                        <MdChevronRight size={18} />
                                     </Button>
                                 </div>
-
-                                {(currentTotal > 0 || totalPages > 1) && (
-                                    <div className='flex items-center gap-[12px] text-[12px] text-default-400'>
-                                        <span>{countText}</span>
-                                        <Pagination
-                                            showControls
-                                            isCompact
-                                            total={Math.max(totalPages, 1)}
-                                            page={currentPage}
-                                            onChange={activeTab === 'translate' ? setPage : setAiPage}
-                                        />
-                                    </div>
-                                )}
                             </div>
-                        </CardBody>
-                    </Card>
+                        )}
+                    </section>
                 </div>
             </>
         )

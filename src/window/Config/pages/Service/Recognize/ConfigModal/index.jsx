@@ -22,19 +22,75 @@ function RecognizePluginConfig(props) {
     );
 }
 
-export default function ConfigModal(props) {
-    const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
-
+export function getRecognizeConfigMeta(serviceInstanceKey, pluginList, t) {
     const serviceSourceType = getServiceSouceType(serviceInstanceKey);
     const pluginServiceFlag = whetherPluginService(serviceInstanceKey);
     const serviceName = getServiceName(serviceInstanceKey);
 
-    const { t } = useTranslation();
     const ConfigComponent = pluginServiceFlag ? RecognizePluginConfig : builtinServices[serviceName].Config;
 
-    return pluginServiceFlag && !(serviceName in pluginList) ? (
-        <></>
-    ) : (
+    if (pluginServiceFlag && !(serviceName in pluginList)) {
+        return null;
+    }
+
+    const title =
+        serviceSourceType === ServiceSourceType.BUILDIN
+            ? t(`services.recognize.${serviceName}.title`)
+            : `${pluginList[serviceName].display} [${t('common.plugin')}]`;
+    const icon =
+        serviceSourceType === ServiceSourceType.BUILDIN ? (
+            <img
+                src={serviceName === 'system' ? `logo/${osType}.svg` : builtinServices[serviceName].info.icon}
+                className='h-[24px] w-[24px] my-auto'
+                draggable={false}
+            />
+        ) : (
+            <img
+                src={pluginList[serviceName].icon}
+                className='h-[24px] w-[24px] my-auto'
+                draggable={false}
+            />
+        );
+
+    return {
+        serviceName,
+        serviceSourceType,
+        pluginServiceFlag,
+        ConfigComponent,
+        title,
+        icon,
+    };
+}
+
+export function RecognizeConfigPanel(props) {
+    const { serviceInstanceKey, pluginList, updateServiceInstanceList, onClose } = props;
+    const { t } = useTranslation();
+    const meta = getRecognizeConfigMeta(serviceInstanceKey, pluginList, t);
+
+    if (!meta) return null;
+
+    const { serviceName, ConfigComponent } = meta;
+
+    return (
+        <ConfigComponent
+            name={serviceName}
+            instanceKey={serviceInstanceKey}
+            pluginType='recognize'
+            pluginList={pluginList}
+            updateServiceList={updateServiceInstanceList}
+            onClose={onClose}
+        />
+    );
+}
+
+export default function ConfigModal(props) {
+    const { serviceInstanceKey, pluginList, isOpen, onOpenChange, updateServiceInstanceList } = props;
+    const { t } = useTranslation();
+    const meta = getRecognizeConfigMeta(serviceInstanceKey, pluginList, t);
+
+    if (!meta) return <></>;
+
+    return (
         <Modal
             isOpen={isOpen}
             onOpenChange={onOpenChange}
@@ -44,41 +100,15 @@ export default function ConfigModal(props) {
                 {(onClose) => (
                     <>
                         <ModalHeader>
-                            {serviceSourceType === ServiceSourceType.BUILDIN && (
-                                <>
-                                    <img
-                                        src={
-                                            serviceName === 'system'
-                                                ? `logo/${osType}.svg`
-                                                : builtinServices[serviceName].info.icon
-                                        }
-                                        className='h-[24px] w-[24px] my-auto'
-                                        draggable={false}
-                                    />
-                                    <Spacer x={2} />
-                                    {t(`services.recognize.${serviceName}.title`)}
-                                </>
-                            )}
-                            {pluginServiceFlag && (
-                                <>
-                                    <img
-                                        src={pluginList[serviceName].icon}
-                                        className='h-[24px] w-[24px] my-auto'
-                                        draggable={false}
-                                    />
-
-                                    <Spacer x={2} />
-                                    {`${pluginList[serviceName].display} [${t('common.plugin')}]`}
-                                </>
-                            )}
+                            {meta.icon}
+                            <Spacer x={2} />
+                            {meta.title}
                         </ModalHeader>
                         <ModalBody>
-                            <ConfigComponent
-                                name={serviceName}
-                                instanceKey={serviceInstanceKey}
-                                pluginType='recognize'
+                            <RecognizeConfigPanel
+                                serviceInstanceKey={serviceInstanceKey}
                                 pluginList={pluginList}
-                                updateServiceList={updateServiceInstanceList}
+                                updateServiceInstanceList={updateServiceInstanceList}
                                 onClose={onClose}
                             />
                         </ModalBody>

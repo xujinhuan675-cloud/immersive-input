@@ -2,11 +2,9 @@ import { useDisclosure } from '@nextui-org/react';
 import toast, { Toaster } from 'react-hot-toast';
 import { DropdownItem } from '@nextui-org/react';
 import { useTranslation } from 'react-i18next';
-import { CardBody } from '@nextui-org/react';
 import { warn } from 'tauri-plugin-log-api';
 import { Button } from '@nextui-org/react';
 import { Input } from '@nextui-org/react';
-import { Card } from '@nextui-org/react';
 import { open } from '@tauri-apps/api/dialog';
 import React, { useEffect, useState } from 'react';
 
@@ -178,241 +176,226 @@ export default function Backup() {
         }
     };
 
-    const sectionTitleClassName = 'my-auto text-foreground';
-    const sectionControlClassName = 'flex w-full flex-col gap-3 sm:w-auto sm:min-w-[340px] sm:items-end';
-    const actionRowClassName = 'flex flex-wrap gap-3 justify-start sm:justify-end';
-    const actionButtonClassName = 'h-10 min-w-[112px] rounded-xl px-4 text-sm font-medium';
+    const sectionControlClassName = 'flex w-full flex-col gap-3 sm:w-auto sm:min-w-[320px] sm:items-end';
+    const actionRowClassName = 'flex flex-wrap justify-start gap-2 sm:justify-end';
+    const actionButtonClassName = 'h-9 min-w-[104px] rounded-lg px-3 text-sm font-medium';
     const autoBackupEnabled = autoBackupFrequency && autoBackupFrequency !== 'off';
     const autoBackupFrequencyLabel = autoBackupFrequency
         ? t(`config.backup.auto_${autoBackupFrequency}`)
         : t('config.backup.auto_off');
+    const rowClassName =
+        'flex min-h-[58px] items-center justify-between gap-5 border-b border-default-100 px-5 py-3 last:border-b-0';
+    const titleClassName = 'text-[14px] font-medium text-foreground';
+    const dropdownClassName = 'h-10 w-[176px] rounded-lg px-3 py-0 shadow-none';
 
     return (
-        <Card className='mb-[10px]'>
+        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>
             <Toaster />
-            <CardBody className='gap-4'>
-                <div>
-                    <h2 className='text-[16px] font-semibold text-foreground'>
-                        {t('config.backup.panel_title')}
-                    </h2>
-                </div>
+            <div className='border-b border-default-100 px-5 py-4'>
+                <h2 className='text-[15px] font-semibold text-foreground'>{t('config.backup.panel_title')}</h2>
+            </div>
 
-                <div className='config-item'>
-                    <h3 className={sectionTitleClassName}>
-                        {t('config.backup.system_backup')}
-                    </h3>
+            <div className={rowClassName}>
+                <h3 className={titleClassName}>{t('config.backup.system_backup')}</h3>
+                <div className={sectionControlClassName}>
+                    {effectiveBackupType !== null && (
+                        <SettingsDropdown
+                            label={t(`config.backup.${effectiveBackupType}`)}
+                            ariaLabel='backup type'
+                            selectedKey={effectiveBackupType}
+                            className={dropdownClassName}
+                            onAction={(key) => {
+                                setBackupType(key);
+                            }}
+                        >
+                            <DropdownItem key='webdav'>{t('config.backup.webdav')}</DropdownItem>
+                            <DropdownItem key='local'>{t('config.backup.local')}</DropdownItem>
+                        </SettingsDropdown>
+                    )}
+                </div>
+            </div>
+
+            {autoBackupFrequency !== null && (
+                <div className={rowClassName}>
+                    <h3 className={titleClassName}>{t('config.backup.auto_backup')}</h3>
                     <div className={sectionControlClassName}>
-                        {effectiveBackupType !== null && (
-                            <SettingsDropdown
-                                label={t(`config.backup.${effectiveBackupType}`)}
-                                ariaLabel='backup type'
-                                selectedKey={effectiveBackupType}
-                                onAction={(key) => {
-                                    setBackupType(key);
-                                }}
-                            >
-                                <DropdownItem key='webdav'>{t('config.backup.webdav')}</DropdownItem>
-                                <DropdownItem key='local'>{t('config.backup.local')}</DropdownItem>
-                            </SettingsDropdown>
-                        )}
+                        <SettingsDropdown
+                            label={autoBackupFrequencyLabel}
+                            ariaLabel='auto backup frequency'
+                            selectedKey={autoBackupFrequency}
+                            className={dropdownClassName}
+                            onAction={(key) => {
+                                setAutoBackupFrequency(key);
+                            }}
+                        >
+                            <DropdownItem key='off'>{t('config.backup.auto_off')}</DropdownItem>
+                            <DropdownItem key='daily'>{t('config.backup.auto_daily')}</DropdownItem>
+                            <DropdownItem key='weekly'>{t('config.backup.auto_weekly')}</DropdownItem>
+                            <DropdownItem key='monthly'>{t('config.backup.auto_monthly')}</DropdownItem>
+                        </SettingsDropdown>
                     </div>
                 </div>
+            )}
 
-                {autoBackupFrequency !== null && (
-                    <div className='config-item'>
-                        <h3 className={sectionTitleClassName}>
-                            {t('config.backup.auto_backup')}
-                        </h3>
+            {autoBackupEnabled && effectiveBackupType === 'local' && (
+                <div className={rowClassName}>
+                    <h3 className={titleClassName}>{t('config.backup.local_directory')}</h3>
+                    <div className={sectionControlClassName}>
+                        <div className={actionRowClassName}>
+                            <Button
+                                variant='flat'
+                                color='default'
+                                className={actionButtonClassName}
+                                onPress={onSelectLocalDirectory}
+                            >
+                                {localBackupDirectory
+                                    ? t('config.backup.change_folder')
+                                    : t('config.backup.choose_folder')}
+                            </Button>
+                        </div>
+                        {localBackupDirectory ? (
+                            <div className='max-w-[340px] truncate text-right text-xs text-default-500'>
+                                {localBackupDirectory}
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
+            )}
+
+            {effectiveBackupType === 'webdav' && (
+                <>
+                    <div className={rowClassName}>
+                        <h3 className={titleClassName}>{t('config.backup.webdav_url')}</h3>
                         <div className={sectionControlClassName}>
-                            <SettingsDropdown
-                                label={autoBackupFrequencyLabel}
-                                ariaLabel='auto backup frequency'
-                                selectedKey={autoBackupFrequency}
-                                onAction={(key) => {
-                                    setAutoBackupFrequency(key);
-                                }}
-                            >
-                                <DropdownItem key='off'>{t('config.backup.auto_off')}</DropdownItem>
-                                <DropdownItem key='daily'>{t('config.backup.auto_daily')}</DropdownItem>
-                                <DropdownItem key='weekly'>{t('config.backup.auto_weekly')}</DropdownItem>
-                                <DropdownItem key='monthly'>{t('config.backup.auto_monthly')}</DropdownItem>
-                            </SettingsDropdown>
+                            {davUrl !== null && (
+                                <Input
+                                    variant='bordered'
+                                    value={davUrl}
+                                    label={t('config.backup.webdav_url')}
+                                    onValueChange={(v) => {
+                                        setDavUrl(v);
+                                    }}
+                                    className='w-full max-w-[320px]'
+                                />
+                            )}
                         </div>
                     </div>
-                )}
-
-                {autoBackupEnabled && effectiveBackupType === 'local' && (
-                    <div className='config-item'>
-                        <h3 className={sectionTitleClassName}>
-                            {t('config.backup.local_directory')}
-                        </h3>
+                    <div className={rowClassName}>
+                        <h3 className={titleClassName}>{t('config.backup.username')}</h3>
                         <div className={sectionControlClassName}>
-                            <div className={actionRowClassName}>
-                                <Button
-                                    variant='flat'
-                                    color='default'
-                                    className={actionButtonClassName}
-                                    onPress={onSelectLocalDirectory}
-                                >
-                                    {localBackupDirectory
-                                        ? t('config.backup.change_folder')
-                                        : t('config.backup.choose_folder')}
-                                </Button>
-                            </div>
-                            {localBackupDirectory ? (
-                                <div className='max-w-[340px] truncate text-right text-xs text-default-500'>
-                                    {localBackupDirectory}
-                                </div>
-                            ) : null}
+                            {davUserName !== null && (
+                                <Input
+                                    variant='bordered'
+                                    value={davUserName}
+                                    label={t('config.backup.username')}
+                                    onValueChange={(v) => {
+                                        setDavUserName(v);
+                                    }}
+                                    className='w-full max-w-[320px]'
+                                />
+                            )}
                         </div>
                     </div>
-                )}
+                    <div className={rowClassName}>
+                        <h3 className={titleClassName}>{t('config.backup.password')}</h3>
+                        <div className={sectionControlClassName}>
+                            {davPassword !== null && (
+                                <Input
+                                    type='password'
+                                    variant='bordered'
+                                    value={davPassword}
+                                    label={t('config.backup.password')}
+                                    onValueChange={(v) => {
+                                        setDavPassword(v);
+                                    }}
+                                    className='w-full max-w-[320px]'
+                                />
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
 
-                {effectiveBackupType === 'webdav' && (
-                    <>
-                        <div className='config-item'>
-                            <h3 className={sectionTitleClassName}>
-                                {t('config.backup.webdav_url')}
-                            </h3>
-                            <div className={sectionControlClassName}>
-                                {davUrl !== null && (
-                                    <Input
-                                        variant='bordered'
-                                        value={davUrl}
-                                        label={t('config.backup.webdav_url')}
-                                        onValueChange={(v) => {
-                                            setDavUrl(v);
-                                        }}
-                                        className='w-full max-w-[340px]'
-                                    />
-                                )}
-                            </div>
-                        </div>
-                        <div className='config-item'>
-                            <h3 className={sectionTitleClassName}>
-                                {t('config.backup.username')}
-                            </h3>
-                            <div className={sectionControlClassName}>
-                                {davUserName !== null && (
-                                    <Input
-                                        variant='bordered'
-                                        value={davUserName}
-                                        label={t('config.backup.username')}
-                                        onValueChange={(v) => {
-                                            setDavUserName(v);
-                                        }}
-                                        className='w-full max-w-[340px]'
-                                    />
-                                )}
-                            </div>
-                        </div>
-                        <div className='config-item'>
-                            <h3 className={sectionTitleClassName}>
-                                {t('config.backup.password')}
-                            </h3>
-                            <div className={sectionControlClassName}>
-                                {davPassword !== null && (
-                                    <Input
-                                        type='password'
-                                        variant='bordered'
-                                        value={davPassword}
-                                        label={t('config.backup.password')}
-                                        onValueChange={(v) => {
-                                            setDavPassword(v);
-                                        }}
-                                        className='w-full max-w-[340px]'
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                <div className='config-item'>
-                    <div />
-                    <div className={sectionControlClassName}>
-                        <div className={actionRowClassName}>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                isLoading={uploading}
-                                onPress={onBackup}
-                            >
-                                {t('config.backup.immediate_backup')}
-                            </Button>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                onPress={onBackupListOpen}
-                            >
-                                {t('config.backup.restore')}
-                            </Button>
-                        </div>
+            <div className={rowClassName}>
+                <div />
+                <div className={sectionControlClassName}>
+                    <div className={actionRowClassName}>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            isLoading={uploading}
+                            onPress={onBackup}
+                        >
+                            {t('config.backup.immediate_backup')}
+                        </Button>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            onPress={onBackupListOpen}
+                        >
+                            {t('config.backup.restore')}
+                        </Button>
                     </div>
                 </div>
+            </div>
 
-                <div className='config-item'>
-                    <h3 className={sectionTitleClassName}>
-                        {t('config.backup.phrases_data')}
-                    </h3>
-                    <div className={sectionControlClassName}>
-                        <div className={actionRowClassName}>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                isLoading={phrasesAction === 'export'}
-                                isDisabled={phrasesAction !== ''}
-                                onPress={onExportPhrases}
-                            >
-                                {t('config.backup.phrases_export')}
-                            </Button>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                isLoading={phrasesAction === 'import'}
-                                isDisabled={phrasesAction !== ''}
-                                onPress={onImportPhrases}
-                            >
-                                {t('config.backup.phrases_import')}
-                            </Button>
-                        </div>
+            <div className={rowClassName}>
+                <h3 className={titleClassName}>{t('config.backup.phrases_data')}</h3>
+                <div className={sectionControlClassName}>
+                    <div className={actionRowClassName}>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            isLoading={phrasesAction === 'export'}
+                            isDisabled={phrasesAction !== ''}
+                            onPress={onExportPhrases}
+                        >
+                            {t('config.backup.phrases_export')}
+                        </Button>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            isLoading={phrasesAction === 'import'}
+                            isDisabled={phrasesAction !== ''}
+                            onPress={onImportPhrases}
+                        >
+                            {t('config.backup.phrases_import')}
+                        </Button>
                     </div>
                 </div>
+            </div>
 
-                <div className='config-item'>
-                    <h3 className={sectionTitleClassName}>
-                        {t('config.backup.vault_data')}
-                    </h3>
-                    <div className={sectionControlClassName}>
-                        <div className={actionRowClassName}>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                isLoading={vaultAction === 'export'}
-                                isDisabled={vaultAction !== ''}
-                                onPress={onExportVault}
-                            >
-                                {t('config.backup.vault_export')}
-                            </Button>
-                            <Button
-                                variant='flat'
-                                color='default'
-                                className={actionButtonClassName}
-                                isLoading={vaultAction === 'import'}
-                                isDisabled={vaultAction !== ''}
-                                onPress={onImportVault}
-                            >
-                                {t('config.backup.vault_import')}
-                            </Button>
-                        </div>
+            <div className={rowClassName}>
+                <h3 className={titleClassName}>{t('config.backup.vault_data')}</h3>
+                <div className={sectionControlClassName}>
+                    <div className={actionRowClassName}>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            isLoading={vaultAction === 'export'}
+                            isDisabled={vaultAction !== ''}
+                            onPress={onExportVault}
+                        >
+                            {t('config.backup.vault_export')}
+                        </Button>
+                        <Button
+                            variant='flat'
+                            color='default'
+                            className={actionButtonClassName}
+                            isLoading={vaultAction === 'import'}
+                            isDisabled={vaultAction !== ''}
+                            onPress={onImportVault}
+                        >
+                            {t('config.backup.vault_import')}
+                        </Button>
                     </div>
                 </div>
-            </CardBody>
+            </div>
             <WebDavModal
                 isOpen={isWebDavListOpen}
                 onOpenChange={onWebDavListOpenChange}
@@ -420,6 +403,6 @@ export default function Backup() {
                 username={davUserName}
                 password={davPassword}
             />
-        </Card>
+        </section>
     );
 }

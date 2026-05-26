@@ -1,7 +1,7 @@
-import { Switch } from '@nextui-org/react';
+import { Button, Switch } from '@nextui-org/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuPencilLine, LuTrash2 } from 'react-icons/lu';
+import { MdKeyboardArrowDown } from 'react-icons/md';
 
 import AiProviderIcon from '../../../../../../components/AiProviderIcon';
 import { useConfig } from '../../../../../../hooks';
@@ -11,17 +11,10 @@ import {
     getAiProviderTitle,
     getMergedAiApiConfig,
 } from '../../../../../../utils/aiConfig';
-import { ConfigServiceIconButton, ConfigServiceListRow } from './ServiceRow';
+import { ConfigServiceListRow } from './ServiceRow';
 
 export default function ServiceItem(props) {
-    const {
-        serviceInstanceKey,
-        deleteServiceInstance,
-        setCurrentConfigKey,
-        onConfigOpen,
-        customServicesAllowed = true,
-        ...drag
-    } = props;
+    const { serviceInstanceKey, setCurrentConfigKey, onConfigOpen, customServicesAllowed = true, ...drag } = props;
     const { t } = useTranslation();
     const [serviceInstanceConfig, setServiceInstanceConfig] = useConfig(serviceInstanceKey, {});
 
@@ -35,13 +28,25 @@ export default function ServiceItem(props) {
         defaultValue: getAiProviderTitle(providerId),
     });
     const displayName = getAiApiDisplayName(mergedConfig, providerTitle);
+    const openConfig = () => {
+        if (!customServicesAllowed) return;
+        setCurrentConfigKey(serviceInstanceKey);
+        onConfigOpen();
+    };
 
     return (
         <ConfigServiceListRow
             dragHandleProps={drag}
-            icon={<AiProviderIcon providerId={providerId} className='text-[18px]' />}
+            variant='list'
+            icon={
+                <AiProviderIcon
+                    providerId={providerId}
+                    className='text-[18px]'
+                />
+            }
             title={displayName}
             description={providerTitle}
+            onPress={openConfig}
             actions={
                 <>
                     <Switch
@@ -52,26 +57,16 @@ export default function ServiceItem(props) {
                             setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
                         }}
                     />
-                    <ConfigServiceIconButton
+                    <Button
+                        isIconOnly
+                        size='sm'
+                        variant='light'
+                        className='h-8 w-8 min-w-8 rounded-md text-default-500'
                         isDisabled={!customServicesAllowed}
-                        onPress={() => {
-                            if (!customServicesAllowed) return;
-                            setCurrentConfigKey(serviceInstanceKey);
-                            onConfigOpen();
-                        }}
+                        onPress={openConfig}
                     >
-                        <LuPencilLine className='text-[18px]' />
-                    </ConfigServiceIconButton>
-                    <ConfigServiceIconButton
-                        color='danger'
-                        isDisabled={!customServicesAllowed}
-                        onPress={() => {
-                            if (!customServicesAllowed) return;
-                            deleteServiceInstance(serviceInstanceKey);
-                        }}
-                    >
-                        <LuTrash2 className='text-[18px]' />
-                    </ConfigServiceIconButton>
+                        <MdKeyboardArrowDown className='rotate-[-90deg] text-[20px]' />
+                    </Button>
                 </>
             }
         />

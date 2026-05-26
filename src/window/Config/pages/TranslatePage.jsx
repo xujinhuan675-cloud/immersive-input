@@ -61,13 +61,13 @@ export default function TranslatePage() {
             <Tabs
                 selectedKey={selectedTab}
                 aria-label='translate settings tabs'
-                className='flex justify-center max-h-[calc(100%-40px)] overflow-y-auto'
+                className='flex justify-center'
                 classNames={{
-                    tabList: 'rounded-2xl bg-content1 p-1 shadow-sm',
-                    tab: 'h-11 rounded-xl px-4 data-[hover-unselected=true]:opacity-100',
-                    cursor: 'rounded-xl bg-default-100 shadow-sm',
-                    panel: 'pt-4',
-                    tabContent: 'group-data-[selected=true]:text-foreground text-default-500',
+                    tabList: 'gap-1 rounded-lg bg-default-100 p-1',
+                    tab: 'h-8 rounded-md px-4 data-[hover-unselected=true]:opacity-100',
+                    cursor: 'rounded-md bg-content1 shadow-sm',
+                    panel: 'pt-3',
+                    tabContent: 'text-[13px] font-medium group-data-[selected=true]:text-foreground text-default-500',
                 }}
                 onSelectionChange={(key) => {
                     const nextSearchParams = new URLSearchParams(searchParams);
@@ -79,14 +79,20 @@ export default function TranslatePage() {
                     setSearchParams(nextSearchParams, { replace: true });
                 }}
             >
-                <Tab key='translate' title={t('config.translate.label')}>
-                    <div className='mx-auto w-full max-w-[880px] space-y-4 px-1 pb-2'>
+                <Tab
+                    key='translate'
+                    title={t('config.translate.label')}
+                >
+                    <div className='mx-auto w-full max-w-[920px] space-y-3 px-1 pb-3'>
                         <TranslateSettings />
                         <TranslateServices pluginList={pluginList[ServiceType.TRANSLATE]} />
                     </div>
                 </Tab>
-                <Tab key='recognize' title={t('config.recognize.label')}>
-                    <div className='mx-auto w-full max-w-[880px] space-y-4 px-1 pb-2'>
+                <Tab
+                    key='recognize'
+                    title={t('config.recognize.label')}
+                >
+                    <div className='mx-auto w-full max-w-[920px] space-y-3 px-1 pb-3'>
                         <RecognizeSettings />
                         <RecognizeServices pluginList={pluginList[ServiceType.RECOGNIZE]} />
                     </div>
