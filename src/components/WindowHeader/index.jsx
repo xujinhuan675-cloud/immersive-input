@@ -80,7 +80,7 @@ function startWindowDrag(event) {
     }
 
     const target = event.target;
-    if (target instanceof HTMLElement && target.closest(NON_DRAG_SELECTOR)) {
+    if (target instanceof Element && target.closest(NON_DRAG_SELECTOR)) {
         return;
     }
 

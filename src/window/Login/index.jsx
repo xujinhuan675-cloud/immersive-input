@@ -106,7 +106,6 @@ export default function Login({ embedded = false, onSuccess }) {
         >
             {!embedded && (
                 <div
-                    data-tauri-drag-region='true'
                     className='flex h-[35px] shrink-0 items-center justify-between px-2'
                 >
                     <div

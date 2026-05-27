@@ -9,6 +9,9 @@ import './style.css';
 
 export default function WindowControl() {
     const [isMax, setIsMax] = useState(false);
+    const stopWindowDrag = (event) => {
+        event.stopPropagation();
+    };
 
     useEffect(() => {
         listen('tauri://resize', async () => {
@@ -21,7 +24,10 @@ export default function WindowControl() {
     }, []);
 
     return (
-        <div>
+        <div
+            data-no-window-drag='true'
+            onMouseDown={stopWindowDrag}
+        >
             <Button
                 isIconOnly
                 variant='light'

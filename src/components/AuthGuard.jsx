@@ -46,7 +46,6 @@ export default function AuthGuard({ children, showWelcome = false }) {
                 {/* 拖拽栏 + 窗口控制（只在非嵌入场景显示） */}
                 {showWelcome && (
                     <div
-                        data-tauri-drag-region='true'
                         className='h-[35px] flex items-center justify-between shrink-0 px-2'
                     >
                         <div data-tauri-drag-region='true' className='flex-1 h-full' />
