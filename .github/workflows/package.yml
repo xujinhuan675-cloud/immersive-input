@@ -25,7 +25,8 @@ on:
         tags:
             - '*'
 
-permissions: write-all
+permissions:
+    contents: write
 
 env:
     APP_SLUG: flow-input
@@ -122,10 +123,12 @@ jobs:
                   if-no-files-found: error
 
             - name: Upload release assets
-              if: ${{ startsWith(github.ref, 'refs/tags/') && github.event_name == 'workflow_dispatch' && inputs.upload_release_assets }}
-              uses: softprops/action-gh-release@v1
+              if: ${{ startsWith(github.ref, 'refs/tags/') && (github.event_name == 'push' || inputs.upload_release_assets) }}
+              uses: softprops/action-gh-release@v2
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
+                  name: ${{ github.ref_name }}
+                  overwrite_files: true
                   files: |
                       src-tauri/target/${{ matrix.target }}/release/bundle/dmg/flow-input_*_${{ matrix.asset_arch }}.dmg
                       src-tauri/target/${{ matrix.target }}/release/bundle/macos/flow-input_*_${{ matrix.asset_arch }}.app.tar.gz
@@ -198,10 +201,12 @@ jobs:
                   if-no-files-found: error
 
             - name: Upload release assets
-              if: ${{ startsWith(github.ref, 'refs/tags/') && github.event_name == 'workflow_dispatch' && inputs.upload_release_assets }}
-              uses: softprops/action-gh-release@v1
+              if: ${{ startsWith(github.ref, 'refs/tags/') && (github.event_name == 'push' || inputs.upload_release_assets) }}
+              uses: softprops/action-gh-release@v2
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
+                  name: ${{ github.ref_name }}
+                  overwrite_files: true
                   files: |
                       src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/flow-input_*_x64.msi
                       src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/flow-input_*_x64.msi.zip
@@ -210,7 +215,7 @@ jobs:
     release-manifest:
         needs:
             - build-for-windows
-        if: ${{ always() && startsWith(github.ref, 'refs/tags/') && github.event_name == 'workflow_dispatch' && inputs.upload_release_assets && inputs.upload_release_manifest && needs.build-for-windows.result == 'success' }}
+        if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build-for-windows.result == 'success' && (github.event_name == 'push' || (inputs.upload_release_assets && inputs.upload_release_manifest)) }}
         runs-on: ubuntu-latest
 
         steps:
@@ -234,7 +239,9 @@ jobs:
               run: node updater/updater.mjs
 
             - name: Upload updater manifest
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
+                  name: ${{ github.ref_name }}
+                  overwrite_files: true
                   files: latest.json
