@@ -38,6 +38,7 @@ import {
     BASE_TOOLBAR_BUTTONS,
     DEFAULT_SMART_TOOLBAR_CONFIG,
     getToolbarButtonLabel,
+    normalizeToolbarButtonActionBehavior,
     SMART_TOOLBAR_BUTTON_MAP,
     SMART_TOOLBAR_CONFIG_KEY,
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
@@ -165,59 +166,6 @@ async function getTranslatePluginInfo(serviceName) {
     return info;
 }
 
-async function resolveLightAiQuickResult(text, styleKey) {
-    const sourceText = String(text || '').trim();
-    if (!sourceText) {
-        return '';
-    }
-
-    const apiConfig = await getActiveAiApiConfig();
-    if (!apiConfig) {
-        throw new Error('No active AI API configuration');
-    }
-
-    const resolvedStyle = STYLE_KEYS.includes(styleKey) ? styleKey : STYLE_KEYS[0];
-    let streamedText = '';
-    let finalText = '';
-    let requestError = null;
-
-    await lightAiStream(
-        sourceText,
-        resolvedStyle,
-        '',
-        apiConfig,
-        (chunk) => {
-            streamedText += chunk;
-        },
-        (result) => {
-            finalText = result || streamedText;
-        },
-        (error) => {
-            if (error) {
-                requestError = error;
-            }
-        }
-    );
-
-    if (requestError) {
-        throw new Error(requestError);
-    }
-
-    const resultText = normalizeQuickTextResult(
-        finalText || streamedText,
-        'Empty AI polish result'
-    );
-
-    await saveHistory('lightai', sourceText, resultText, {
-        mode: 'style',
-        style: resolvedStyle,
-        applyTarget: 'selection',
-        launchSource: 'toolbar_quick_apply',
-        ...getAiHistoryServiceMeta(apiConfig),
-    });
-    return resultText;
-}
-
 async function streamLightAiQuickResult(text, styleKey) {
     const sourceText = String(text || '').trim();
     if (!sourceText) {
@@ -276,53 +224,6 @@ async function streamLightAiQuickResult(text, styleKey) {
         launchSource: 'toolbar_stream_apply',
         ...getAiHistoryServiceMeta(apiConfig),
     });
-    return resultText;
-}
-
-async function resolveExplainQuickResult(text) {
-    const sourceText = String(text || '').trim();
-    if (!sourceText) {
-        return '';
-    }
-
-    const apiConfig = await getActiveAiApiConfig();
-    if (!apiConfig) {
-        throw new Error('No active AI API configuration');
-    }
-
-    let streamedText = '';
-    let finalText = '';
-    let requestError = null;
-
-    await streamOpenAiMessages(
-        [
-            { role: 'system', content: EXPLAIN_SYSTEM_PROMPT },
-            { role: 'user', content: sourceText },
-        ],
-        apiConfig,
-        (chunk) => {
-            streamedText += chunk;
-        },
-        (result) => {
-            finalText = result || streamedText;
-        },
-        (error) => {
-            if (error) {
-                requestError = error;
-            }
-        }
-    );
-
-    if (requestError) {
-        throw new Error(requestError);
-    }
-
-    const resultText = normalizeQuickTextResult(
-        finalText || streamedText,
-        'Empty explain result'
-    );
-
-    await saveHistory('explain', sourceText, resultText, getAiHistoryServiceMeta(apiConfig));
     return resultText;
 }
 
@@ -584,7 +485,9 @@ async function streamTranslateQuickResult(text) {
 
 const BUTTON_ACTIONS = {
     translate: async (text, { hide, translateActionBehavior }) => {
-        if (translateActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+        const normalizedBehavior = normalizeToolbarButtonActionBehavior(translateActionBehavior);
+
+        if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
             await delay(80);
 
@@ -599,29 +502,15 @@ const BUTTON_ACTIONS = {
             return;
         }
 
-        if (translateActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
-            hide();
-            await delay(80);
-
-            try {
-                const resultText = await resolveTranslateQuickResult(text);
-                if (resultText) {
-                    await invoke('paste_result', { text: resultText });
-                }
-            } catch (error) {
-                console.error('Quick translate failed:', error);
-                invoke('open_translate_from_toolbar').catch(() => {});
-            }
-            return;
-        }
-
         invoke('open_translate_from_toolbar').catch(() => {});
         await delay(80);
         hide();
     },
 
     explain: async (text, { hide, explainActionBehavior }) => {
-        if (explainActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+        const normalizedBehavior = normalizeToolbarButtonActionBehavior(explainActionBehavior);
+
+        if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
             await delay(80);
 
@@ -636,29 +525,15 @@ const BUTTON_ACTIONS = {
             return;
         }
 
-        if (explainActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
-            hide();
-            await delay(80);
-
-            try {
-                const resultText = await resolveExplainQuickResult(text);
-                if (resultText) {
-                    await invoke('paste_result', { text: resultText });
-                }
-            } catch (error) {
-                console.error('Quick explain failed:', error);
-                invoke('open_chat_explain_from_toolbar').catch(() => {});
-            }
-            return;
-        }
-
         invoke('open_chat_explain_from_toolbar').catch(() => {});
         await delay(80);
         hide();
     },
 
     lightai: async (text, { hide, lightAiActionBehavior, selectedStyle }) => {
-        if (lightAiActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+        const normalizedBehavior = normalizeToolbarButtonActionBehavior(lightAiActionBehavior);
+
+        if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
             await delay(80);
 
@@ -669,22 +544,6 @@ const BUTTON_ACTIONS = {
                 if (!error?.partialApplied) {
                     invoke('open_light_ai_window').catch(() => {});
                 }
-            }
-            return;
-        }
-
-        if (lightAiActionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY) {
-            hide();
-            await delay(80);
-
-            try {
-                const resultText = await resolveLightAiQuickResult(text, selectedStyle);
-                if (resultText) {
-                    await invoke('paste_result', { text: resultText });
-                }
-            } catch (error) {
-                console.error('Quick AI polish failed:', error);
-                invoke('open_light_ai_window').catch(() => {});
             }
             return;
         }

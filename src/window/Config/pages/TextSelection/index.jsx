@@ -29,6 +29,7 @@ import {
     DEFAULT_SMART_TOOLBAR_CONFIG,
     getToolbarButtonMatchLabel,
     getToolbarButtonLabel,
+    normalizeToolbarButtonActionBehavior,
     SMART_TOOLBAR_BUTTONS,
     SMART_TOOLBAR_CONFIG_KEY,
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
@@ -152,20 +153,6 @@ function getButtonActionOptions(button, t, isChineseUI) {
             ),
         },
         {
-            key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.APPLY,
-            label: t('config.text_selection.lightai_action_apply', {
-                defaultValue: getLocalizedDefaultValue(isChineseUI, '直接应用结果', 'Direct Apply'),
-            }),
-            description: getLocalizedDefaultValue(
-                isChineseUI,
-                '点击后直接生成结果并回填到原文，不再先弹出窗口。',
-                'Generate the result and write it back immediately without opening a window first.'
-            ),
-        },
-    ];
-
-    if (button?.actionBehaviorKey) {
-        options.push({
             key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY,
             label: t('config.text_selection.lightai_action_stream_apply', {
                 defaultValue: getLocalizedDefaultValue(isChineseUI, '流式输入结果', 'Stream Input Result'),
@@ -175,21 +162,22 @@ function getButtonActionOptions(button, t, isChineseUI) {
                 '在原光标位置边生成边输入，像实时打字一样替换选中文本。',
                 'Stream the generated text into the current cursor position, replacing the selection as it arrives.'
             ),
-        });
-    }
+        },
+    ];
 
     return options;
 }
 
 function getButtonActionSummary(button, actionBehavior, t, isChineseUI) {
     const options = getButtonActionOptions(button, t, isChineseUI);
-    return options.find((option) => option.key === actionBehavior)?.description ?? options[0].description;
+    const normalizedBehavior = normalizeToolbarButtonActionBehavior(actionBehavior);
+    return options.find((option) => option.key === normalizedBehavior)?.description ?? options[0].description;
 }
 
 function ToolbarButtonActionModal(props) {
     const { button, label, actionBehavior, setActionBehavior, t, isChineseUI } = props;
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [draftBehavior, setDraftBehavior] = useState(actionBehavior ?? TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW);
+    const [draftBehavior, setDraftBehavior] = useState(normalizeToolbarButtonActionBehavior(actionBehavior));
     const Icon = button.Icon;
     const options = useMemo(() => getButtonActionOptions(button, t, isChineseUI), [button, t, isChineseUI]);
 
@@ -198,7 +186,7 @@ function ToolbarButtonActionModal(props) {
             return;
         }
 
-        setDraftBehavior(actionBehavior ?? TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW);
+        setDraftBehavior(normalizeToolbarButtonActionBehavior(actionBehavior));
     }, [actionBehavior, isOpen]);
 
     return (

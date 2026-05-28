@@ -13,9 +13,20 @@ import {
 
 export const TOOLBAR_BUTTON_ACTION_BEHAVIORS = {
     WINDOW: 'window',
-    APPLY: 'apply',
     STREAM_APPLY: 'stream_apply',
 };
+
+export function normalizeToolbarButtonActionBehavior(actionBehavior) {
+    if (actionBehavior === 'apply') {
+        return TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY;
+    }
+
+    if (actionBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
+        return TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY;
+    }
+
+    return TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW;
+}
 
 export const SMART_TOOLBAR_CONFIG_KEY = 'smart_toolbar_button_options';
 
