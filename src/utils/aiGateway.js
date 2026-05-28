@@ -50,3 +50,66 @@ export function buildAiGatewayHeaders(apiKey, headers = {}) {
         ...headers,
     };
 }
+
+function getFetch() {
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+        return window.fetch.bind(window);
+    }
+
+    return fetch;
+}
+
+function isSameAiGatewayConfig(first = {}, second = {}) {
+    return (
+        String(first.apiUrl || '') === String(second.apiUrl || '') &&
+        String(first.apiKey || '') === String(second.apiKey || '') &&
+        String(first.model || '') === String(second.model || '') &&
+        Number(first.temperature ?? 0.7) === Number(second.temperature ?? 0.7)
+    );
+}
+
+async function closeResponseBody(response) {
+    try {
+        await response?.body?.cancel?.();
+    } catch {}
+}
+
+export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retryOptions = {}) {
+    const resolvedConfig = await requireAiGatewayConfig(apiConfig);
+    const doFetch = getFetch();
+
+    const createRequestOptions = (config) => {
+        const options =
+            typeof optionsOrFactory === 'function'
+                ? optionsOrFactory(config)
+                : optionsOrFactory;
+        const { headers = {}, ...fetchOptions } = options ?? {};
+
+        return {
+            ...fetchOptions,
+            headers: buildAiGatewayHeaders(config.apiKey, headers),
+        };
+    };
+
+    const request = (config) => doFetch(config.apiUrl, createRequestOptions(config));
+    let currentConfig = resolvedConfig;
+    let response = await request(currentConfig);
+
+    if (response.status !== 401) {
+        return { response, config: currentConfig };
+    }
+
+    if (typeof retryOptions.refreshConfig === 'function') {
+        const nextConfigInput = await retryOptions.refreshConfig().catch(() => null);
+        if (nextConfigInput) {
+            const nextConfig = await requireAiGatewayConfig(nextConfigInput);
+            if (!isSameAiGatewayConfig(currentConfig, nextConfig)) {
+                await closeResponseBody(response);
+                currentConfig = nextConfig;
+                response = await request(currentConfig);
+            }
+        }
+    }
+
+    return { response, config: currentConfig };
+}

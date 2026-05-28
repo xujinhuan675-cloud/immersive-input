@@ -376,24 +376,25 @@ const surfaceStyle = {
 
 function useApiConfig() {
     const [config, setConfig] = useState(undefined);
+    const mountedRef = useRef(false);
 
-    useEffect(() => {
-        let mounted = true;
-
-        async function loadConfig() {
-            const nextConfig = await getActiveAiApiConfig();
-            if (mounted) {
-                setConfig(nextConfig);
-            }
+    const refreshConfig = useCallback(async () => {
+        const nextConfig = await getActiveAiApiConfig();
+        if (mountedRef.current) {
+            setConfig(nextConfig);
         }
-
-        void loadConfig();
-        return () => {
-            mounted = false;
-        };
+        return nextConfig;
     }, []);
 
-    return config;
+    useEffect(() => {
+        mountedRef.current = true;
+        void refreshConfig();
+        return () => {
+            mountedRef.current = false;
+        };
+    }, [refreshConfig]);
+
+    return [config, refreshConfig];
 }
 
 function getLanguageLabelZh(key) {
@@ -403,7 +404,7 @@ function getLanguageLabelZh(key) {
 
 export default function LightAI() {
     useStopVoiceOnUnmount();
-    const apiConfig = useApiConfig();
+    const [apiConfig, refreshApiConfig] = useApiConfig();
     const toastStyle = useToastStyle();
     const readAloud = useReadAloud();
     const [pined, togglePin] = useWindowPin();
@@ -553,7 +554,9 @@ export default function LightAI() {
                 return;
             }
 
-            if (!apiConfig) {
+            const requestApiConfig = apiConfig || (await refreshApiConfig());
+
+            if (!requestApiConfig) {
                 setError('请先在配置里填写可用的 AI 接口。');
                 return;
             }
@@ -582,13 +585,14 @@ export default function LightAI() {
                     currentLanguageLabel,
                     targetLanguageLabel,
                     overridePrompt,
-                    apiConfig,
+                    requestApiConfig,
                     (chunk) => {
                         setTranslateResult((prev) => `${prev}${chunk}`);
                     },
                     onComplete,
                     onError,
-                    controller.signal
+                    controller.signal,
+                    { refreshConfig: refreshApiConfig }
                 );
                 return;
             }
@@ -598,13 +602,14 @@ export default function LightAI() {
                 sourceText,
                 resolvedSelectedStyle,
                 overridePrompt,
-                apiConfig,
+                requestApiConfig,
                 (chunk) => {
                     setStyleResult((prev) => `${prev}${chunk}`);
                 },
                 onComplete,
                 onError,
-                controller.signal
+                controller.signal,
+                { refreshConfig: refreshApiConfig }
             );
         },
         [
@@ -613,6 +618,7 @@ export default function LightAI() {
             clearResults,
             currentLanguageLabel,
             extraPrompt,
+            refreshApiConfig,
             resolvedSelectedStyle,
             sourceText,
             stop,

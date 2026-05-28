@@ -1,5 +1,5 @@
 import { store } from '../../../utils/store';
-import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../utils/aiGateway';
+import { fetchAiGateway } from '../../../utils/aiGateway';
 
 export const DEFAULT_STYLE_PROMPTS = {
     strict: {
@@ -63,20 +63,30 @@ async function getExtraPromptRules() {
     return [];
 }
 
-export async function streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal) {
+export async function streamOpenAiMessages(
+    messages,
+    apiConfig,
+    onChunk,
+    onComplete,
+    onError,
+    signal,
+    retryOptions
+) {
     try {
-        const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig ?? {});
-        const res = await window.fetch(apiUrl, {
-            method: 'POST',
-            headers: buildAiGatewayHeaders(apiKey),
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: Number(temperature),
-                stream: true,
+        const { response: res } = await fetchAiGateway(
+            apiConfig ?? {},
+            (resolvedConfig) => ({
+                method: 'POST',
+                body: JSON.stringify({
+                    model: resolvedConfig.model,
+                    messages,
+                    temperature: Number(resolvedConfig.temperature ?? 0.7),
+                    stream: true,
+                }),
+                signal,
             }),
-            signal,
-        });
+            retryOptions
+        );
 
         if (!res.ok) {
             onError(`HTTP ${res.status}: ${await res.text()}`);
@@ -128,7 +138,17 @@ export async function streamOpenAiMessages(messages, apiConfig, onChunk, onCompl
     }
 }
 
-export async function lightAiStream(text, styleKey, extraPrompt, apiConfig, onChunk, onComplete, onError, signal) {
+export async function lightAiStream(
+    text,
+    styleKey,
+    extraPrompt,
+    apiConfig,
+    onChunk,
+    onComplete,
+    onError,
+    signal,
+    retryOptions
+) {
     const systemPrompt = await getSystemPrompt(styleKey);
     const preference = await getUserPreference();
     const extraPromptRules = await getExtraPromptRules();
@@ -151,7 +171,7 @@ export async function lightAiStream(text, styleKey, extraPrompt, apiConfig, onCh
         },
     ];
 
-    return streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal);
+    return streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions);
 }
 
 export async function translateTextStream(
@@ -163,7 +183,8 @@ export async function translateTextStream(
     onChunk,
     onComplete,
     onError,
-    signal
+    signal,
+    retryOptions
 ) {
     const instruction = [
         `Translate the user's text from ${sourceLanguageLabel || 'Auto'} to ${targetLanguageLabel}.`,
@@ -185,5 +206,5 @@ export async function translateTextStream(
         },
     ];
 
-    return streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal);
+    return streamOpenAiMessages(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions);
 }
