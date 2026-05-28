@@ -439,6 +439,7 @@
             "ai": {
                 "label": "AI Features",
                 "title": "AI Features",
+                "capabilities_tab": "AI Capabilities",
                 "api_tip": "API settings moved to Service → AI Services tab",
                 "pref_title": "Personal Writing Preferences",
                 "pref_desc": "This text will be appended to the System Prompt for each AI Polish session to better match your writing style.",
@@ -484,11 +485,12 @@
                 "behavior_direct": "Direct Translate",
                 "behavior_direct_explain": "Direct Explain",
                 "behavior_disabled": "Disabled",
-                "buttons_title": "Toolbar Buttons",
+                "buttons_title": "Fixed Buttons",
                 "btn_translate": "Translate",
                 "btn_explain": "Explain",
                 "btn_format": "Format",
-                "btn_lightai": "AI Polish"
+                "btn_lightai": "AI Polish",
+                "smart_title": "Smart Buttons"
             },
             "about": {
                 "label": "About",

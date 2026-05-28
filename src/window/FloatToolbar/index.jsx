@@ -24,7 +24,7 @@ import {
     isAiTranslateServiceKey,
     translateWithAiBinding,
 } from '../../utils/aiTranslate';
-import { formatText } from '../../utils/formatter';
+import { FORMATTER_CONFIG_KEY, formatText } from '../../utils/formatter';
 import { invoke_plugin } from '../../utils/invoke_plugin';
 import detect from '../../utils/lang_detect';
 import { getServiceName, whetherPluginService } from '../../utils/service_instance';
@@ -36,8 +36,10 @@ import {
 } from '../../utils/streamInput';
 import {
     BASE_TOOLBAR_BUTTONS,
+    DEFAULT_SMART_TOOLBAR_CONFIG,
     getToolbarButtonLabel,
     SMART_TOOLBAR_BUTTON_MAP,
+    SMART_TOOLBAR_CONFIG_KEY,
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
 } from '../../utils/textSelectionToolbar';
 import { calculateExpr, detectType } from '../../utils/textAnalyzer';
@@ -692,12 +694,12 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    format: async (text, { hide }) => {
+    format: async (text, { hide, formatterConfig }) => {
         hide();
         await delay(80);
 
         try {
-            const formatted = formatText(text);
+            const formatted = formatText(text, formatterConfig);
             if (formatted) {
                 await invoke('paste_result', { text: formatted });
             }
@@ -782,6 +784,8 @@ export default function FloatToolbar() {
         'toolbar_btn_lightai_behavior',
         TOOLBAR_BUTTON_ACTION_BEHAVIORS.WINDOW
     );
+    const [formatterConfig] = useConfig(FORMATTER_CONFIG_KEY, undefined);
+    const [smartToolbarConfig] = useConfig(SMART_TOOLBAR_CONFIG_KEY, DEFAULT_SMART_TOOLBAR_CONFIG);
     const [selectedStyle] = useConfig('light_ai_selected_style', STYLE_KEYS[0]);
 
     const [autoHideMs, setAutoHideMs] = useState(DEFAULT_HIDE_MS);
@@ -814,7 +818,7 @@ export default function FloatToolbar() {
 
             const detectedType = detectType(text);
             const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
-            setSmartBtns(smartButton ? [smartButton] : []);
+            setSmartBtns(smartButton && smartToolbarConfig?.[smartButton.id] !== false ? [smartButton] : []);
         } catch {
             selectedText.current = '';
             setCalcResult(null);
@@ -822,7 +826,7 @@ export default function FloatToolbar() {
             setPendingSelection(true);
             setSmartBtns([]);
         }
-    }, []);
+    }, [smartToolbarConfig]);
 
     const ensureSelectionText = useCallback(async () => {
         try {
@@ -832,13 +836,13 @@ export default function FloatToolbar() {
 
             const detectedType = detectType(text);
             const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
-            setSmartBtns(smartButton ? [smartButton] : []);
+            setSmartBtns(smartButton && smartToolbarConfig?.[smartButton.id] !== false ? [smartButton] : []);
 
             return selectedText.current;
         } catch {
             return selectedText.current || '';
         }
-    }, []);
+    }, [smartToolbarConfig]);
 
     const loadConfig = useCallback(async () => {
         try {
@@ -980,6 +984,7 @@ export default function FloatToolbar() {
                 translateActionBehavior,
                 explainActionBehavior,
                 lightAiActionBehavior,
+                formatterConfig,
                 selectedStyle,
                 t,
             };
@@ -995,6 +1000,7 @@ export default function FloatToolbar() {
             translateActionBehavior,
             explainActionBehavior,
             lightAiActionBehavior,
+            formatterConfig,
             selectedStyle,
         ]
     );

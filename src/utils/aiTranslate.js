@@ -1,5 +1,10 @@
 import { fetch, Body } from '@tauri-apps/api/http';
-import { requireAiGatewayConfig } from './aiGateway';
+import {
+    fetchAiChatCompletions,
+    normalizeAiChatCompletionsUrl,
+    readAiChatCompletionsMessage,
+    readAiChatCompletionsStream,
+} from './aiGateway';
 import { getMergedAiApiConfig } from './aiConfig';
 import {
     getServiceName,
@@ -162,6 +167,17 @@ export function getAiTranslateRuntimeConfig(bindingConfig = {}, aiConfig = {}) {
     };
 }
 
+function trimTranslationResult(value = '') {
+    let target = String(value || '').trim();
+    if (target.startsWith('"')) {
+        target = target.slice(1);
+    }
+    if (target.endsWith('"')) {
+        target = target.slice(0, -1);
+    }
+    return target.trim();
+}
+
 export async function translateWithAiBinding(text, from, to, bindingConfig = {}, aiConfig = {}, options = {}) {
     const { config, setResult, detect } = {
         ...options,
@@ -170,25 +186,12 @@ export async function translateWithAiBinding(text, from, to, bindingConfig = {},
 
     let { service, requestPath, model, apiKey, stream, promptList, requestArguments } = config;
 
-    if (!/https?:\/\/.+/.test(requestPath)) {
+    if (service === 'openai') {
+        requestPath = normalizeAiChatCompletionsUrl(requestPath);
+    } else if (!/https?:\/\/.+/.test(requestPath)) {
         requestPath = `https://${requestPath}`;
     }
     const apiUrl = new URL(requestPath);
-
-    if (service === 'openai' && !apiUrl.pathname.endsWith('/chat/completions')) {
-        apiUrl.pathname += apiUrl.pathname.endsWith('/') ? '' : '/';
-        apiUrl.pathname += 'v1/chat/completions';
-    }
-
-    if (service === 'openai') {
-        const resolvedGatewayConfig = await requireAiGatewayConfig({
-            apiUrl: apiUrl.href,
-            apiKey,
-            model,
-        });
-        apiUrl.href = resolvedGatewayConfig.apiUrl;
-        apiKey = resolvedGatewayConfig.apiKey;
-    }
 
     promptList = (promptList ?? AI_TRANSLATE_DEFAULT_PROMPT_LIST).map((item) => ({
         ...item,
@@ -199,25 +202,46 @@ export async function translateWithAiBinding(text, from, to, bindingConfig = {},
             .replaceAll('$detect', AI_TRANSLATE_LANGUAGE[detect]),
     }));
 
-    const headers =
-        service === 'openai'
-            ? {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${apiKey}`,
-              }
-            : {
-                  'Content-Type': 'application/json',
-                  'api-key': apiKey,
-              };
+    if (service === 'openai') {
+        const { response: res } = await fetchAiChatCompletions(
+            promptList,
+            { apiUrl: apiUrl.href, apiKey, model },
+            { stream, requestArguments }
+        );
+
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '');
+            throw `Http Request Error\nHttp Status: ${res.status}\n${errorText}`;
+        }
+
+        if (stream) {
+            let target = '';
+            target = await readAiChatCompletionsStream(res, (delta) => {
+                target += delta;
+                setResult?.(`${target}_`);
+            });
+            const trimmedTarget = trimTranslationResult(target);
+            setResult?.(trimmedTarget);
+            return trimmedTarget;
+        }
+
+        const result = await res.json().catch(() => null);
+        const target = trimTranslationResult(readAiChatCompletionsMessage(result));
+        if (!target) {
+            throw JSON.stringify(result);
+        }
+        return target;
+    }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+    };
     const body = {
         ...JSON.parse(requestArguments ?? AI_TRANSLATE_DEFAULT_REQUEST_ARGUMENTS),
         stream,
         messages: promptList,
     };
-
-    if (service === 'openai') {
-        body.model = model;
-    }
 
     if (stream) {
         const res = await window.fetch(apiUrl.href, {
@@ -293,17 +317,11 @@ export async function translateWithAiBinding(text, from, to, bindingConfig = {},
         throw JSON.stringify(res.data);
     }
 
-    let target = choices[0]?.message?.content?.trim();
+    const target = trimTranslationResult(choices[0]?.message?.content);
     if (!target) {
         throw JSON.stringify(choices);
     }
-    if (target.startsWith('"')) {
-        target = target.slice(1);
-    }
-    if (target.endsWith('"')) {
-        target = target.slice(0, -1);
-    }
-    return target.trim();
+    return target;
 }
 
 export function getAiTranslateLanguageEnum() {

@@ -1,7 +1,5 @@
 import {
     Button,
-    Card,
-    CardBody,
     DropdownItem,
     Modal,
     ModalBody,
@@ -9,7 +7,6 @@ import {
     ModalFooter,
     ModalHeader,
     Switch,
-    Tooltip,
     useDisclosure,
 } from '@nextui-org/react';
 import { invoke } from '@tauri-apps/api';
@@ -18,21 +15,127 @@ import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { useTranslation } from 'react-i18next';
 import { MdKeyboardArrowDown } from 'react-icons/md';
 
+import { SettingsRow, SettingsSection } from '../../../../components/SettingsSection';
 import SettingsDropdown from '../../../../components/SettingsDropdown';
 import { useConfig } from '../../../../hooks/useConfig';
 import {
+    DEFAULT_FORMATTER_CONFIG,
+    FORMATTER_CONFIG_KEY,
+    formatText,
+    getMergedFormatterConfig,
+} from '../../../../utils/formatter';
+import {
     BASE_TOOLBAR_BUTTONS,
+    DEFAULT_SMART_TOOLBAR_CONFIG,
     getToolbarButtonMatchLabel,
     getToolbarButtonLabel,
     SMART_TOOLBAR_BUTTONS,
+    SMART_TOOLBAR_CONFIG_KEY,
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
 } from '../../../../utils/textSelectionToolbar';
 import { ConfigServiceIconButton, ConfigServiceListRow } from '../Service/AIConfig/ServiceItem/ServiceRow';
 
 const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai'];
+const FORMATTER_PREVIEW_INPUT = 'Hello   world\n这是 一段  文字 , with odd spacing .\n\nCopied line\nbreaks';
 
 function getLocalizedDefaultValue(isChineseUI, zhText, enText) {
     return isChineseUI ? zhText : enText;
+}
+
+function getFormatterRuleOptions(isChineseUI) {
+    return [
+        {
+            key: 'normalizeWhitespace',
+            title: getLocalizedDefaultValue(isChineseUI, '清理多余空格', 'Clean Extra Spaces'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '统一制表符、全角空格和连续空格，并清理行首行尾空白。',
+                'Normalize tabs, full-width spaces, repeated spaces, and line-edge whitespace.'
+            ),
+        },
+        {
+            key: 'repairLineBreaks',
+            title: getLocalizedDefaultValue(isChineseUI, '修复复制断行', 'Repair Wrapped Lines'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '合并从 PDF、网页或邮件中复制出来的意外换行，保留空行和列表结构。',
+                'Merge accidental line wraps copied from PDFs, web pages, or email while preserving lists and blank lines.'
+            ),
+        },
+        {
+            key: 'cjkSpacing',
+            title: getLocalizedDefaultValue(isChineseUI, '中英文间距', 'CJK Spacing'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '在中文与英文、数字、括号之间补上自然间距。',
+                'Add natural spacing between Chinese text and Latin letters, numbers, or brackets.'
+            ),
+        },
+        {
+            key: 'capitalizeAtCjkBoundary',
+            title: getLocalizedDefaultValue(isChineseUI, '边界首字母大写', 'Boundary Capitalization'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '中英文混排时，将相邻英文片段的首个小写字母转为大写。',
+                'Capitalize the first lowercase letter in Latin fragments next to CJK text.'
+            ),
+        },
+        {
+            key: 'normalizePunctuation',
+            title: getLocalizedDefaultValue(isChineseUI, '标点规范化', 'Normalize Punctuation'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '根据前文语境在中文全角标点和英文半角标点之间自动切换。',
+                'Choose Chinese full-width or English half-width punctuation based on nearby text.'
+            ),
+        },
+        {
+            key: 'normalizeAbbreviations',
+            title: getLocalizedDefaultValue(isChineseUI, '常见缩写大写', 'Uppercase Abbreviations'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '自动规范 AI、API、URL、JSON 等常见技术缩写。',
+                'Normalize common technical abbreviations such as AI, API, URL, and JSON.'
+            ),
+        },
+        {
+            key: 'cleanupSpaces',
+            title: getLocalizedDefaultValue(isChineseUI, '清理标点空格', 'Clean Punctuation Spaces'),
+            description: getLocalizedDefaultValue(
+                isChineseUI,
+                '移除标点前多余空格，并补齐英文标点后的必要空格。',
+                'Remove extra spaces before punctuation and add expected spaces after English punctuation.'
+            ),
+        },
+    ];
+}
+
+function getFormatterSummary(formatterConfig, isChineseUI) {
+    const mergedConfig = getMergedFormatterConfig(formatterConfig);
+    const enabledRules = getFormatterRuleOptions(isChineseUI).filter((option) => mergedConfig[option.key]);
+
+    if (enabledRules.length === 0) {
+        return getLocalizedDefaultValue(
+            isChineseUI,
+            '点击后按原文回填；可进入编辑选择格式化规则。',
+            'Apply the original text; open settings to choose formatting rules.'
+        );
+    }
+
+    const ruleNames = enabledRules
+        .slice(0, 3)
+        .map((option) => option.title)
+        .join(getLocalizedDefaultValue(isChineseUI, '、', ', '));
+    const suffix =
+        enabledRules.length > 3
+            ? getLocalizedDefaultValue(isChineseUI, `等 ${enabledRules.length} 项`, ` and ${enabledRules.length - 3} more`)
+            : '';
+
+    return getLocalizedDefaultValue(
+        isChineseUI,
+        `点击后直接整理选中文本并回填：${ruleNames}${suffix}。`,
+        `Format and apply selected text: ${ruleNames}${suffix}.`
+    );
 }
 
 function getButtonActionOptions(button, t, isChineseUI) {
@@ -220,6 +323,7 @@ function ConfigurableToolbarButtonRow(props) {
     return (
         <ConfigServiceListRow
             dragHandleProps={dragHandleProps}
+            variant='list'
             icon={<Icon size={18} />}
             title={label}
             description={getButtonActionSummary(button, actionBehavior, t, isChineseUI)}
@@ -244,27 +348,221 @@ function ConfigurableToolbarButtonRow(props) {
     );
 }
 
-function BasicToolbarButtonRow(props) {
-    const { button, label, dragHandleProps, isChineseUI } = props;
+function FormatButtonConfigModal(props) {
+    const { button, label, formatterConfig, setFormatterConfig, t, isChineseUI } = props;
+    const { isOpen, onOpen, onOpenChange } = useDisclosure();
+    const [draftConfig, setDraftConfig] = useState(getMergedFormatterConfig(formatterConfig));
+    const Icon = button.Icon;
+    const ruleOptions = useMemo(() => getFormatterRuleOptions(isChineseUI), [isChineseUI]);
+    const previewOutput = useMemo(() => formatText(FORMATTER_PREVIEW_INPUT, draftConfig), [draftConfig]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        setDraftConfig(getMergedFormatterConfig(formatterConfig));
+    }, [formatterConfig, isOpen]);
+
+    return (
+        <>
+            <ConfigServiceIconButton
+                className='h-8 w-8 min-w-8 rounded-md'
+                onPress={onOpen}
+            >
+                <MdKeyboardArrowDown className='rotate-[-90deg] text-[20px]' />
+            </ConfigServiceIconButton>
+
+            <Modal
+                isOpen={isOpen}
+                onOpenChange={onOpenChange}
+                scrollBehavior='inside'
+            >
+                <ModalContent className='max-h-[82vh]'>
+                    {(onClose) => (
+                        <>
+                            <ModalHeader>
+                                <div className='flex items-center gap-3'>
+                                    <div className='flex h-[28px] w-[28px] items-center justify-center rounded-[10px] bg-primary-100 text-primary'>
+                                        <Icon size={16} />
+                                    </div>
+                                    <div className='flex flex-col'>
+                                        <span className='text-sm font-semibold text-foreground'>{label}</span>
+                                        <span className='text-xs font-normal text-default-400'>
+                                            {getLocalizedDefaultValue(
+                                                isChineseUI,
+                                                '选择格式化时启用的文本整理规则',
+                                                'Choose the cleanup rules used by Format'
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            </ModalHeader>
+
+                            <ModalBody>
+                                <div className='space-y-3 pb-2'>
+                                    {ruleOptions.map((option) => (
+                                        <div
+                                            key={option.key}
+                                            className='rounded-lg border border-default-200 bg-default-50/50 px-4 py-3'
+                                        >
+                                            <Switch
+                                                size='sm'
+                                                isSelected={Boolean(draftConfig[option.key])}
+                                                onValueChange={(value) => {
+                                                    setDraftConfig((currentConfig) => ({
+                                                        ...getMergedFormatterConfig(currentConfig),
+                                                        [option.key]: value,
+                                                    }));
+                                                }}
+                                                classNames={{
+                                                    base: 'flex w-full max-w-full flex-row-reverse justify-between gap-4',
+                                                    label: 'min-w-0',
+                                                }}
+                                            >
+                                                <div className='min-w-0'>
+                                                    <div className='text-sm font-semibold text-foreground'>
+                                                        {option.title}
+                                                    </div>
+                                                    <div className='mt-1 text-xs leading-5 text-default-500'>
+                                                        {option.description}
+                                                    </div>
+                                                </div>
+                                            </Switch>
+                                        </div>
+                                    ))}
+
+                                    <div className='rounded-lg border border-default-200 bg-content1 p-3'>
+                                        <div className='mb-2 text-xs font-semibold text-default-500'>
+                                            {getLocalizedDefaultValue(isChineseUI, '预览', 'Preview')}
+                                        </div>
+                                        <div className='grid gap-3 sm:grid-cols-2'>
+                                            <div>
+                                                <div className='mb-1 text-[11px] font-medium text-default-400'>
+                                                    {getLocalizedDefaultValue(isChineseUI, '原文', 'Input')}
+                                                </div>
+                                                <pre className='max-h-[132px] overflow-auto whitespace-pre-wrap rounded-md bg-default-50 p-2 text-[11px] leading-5 text-default-600'>
+                                                    {FORMATTER_PREVIEW_INPUT}
+                                                </pre>
+                                            </div>
+                                            <div>
+                                                <div className='mb-1 text-[11px] font-medium text-default-400'>
+                                                    {getLocalizedDefaultValue(isChineseUI, '结果', 'Result')}
+                                                </div>
+                                                <pre className='max-h-[132px] overflow-auto whitespace-pre-wrap rounded-md bg-default-50 p-2 text-[11px] leading-5 text-default-600'>
+                                                    {previewOutput}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </ModalBody>
+
+                            <ModalFooter>
+                                <Button
+                                    variant='light'
+                                    onPress={() => {
+                                        setDraftConfig({ ...DEFAULT_FORMATTER_CONFIG });
+                                    }}
+                                >
+                                    {getLocalizedDefaultValue(isChineseUI, '恢复默认', 'Restore Defaults')}
+                                </Button>
+                                <Button
+                                    variant='light'
+                                    onPress={onClose}
+                                >
+                                    {t('common.cancel', {
+                                        defaultValue: getLocalizedDefaultValue(isChineseUI, '取消', 'Cancel'),
+                                    })}
+                                </Button>
+                                <Button
+                                    color='primary'
+                                    onPress={() => {
+                                        setFormatterConfig(getMergedFormatterConfig(draftConfig));
+                                        onClose();
+                                    }}
+                                >
+                                    {t('common.save', {
+                                        defaultValue: getLocalizedDefaultValue(isChineseUI, '保存', 'Save'),
+                                    })}
+                                </Button>
+                            </ModalFooter>
+                        </>
+                    )}
+                </ModalContent>
+            </Modal>
+        </>
+    );
+}
+
+function FormatToolbarButtonRow(props) {
+    const { button, label, dragHandleProps, t, isChineseUI } = props;
     const [enabled, setEnabled] = useConfig(button.cfgKey, true);
+    const [formatterConfig, setFormatterConfig] = useConfig(FORMATTER_CONFIG_KEY, DEFAULT_FORMATTER_CONFIG);
     const Icon = button.Icon;
 
     return (
         <ConfigServiceListRow
             dragHandleProps={dragHandleProps}
+            variant='list'
             icon={<Icon size={18} />}
             title={label}
-            description={getLocalizedDefaultValue(
-                isChineseUI,
-                '点击后直接整理选中文本并回填。',
-                'Format the selected text and apply it immediately.'
-            )}
+            description={getFormatterSummary(formatterConfig, isChineseUI)}
             actions={
-                <Switch
-                    size='sm'
-                    isSelected={enabled ?? true}
-                    onValueChange={setEnabled}
-                />
+                <>
+                    <Switch
+                        size='sm'
+                        isSelected={enabled ?? true}
+                        onValueChange={setEnabled}
+                    />
+                    <FormatButtonConfigModal
+                        button={button}
+                        label={label}
+                        formatterConfig={formatterConfig}
+                        setFormatterConfig={setFormatterConfig}
+                        t={t}
+                        isChineseUI={isChineseUI}
+                    />
+                </>
+            }
+        />
+    );
+}
+
+function SmartCapabilityRow(props) {
+    const { button, smartConfig, setSmartConfig, isChineseUI } = props;
+    const Icon = button.Icon;
+    const enabled = smartConfig?.[button.id] !== false;
+    const description = button.example
+        ? getLocalizedDefaultValue(
+              isChineseUI,
+              `${button.matchLabel}，例如 ${button.example}`,
+              `${button.matchLabel}, e.g. ${button.example}`
+          )
+        : button.matchLabel;
+
+    return (
+        <ConfigServiceListRow
+            variant='list'
+            showDragHandle={false}
+            icon={<Icon size={18} />}
+            title={button.label}
+            description={description}
+            actions={
+                <>
+                    <Switch
+                        size='sm'
+                        isSelected={enabled}
+                        onValueChange={(value) => {
+                            setSmartConfig({
+                                ...DEFAULT_SMART_TOOLBAR_CONFIG,
+                                ...(smartConfig ?? {}),
+                                [button.id]: value,
+                            });
+                        }}
+                    />
+                    <div className='h-8 w-8 min-w-8 shrink-0' aria-hidden='true' />
+                </>
             }
         />
     );
@@ -273,17 +571,22 @@ function BasicToolbarButtonRow(props) {
 function ToolbarButtonItem(props) {
     const { button } = props;
 
+    if (button.id === 'format') {
+        return <FormatToolbarButtonRow {...props} />;
+    }
+
     if (button.actionBehaviorKey) {
         return <ConfigurableToolbarButtonRow {...props} />;
     }
 
-    return <BasicToolbarButtonRow {...props} />;
+    return null;
 }
 
 export default function TextSelection() {
     const { t, i18n } = useTranslation();
     const [behavior, setBehavior] = useConfig('text_select_behavior', 'toolbar');
     const [btnOrder, setBtnOrder] = useConfig('toolbar_btn_order', DEFAULT_BTN_ORDER);
+    const [smartConfig, setSmartConfig] = useConfig(SMART_TOOLBAR_CONFIG_KEY, DEFAULT_SMART_TOOLBAR_CONFIG);
     const isChineseUI = String(i18n?.resolvedLanguage || i18n?.language || '')
         .toLowerCase()
         .startsWith('zh');
@@ -328,14 +631,12 @@ export default function TextSelection() {
     };
 
     return (
-        <div className='w-full p-[10px]'>
-            <Card className='mb-[10px]'>
-                <CardBody>
-                    <div className='flex items-center justify-between gap-4'>
-                        <h3 className='text-sm font-medium text-foreground'>
-                            {t('config.text_selection.behavior_label')}
-                        </h3>
-                        {behavior !== null && (
+        <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
+            <SettingsSection>
+                <SettingsRow
+                    title={t('config.text_selection.behavior_label')}
+                    action={
+                        behavior !== null ? (
                             <SettingsDropdown
                                 label={t(`config.text_selection.${behaviorLabelKey}`)}
                                 ariaLabel='text selection behavior'
@@ -356,14 +657,13 @@ export default function TextSelection() {
                                     {t('config.text_selection.behavior_disabled')}
                                 </DropdownItem>
                             </SettingsDropdown>
-                        )}
-                    </div>
-                </CardBody>
-            </Card>
+                        ) : null
+                    }
+                />
+            </SettingsSection>
 
-            <Card className='mb-[10px] border border-default-200/70 bg-content1/90 shadow-none'>
-                <CardBody className='p-4'>
-                    <h3 className='mb-4 text-[16px] font-bold'>{t('config.text_selection.buttons_title')}</h3>
+            <SettingsSection title={t('config.text_selection.buttons_title')}>
+                <div>
                     <DragDropContext onDragEnd={onDragEnd}>
                         <Droppable
                             droppableId='toolbar-buttons'
@@ -371,7 +671,6 @@ export default function TextSelection() {
                         >
                             {(provided) => (
                                 <div
-                                    className='space-y-3'
                                     ref={provided.innerRef}
                                     {...provided.droppableProps}
                                 >
@@ -402,56 +701,24 @@ export default function TextSelection() {
                             )}
                         </Droppable>
                     </DragDropContext>
-                </CardBody>
-            </Card>
+                </div>
+            </SettingsSection>
 
-            <Card>
-                <CardBody className='gap-3'>
-                    <div className='flex items-center justify-between gap-4'>
-                        <h3 className='text-[16px] font-bold'>
-                            {t('config.text_selection.smart_title', {
-                                defaultValue: '智能识别能力',
-                            })}
-                        </h3>
-                        <p className='text-xs text-default-400'>
-                            {t('config.text_selection.smart_description', {
-                                defaultValue: '悬浮可查看触发条件',
-                            })}
-                        </p>
-                    </div>
-                    <div className='flex flex-wrap gap-2'>
-                        {smartButtons.map((button) => {
-                            const Icon = button.Icon;
-
-                            return (
-                                <Tooltip
-                                    key={button.id}
-                                    delay={200}
-                                    placement='top'
-                                    content={
-                                        <div className='max-w-[220px] px-1 py-0.5'>
-                                            <div className='text-sm font-semibold text-foreground'>{button.label}</div>
-                                            <div className='mt-1 text-xs leading-5 text-default-500'>
-                                                {button.matchLabel}
-                                            </div>
-                                            <div className='mt-2 rounded-md bg-default-100 px-2 py-1 font-mono text-[11px] text-default-600'>
-                                                {button.example}
-                                            </div>
-                                        </div>
-                                    }
-                                >
-                                    <div className='inline-flex items-center gap-2 rounded-full border border-divider/70 bg-content1 px-3 py-2 text-sm text-default-600 transition-colors hover:bg-content2/70 hover:text-foreground'>
-                                        <div className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-default-100 text-primary'>
-                                            <Icon size={14} />
-                                        </div>
-                                        <span className='whitespace-nowrap'>{button.label}</span>
-                                    </div>
-                                </Tooltip>
-                            );
-                        })}
-                    </div>
-                </CardBody>
-            </Card>
+            <SettingsSection
+                title={t('config.text_selection.smart_title', {
+                    defaultValue: '智能识别能力',
+                })}
+            >
+                {smartButtons.map((button) => (
+                    <SmartCapabilityRow
+                        key={button.id}
+                        button={button}
+                        smartConfig={smartConfig}
+                        setSmartConfig={setSmartConfig}
+                        isChineseUI={isChineseUI}
+                    />
+                ))}
+            </SettingsSection>
         </div>
     );
 }

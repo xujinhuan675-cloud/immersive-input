@@ -25,7 +25,7 @@ import {
 import { useConfig, useReadAloud, useStopVoiceOnUnmount, useToastStyle } from '../../hooks';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
-import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../utils/aiGateway';
+import { streamAiChatCompletions } from '../../utils/aiGateway';
 import { saveHistory } from '../../utils/aiHistory';
 
 const DEFAULT_TEXTAREA_HEIGHT = 40;
@@ -33,64 +33,16 @@ const MAX_TEXTAREA_HEIGHT = 40;
 const SYSTEM_PROMPT =
     '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u91CA\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
 
-async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
-    try {
-        const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig);
-        const response = await window.fetch(apiUrl, {
-            method: 'POST',
-            headers: buildAiGatewayHeaders(apiKey),
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: Number(temperature),
-                stream: true,
-            }),
-            signal,
-        });
-
-        if (!response.ok) {
-            onError(`[\u9519\u8BEF] HTTP ${response.status}: ${await response.text()}`);
-            return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let full = '';
-        let buffer = '';
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const text = line.trim();
-                    if (!text || !text.startsWith('data:')) continue;
-
-                    const payload = text.slice(5).trim();
-                    if (payload === '[DONE]') continue;
-
-                    try {
-                        const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content;
-                        if (delta) {
-                            full += delta;
-                            onChunk(delta);
-                        }
-                    } catch {}
-                }
-            }
-        } finally {
-            reader.releaseLock();
-        }
-
-        onComplete(full);
-    } catch (error) {
-        onError(error.name === 'AbortError' ? null : `[\u9519\u8BEF] ${error.message}`);
-    }
+async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions) {
+    return streamAiChatCompletions(
+        messages,
+        apiConfig,
+        onChunk,
+        onComplete,
+        (error) => onError(error ? `[\u9519\u8BEF] ${error}` : null),
+        signal,
+        retryOptions
+    );
 }
 
 function getMessageSpeechText(content = '') {
@@ -403,6 +355,12 @@ export default function Chat() {
         };
     }, []);
 
+    const refreshApiConfig = useCallback(async () => {
+        const nextConfig = await getActiveAiApiConfig();
+        setApiConfig(nextConfig);
+        return nextConfig;
+    }, []);
+
     useEffect(() => {
         if (excerptExplainDefault === null || hasHydratedExcerptMode.current) {
             return;
@@ -563,10 +521,11 @@ export default function Chat() {
                     abortRef.current = null;
                     setLoading(false);
                 },
-                controller.signal
+                controller.signal,
+                { refreshConfig: refreshApiConfig }
             );
         },
-        [apiConfig, loading]
+        [apiConfig, loading, refreshApiConfig]
     );
 
     const send = useCallback(async () => {

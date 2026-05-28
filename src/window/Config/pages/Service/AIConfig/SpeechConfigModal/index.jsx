@@ -31,6 +31,7 @@ export default function SpeechConfigModal(props) {
                                 showTitle={false}
                                 showGeneralSection={providerId === null}
                                 initialProvider={providerId}
+                                onCancel={onClose}
                                 onSaved={() => onClose()}
                             />
                         </ModalBody>

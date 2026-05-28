@@ -438,6 +438,7 @@
             "ai": {
                 "label": "AI",
                 "title": "AI",
+                "capabilities_tab": "AI 能力",
                 "api_tip": "API 配置已移至『服务 → AI 服务』标签页",
                 "pref_title": "个人写作偏好",
                 "pref_desc": "这段文字会附加到每次文本助手的 System Prompt，让 AI 更贴合你的表达风格。",
@@ -483,11 +484,12 @@
                 "behavior_direct": "直接翻译",
                 "behavior_direct_explain": "直接解释",
                 "behavior_disabled": "禁用",
-                "buttons_title": "工具栏按钮",
+                "buttons_title": "固定按钮",
                 "btn_translate": "翻译",
                 "btn_explain": "解释",
                 "btn_format": "格式化",
-                "btn_lightai": "文本助手"
+                "btn_lightai": "文本助手",
+                "smart_title": "智能按钮"
             },
             "about": {
                 "label": "关于",

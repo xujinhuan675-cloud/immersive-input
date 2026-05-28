@@ -1,5 +1,5 @@
 import { store } from '../../../utils/store';
-import { fetchAiGateway } from '../../../utils/aiGateway';
+import { streamAiChatCompletions } from '../../../utils/aiGateway';
 
 export const DEFAULT_STYLE_PROMPTS = {
     strict: {
@@ -72,70 +72,15 @@ export async function streamOpenAiMessages(
     signal,
     retryOptions
 ) {
-    try {
-        const { response: res } = await fetchAiGateway(
-            apiConfig ?? {},
-            (resolvedConfig) => ({
-                method: 'POST',
-                body: JSON.stringify({
-                    model: resolvedConfig.model,
-                    messages,
-                    temperature: Number(resolvedConfig.temperature ?? 0.7),
-                    stream: true,
-                }),
-                signal,
-            }),
-            retryOptions
-        );
-
-        if (!res.ok) {
-            onError(`HTTP ${res.status}: ${await res.text()}`);
-            return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-        let buffer = '';
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith('data:')) continue;
-
-                    const payload = trimmed.slice(5).trim();
-                    if (!payload || payload === '[DONE]') continue;
-
-                    try {
-                        const json = JSON.parse(payload);
-                        const delta = json?.choices?.[0]?.delta?.content;
-                        if (delta) {
-                            fullText += delta;
-                            onChunk(delta);
-                        }
-                    } catch {}
-                }
-            }
-        } finally {
-            reader.releaseLock();
-        }
-
-        onComplete(fullText);
-    } catch (error) {
-        if (error?.name === 'AbortError') {
-            onError(null);
-        } else {
-            onError(error?.message ?? String(error));
-        }
-    }
+    return streamAiChatCompletions(
+        messages,
+        apiConfig,
+        onChunk,
+        onComplete,
+        onError,
+        signal,
+        retryOptions
+    );
 }
 
 export async function lightAiStream(

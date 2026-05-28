@@ -28,7 +28,7 @@ export default function SortableConfigRow(props) {
     return (
         <div
             className={`overflow-hidden bg-content1 ${
-                isListVariant ? 'border-b border-default-100' : 'rounded-xl border border-divider/70'
+                isListVariant ? 'border-b border-default-100 last:border-b-0' : 'rounded-xl border border-divider/70'
             }`}
         >
             <div

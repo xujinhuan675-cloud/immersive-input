@@ -4,33 +4,11 @@ import { Toaster } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { MdDeleteOutline, MdKeyboardArrowDown } from 'react-icons/md';
 
+import { SettingsRow, SettingsSection } from '../../../../components/SettingsSection';
 import { useConfig } from '../../../../hooks/useConfig';
 import { DEFAULT_STYLE_PROMPTS } from '../../../../services/light_ai/openai';
 import AIConfig from '../Service/AIConfig';
 import TextSelection from '../TextSelection';
-
-function SettingPanel({ children }) {
-    return (
-        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>{children}</section>
-    );
-}
-
-function SettingRow({ title, description, action, children }) {
-    return (
-        <div className='min-h-[62px] border-b border-default-100 px-5 py-4 last:border-b-0'>
-            <div className='flex items-start justify-between gap-5'>
-                <div className='min-w-0 flex-1'>
-                    <h3 className='text-[14px] font-medium text-foreground'>{title}</h3>
-                    {description ? (
-                        <p className='mt-1 max-w-[640px] text-xs leading-5 text-default-500'>{description}</p>
-                    ) : null}
-                </div>
-                {action ? <div className='flex shrink-0 items-center justify-end pt-0.5'>{action}</div> : null}
-            </div>
-            {children ? <div className='mt-4'>{children}</div> : null}
-        </div>
-    );
-}
 
 function PromptRuleEditor({ label, value, setValue, placeholder, description, action }) {
     return (
@@ -129,11 +107,13 @@ export default function AIFeatures() {
             >
                 <Tab
                     key='ai_features'
-                    title={t('config.ai.label')}
+                    title={t('config.ai.capabilities_tab', {
+                        defaultValue: isChineseUI ? 'AI 能力' : 'AI Capabilities',
+                    })}
                 >
                     <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
-                        <SettingPanel>
-                            <SettingRow
+                        <SettingsSection>
+                            <SettingsRow
                                 title={inputHandleTitle}
                                 description={inputHandleDescription}
                                 action={
@@ -145,7 +125,7 @@ export default function AIFeatures() {
                                 }
                             />
 
-                            <SettingRow
+                            <SettingsRow
                                 title={t('config.ai.incremental_explain')}
                                 description={t('config.ai.incremental_explain_desc')}
                                 action={
@@ -157,7 +137,7 @@ export default function AIFeatures() {
                                 }
                             />
 
-                            <SettingRow
+                            <SettingsRow
                                 title={outputRulesTitle}
                                 description={outputRulesDescription}
                                 action={
@@ -268,8 +248,8 @@ export default function AIFeatures() {
                                         </div>
                                     </div>
                                 ) : null}
-                            </SettingRow>
-                        </SettingPanel>
+                            </SettingsRow>
+                        </SettingsSection>
                         <AIConfig />
                     </div>
                 </Tab>

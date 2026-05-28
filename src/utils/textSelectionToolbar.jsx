@@ -17,6 +17,16 @@ export const TOOLBAR_BUTTON_ACTION_BEHAVIORS = {
     STREAM_APPLY: 'stream_apply',
 };
 
+export const SMART_TOOLBAR_CONFIG_KEY = 'smart_toolbar_button_options';
+
+export const DEFAULT_SMART_TOOLBAR_CONFIG = {
+    open_url: true,
+    send_email: true,
+    open_path: true,
+    calculate: true,
+    show_color: true,
+};
+
 export const BASE_TOOLBAR_BUTTONS = [
     {
         id: 'translate',

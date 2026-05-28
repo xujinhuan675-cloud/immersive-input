@@ -11,6 +11,7 @@ import WindowHeader, {
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
 import { saveHistory } from '../../utils/aiHistory';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
+import { streamAiChatCompletions } from '../../utils/aiGateway';
 
 const SYSTEM_PROMPT =
     '你是一位知识渊博的助手。请详细解释用户提供的内容，包括：核心含义、背景知识、关键概念、实际用法和延伸拓展。' +
@@ -18,68 +19,43 @@ const SYSTEM_PROMPT =
 
 function useApiConfig() {
     const [config, setConfig] = useState(null);
-    useEffect(() => {
-        let mounted = true;
+    const mountedRef = useRef(false);
 
-        async function load() {
-            const nextConfig = await getActiveAiApiConfig();
-            if (mounted) {
-                setConfig(nextConfig);
-            }
+    const refreshConfig = useCallback(async () => {
+        const nextConfig = await getActiveAiApiConfig();
+        if (mountedRef.current) {
+            setConfig(nextConfig);
         }
+        return nextConfig;
+    }, []);
 
-        load();
+    useEffect(() => {
+        mountedRef.current = true;
+        void refreshConfig();
 
         return () => {
-            mounted = false;
+            mountedRef.current = false;
         };
-    }, []);
-    return config;
+    }, [refreshConfig]);
+
+    return [config, refreshConfig];
 }
 
-async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal) {
-    const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
-    if (!apiUrl || !apiKey) { onError('API URL 或 API Key 未配置，请前往设置页填写。'); return; }
-
-    let url = apiUrl;
-    if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
-
-    try {
-        const res = await window.fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model, messages, temperature: Number(temperature), stream: true }),
-            signal,
-        });
-        if (!res.ok) { onError(`[错误] HTTP ${res.status}: ${await res.text()}`); return; }
-
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let full = '', buf = '';
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buf += dec.decode(value, { stream: true });
-                const lines = buf.split('\n'); buf = lines.pop();
-                for (const line of lines) {
-                    const t = line.trim();
-                    if (!t || !t.startsWith('data:')) continue;
-                    const d = t.slice(5).trim();
-                    if (d === '[DONE]') continue;
-                    try { const delta = JSON.parse(d)?.choices?.[0]?.delta?.content; if (delta) { full += delta; onChunk(delta); } } catch {}
-                }
-            }
-        } finally { reader.releaseLock(); }
-        onComplete(full);
-    } catch (e) {
-        onError(e.name === 'AbortError' ? '[已取消]' : `[错误] ${e.message}`);
-    }
+async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions) {
+    return streamAiChatCompletions(
+        messages,
+        apiConfig,
+        onChunk,
+        onComplete,
+        (error) => onError(error ? `[错误] ${error}` : null),
+        signal,
+        retryOptions
+    );
 }
 
 export default function Explain() {
     const { t } = useTranslation();
-    const apiConfig = useApiConfig();
+    const [apiConfig, refreshApiConfig] = useApiConfig();
     const [sourceText, setSourceText] = useState('');
     const [output, setOutput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -128,9 +104,10 @@ export default function Explain() {
                 }
             },
             (err) => { setOutput((prev) => prev + '\n' + err); setLoading(false); },
-            ctrl.signal
+            ctrl.signal,
+            { refreshConfig: refreshApiConfig }
         );
-    }, [apiConfig]);
+    }, [apiConfig, refreshApiConfig]);
 
     // Auto-start on first load
     useEffect(() => {
@@ -168,7 +145,8 @@ export default function Explain() {
                 setLoading(false);
             },
             (err) => { setOutput((prev) => prev + '\n' + err); setLoading(false); },
-            ctrl.signal
+            ctrl.signal,
+            { refreshConfig: refreshApiConfig }
         );
     };
 

@@ -1,23 +1,35 @@
 import { fetch, Body } from '@tauri-apps/api/http';
 import { Language } from './info';
 import { defaultRequestArguments } from './Config';
+import {
+    fetchAiChatCompletions,
+    normalizeAiChatCompletionsUrl,
+    readAiChatCompletionsMessage,
+    readAiChatCompletionsStream,
+} from '../../../utils/aiGateway';
+
+function trimTranslationResult(value = '') {
+    let target = String(value || '').trim();
+    if (target.startsWith('"')) {
+        target = target.slice(1);
+    }
+    if (target.endsWith('"')) {
+        target = target.slice(0, -1);
+    }
+    return target.trim();
+}
 
 export async function translate(text, from, to, options) {
     const { config, setResult, detect } = options;
 
     let { service, requestPath, model, apiKey, stream, promptList, requestArguments } = config;
 
-    if (!/https?:\/\/.+/.test(requestPath)) {
+    if (service === 'openai') {
+        requestPath = normalizeAiChatCompletionsUrl(requestPath);
+    } else if (!/https?:\/\/.+/.test(requestPath)) {
         requestPath = `https://${requestPath}`;
     }
     const apiUrl = new URL(requestPath);
-
-    // in openai like api, /v1 is not required
-    if (service === 'openai' && !apiUrl.pathname.endsWith('/chat/completions')) {
-        // not openai like, populate completion endpoint
-        apiUrl.pathname += apiUrl.pathname.endsWith('/') ? '' : '/';
-        apiUrl.pathname += 'v1/chat/completions';
-    }
 
     // 兼容旧版
     if (promptList === undefined) {
@@ -42,24 +54,48 @@ export async function translate(text, from, to, options) {
         };
     });
 
-    const headers =
-        service === 'openai'
-            ? {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${apiKey}`,
-              }
-            : {
-                  'Content-Type': 'application/json',
-                  'api-key': apiKey,
-              };
+    if (service === 'openai') {
+        const { response: res } = await fetchAiChatCompletions(
+            promptList,
+            { apiUrl: apiUrl.href, apiKey, model },
+            { stream, requestArguments }
+        );
+
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '');
+            throw `Http Request Error\nHttp Status: ${res.status}\n${errorText}`;
+        }
+
+        if (stream) {
+            let target = '';
+            target = await readAiChatCompletionsStream(res, (delta) => {
+                target += delta;
+                if (setResult) {
+                    setResult(target + '_');
+                }
+            });
+            const trimmedTarget = trimTranslationResult(target);
+            setResult?.(trimmedTarget);
+            return trimmedTarget;
+        }
+
+        const result = await res.json().catch(() => null);
+        const target = trimTranslationResult(readAiChatCompletionsMessage(result));
+        if (target) {
+            return target;
+        }
+        throw JSON.stringify(result);
+    }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+    };
     const body = {
         ...JSON.parse(requestArguments ?? defaultRequestArguments),
         stream: stream,
         messages: promptList,
     };
-    if (service === 'openai') {
-        body['model'] = model;
-    }
     if (stream) {
         const res = await window.fetch(apiUrl.href, {
             method: 'POST',
@@ -127,15 +163,9 @@ export async function translate(text, from, to, options) {
             let result = res.data;
             const { choices } = result;
             if (choices) {
-                let target = choices[0].message.content.trim();
+                let target = trimTranslationResult(choices[0].message.content);
                 if (target) {
-                    if (target.startsWith('"')) {
-                        target = target.slice(1);
-                    }
-                    if (target.endsWith('"')) {
-                        target = target.slice(0, -1);
-                    }
-                    return target.trim();
+                    return target;
                 } else {
                     throw JSON.stringify(choices);
                 }

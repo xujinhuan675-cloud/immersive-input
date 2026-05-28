@@ -14,7 +14,7 @@ import AiProviderIcon from '../../../../components/AiProviderIcon';
 import ServiceIdentity from '../../../../components/ServiceIdentity';
 import * as builtinServices from '../../../../services/translate';
 import { useConfig, useToastStyle } from '../../../../hooks';
-import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../../utils/aiGateway';
+import { streamAiChatCompletions } from '../../../../utils/aiGateway';
 import {
     AI_API_SERVICE_LIST_KEY,
     ensureAiApiConfigMigration,
@@ -59,65 +59,17 @@ async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, 
         `Review these ${records.length} history records and summarize the writing habits, rewrite patterns, ` +
         `and 3 to 5 practical suggestions.\n\nHistory:\n${input}`;
 
-    try {
-        const { apiUrl, apiKey, model, temperature = 0.7 } = await requireAiGatewayConfig(apiConfig);
-        const res = await window.fetch(apiUrl, {
-            method: 'POST',
-            headers: buildAiGatewayHeaders(apiKey),
-            body: JSON.stringify({
-                model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userMsg },
-                ],
-                temperature: Number(temperature),
-                stream: true,
-            }),
-            signal,
-        });
-
-        if (!res.ok) {
-            onError(`HTTP ${res.status}: ${await res.text()}`);
-            return;
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let full = '';
-        let buffer = '';
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const text = line.trim();
-                    if (!text || !text.startsWith('data:')) continue;
-                    const data = text.slice(5).trim();
-                    if (data === '[DONE]') continue;
-
-                    try {
-                        const delta = JSON.parse(data)?.choices?.[0]?.delta?.content;
-                        if (delta) {
-                            full += delta;
-                            onChunk(delta);
-                        }
-                    } catch {}
-                }
-            }
-        } finally {
-            reader.releaseLock();
-        }
-
-        onComplete(full);
-    } catch (e) {
-        onError(e.name === 'AbortError' ? null : e.message);
-    }
+    return streamAiChatCompletions(
+        [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMsg },
+        ],
+        apiConfig,
+        onChunk,
+        onComplete,
+        onError,
+        signal
+    );
 }
 
 export default function History() {

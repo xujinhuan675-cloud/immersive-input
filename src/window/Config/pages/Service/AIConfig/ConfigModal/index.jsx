@@ -6,7 +6,7 @@ import { LuBrainCircuit } from 'react-icons/lu';
 
 import { useConfig } from '../../../../../../hooks/useConfig';
 import { useToastStyle } from '../../../../../../hooks';
-import { buildAiGatewayHeaders, requireAiGatewayConfig } from '../../../../../../utils/aiGateway';
+import { requestAiChatCompletions } from '../../../../../../utils/aiGateway';
 import {
     AI_API_DEFAULT_MODEL,
     AI_API_DEFAULT_URL,
@@ -18,22 +18,17 @@ import {
 } from '../../../../../../utils/aiConfig';
 
 async function testAiConnection(config) {
-    const resolvedConfig = await requireAiGatewayConfig(config);
-
-    const response = await window.fetch(resolvedConfig.apiUrl, {
-        method: 'POST',
-        headers: buildAiGatewayHeaders(resolvedConfig.apiKey),
-        body: JSON.stringify({
-            model: resolvedConfig.model,
-            messages: [{ role: 'user', content: 'Reply with "OK"' }],
+    const { data, text } = await requestAiChatCompletions(
+        [{ role: 'user', content: 'Reply with "OK"' }],
+        config,
+        null,
+        {
             temperature: 0.1,
-            stream: false,
-        }),
-    });
+        }
+    );
 
-    const data = await response.json();
-    if (response.ok && data?.choices?.[0]?.message?.content) {
-        return data.choices[0].message.content;
+    if (text) {
+        return text;
     }
 
     throw new Error(JSON.stringify(data).slice(0, 120));

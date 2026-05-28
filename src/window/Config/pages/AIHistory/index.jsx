@@ -7,15 +7,11 @@ import toast, { Toaster } from 'react-hot-toast';
 import { getHistory, clearHistory, exportHistoryMd, countHistory } from '../../../../utils/aiHistory';
 import { useToastStyle } from '../../../../hooks';
 import { getActiveAiApiConfig } from '../../../../utils/aiConfig';
+import { streamAiChatCompletions } from '../../../../utils/aiGateway';
 
 const TYPE_LABELS = { lightai: '文本助手', explain: '解释' };
 
 async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, signal) {
-    const { apiUrl, apiKey, model, temperature = 0.7 } = apiConfig;
-    if (!apiUrl || !apiKey) { onError('请先配置 API Key'); return; }
-    let url = apiUrl;
-    if (!/https?:\/\/.+/.test(url)) url = `https://${url}`;
-
     const maxPerField = 500, maxTotal = 20000;
     let sb = '';
     for (let i = 0; i < records.length; i++) {
@@ -30,34 +26,17 @@ async function streamAnalysis(records, apiConfig, onChunk, onComplete, onError, 
     const systemPrompt = '你是一名写作与表达力分析专家。请基于用户的 AI 交互历史，生成一份简洁可执行的 Markdown 分析报告。';
     const userMsg = `请基于以下 ${records.length} 条历史记录，分析用户的表达习惯和常见改写模式，给出 3~5 条具体可执行的改进建议。\n\n历史记录：\n${sb}`;
 
-    try {
-        const res = await window.fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMsg }], temperature: Number(temperature), stream: true }),
-            signal,
-        });
-        if (!res.ok) { onError(`HTTP ${res.status}: ${await res.text()}`); return; }
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let full = '', buf = '';
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buf += dec.decode(value, { stream: true });
-                const lines = buf.split('\n'); buf = lines.pop();
-                for (const line of lines) {
-                    const t = line.trim();
-                    if (!t || !t.startsWith('data:')) continue;
-                    const d = t.slice(5).trim();
-                    if (d === '[DONE]') continue;
-                    try { const delta = JSON.parse(d)?.choices?.[0]?.delta?.content; if (delta) { full += delta; onChunk(delta); } } catch {}
-                }
-            }
-        } finally { reader.releaseLock(); }
-        onComplete(full);
-    } catch (e) { onError(e.name === 'AbortError' ? null : e.message); }
+    return streamAiChatCompletions(
+        [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMsg },
+        ],
+        apiConfig,
+        onChunk,
+        onComplete,
+        onError,
+        signal
+    );
 }
 
 export default function AIHistory() {

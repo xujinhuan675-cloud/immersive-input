@@ -57,7 +57,7 @@ export async function tts(text, _lang, options = {}) {
         body.instructions = instructions;
     }
 
-    const res = await fetch(normalizeRequestPath(resolvedConfig.apiUrl), {
+    const res = await fetch(resolvedConfig.apiUrl, {
         method: 'POST',
         headers: buildAiGatewayHeaders(resolvedConfig.apiKey),
         body: Body.json(body),

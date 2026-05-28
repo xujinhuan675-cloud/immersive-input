@@ -1,5 +1,4 @@
 import { createServiceInstanceKey, getDisplayInstanceName, INSTANCE_NAME_CONFIG_KEY } from './service_instance';
-import { getAccessToken } from './auth';
 import {
     getFlowGuideAudioSpeechUrl,
     getFlowGuideChatCompletionsUrl,
@@ -418,23 +417,6 @@ export function getAiHistoryServiceMeta(config = {}) {
     };
 }
 
-async function withFlowGuideAuthFallback(config = {}) {
-    const mergedConfig = getMergedAiApiConfig(config);
-    if (String(mergedConfig.apiKey || '').trim() || !isFlowGuideUrl(mergedConfig.apiUrl)) {
-        return mergedConfig;
-    }
-
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-        return mergedConfig;
-    }
-
-    return {
-        ...mergedConfig,
-        apiKey: accessToken,
-    };
-}
-
 export async function ensureAiApiConfigMigration() {
     await store.load();
 
@@ -524,7 +506,7 @@ export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) 
         canUseCustomAiServices: false,
     }));
     if (!entitlement.canUseCustomAiServices) {
-        return withFlowGuideAuthFallback({
+        return getMergedAiApiConfig({
             ...createGatewayAiApiConfig(),
             instanceKey: AI_API_GATEWAY_INSTANCE_KEY,
         });
@@ -545,12 +527,12 @@ export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) 
             firstConfig = instanceConfig;
         }
         if ((mergedConfig.enable ?? true) || includeDisabled) {
-            return withFlowGuideAuthFallback(instanceConfig);
+            return getMergedAiApiConfig(instanceConfig);
         }
     }
 
     if (firstConfig) {
-        return withFlowGuideAuthFallback(firstConfig);
+        return getMergedAiApiConfig(firstConfig);
     }
 
     return null;

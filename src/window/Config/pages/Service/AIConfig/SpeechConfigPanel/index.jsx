@@ -92,6 +92,7 @@ function SpeechConfigForm(props) {
     const {
         showTitle = true,
         onSaved,
+        onCancel,
         initialProvider = null,
         showGeneralSection = true,
     } = props;
@@ -628,7 +629,15 @@ function SpeechConfigForm(props) {
                 ) : null}
             </div>
 
-            <div className='mt-4 flex justify-end'>
+            <div className='mt-4 flex justify-end gap-2'>
+                {onCancel ? (
+                    <Button
+                        variant='light'
+                        onPress={onCancel}
+                    >
+                        {t('common.cancel')}
+                    </Button>
+                ) : null}
                 <Button color='primary' isLoading={isSaving} onPress={saveConfig}>
                     {t('common.save')}
                 </Button>

@@ -3,6 +3,29 @@
  * Handles Chinese/English spacing, punctuation normalization, abbreviation capitalization
  */
 
+export const FORMATTER_CONFIG_KEY = 'toolbar_format_options';
+
+export const DEFAULT_FORMATTER_CONFIG = {
+    normalizeWhitespace: true,
+    repairLineBreaks: false,
+    cjkSpacing: true,
+    capitalizeAtCjkBoundary: true,
+    normalizePunctuation: true,
+    normalizeAbbreviations: true,
+    cleanupSpaces: true,
+};
+
+export function getMergedFormatterConfig(config = {}) {
+    if (!config || typeof config !== 'object') {
+        return { ...DEFAULT_FORMATTER_CONFIG };
+    }
+
+    return {
+        ...DEFAULT_FORMATTER_CONFIG,
+        ...config,
+    };
+}
+
 // Add spaces between Chinese and English/digit characters
 function addCjkSpacing(text) {
     // Chinese followed by ASCII letter or digit
@@ -28,6 +51,76 @@ function normalizeWhitespace(text) {
     // Collapse 3+ consecutive newlines to 2
     text = text.replace(/\n{3,}/g, '\n\n');
     return text;
+}
+
+function shouldPreserveLineBreak(previousLine, nextLine) {
+    const previous = String(previousLine || '').trim();
+    const next = String(nextLine || '').trim();
+
+    if (!previous || !next) {
+        return true;
+    }
+
+    const structuralLineRe = /^(```|#{1,6}\s|>\s?|[-*+•]\s|\d+[.)]\s|\|)/;
+    if (structuralLineRe.test(previous) || structuralLineRe.test(next)) {
+        return true;
+    }
+
+    if (/[:：]$/.test(previous) && structuralLineRe.test(next)) {
+        return true;
+    }
+
+    return false;
+}
+
+function joinWrappedLines(leftText, rightText) {
+    const left = String(leftText || '').trimEnd();
+    const right = String(rightText || '').trimStart();
+
+    if (!left) return right;
+    if (!right) return left;
+
+    if (/-$/.test(left) && /^[a-z]/.test(right)) {
+        return `${left.slice(0, -1)}${right}`;
+    }
+
+    if (/[\u4e00-\u9fff\u3400-\u4dbf]$/.test(left) && /^[\u4e00-\u9fff\u3400-\u4dbf]/.test(right)) {
+        return `${left}${right}`;
+    }
+
+    if (/^[,.;:!?，。！？；：、）)\]}》」』]/.test(right)) {
+        return `${left}${right}`;
+    }
+
+    return `${left} ${right}`;
+}
+
+function repairLineBreaks(text) {
+    return text
+        .split(/\n{2,}/)
+        .map((paragraph) => {
+            const lines = paragraph.split('\n');
+            if (lines.length <= 1) {
+                return paragraph;
+            }
+
+            return lines.reduce((result, line) => {
+                if (!String(line || '').trim()) {
+                    return result;
+                }
+
+                if (!String(result || '').trim()) {
+                    return line.trim();
+                }
+
+                if (shouldPreserveLineBreak(result, line)) {
+                    return `${result.trimEnd()}\n${line.trim()}`;
+                }
+
+                return joinWrappedLines(result, line);
+            }, '');
+        })
+        .join('\n\n');
 }
 
 /**
@@ -156,14 +249,30 @@ function isDigit(c) {
  * @param {string} input
  * @returns {string}
  */
-export function formatText(input) {
+export function formatText(input, config = DEFAULT_FORMATTER_CONFIG) {
     if (!input) return input;
+    const mergedConfig = getMergedFormatterConfig(config);
     let result = input;
-    result = normalizeWhitespace(result);
-    result = addCjkSpacing(result);
-    result = capitalizeAtCjkBoundary(result); // 中英文边界首字母大写
-    result = normalizePunctuation(result);
-    result = normalizeAbbreviations(result);
-    result = cleanupSpaces(result);
+    if (mergedConfig.normalizeWhitespace) {
+        result = normalizeWhitespace(result);
+    }
+    if (mergedConfig.repairLineBreaks) {
+        result = repairLineBreaks(result);
+    }
+    if (mergedConfig.cjkSpacing) {
+        result = addCjkSpacing(result);
+    }
+    if (mergedConfig.capitalizeAtCjkBoundary) {
+        result = capitalizeAtCjkBoundary(result);
+    }
+    if (mergedConfig.normalizePunctuation) {
+        result = normalizePunctuation(result);
+    }
+    if (mergedConfig.normalizeAbbreviations) {
+        result = normalizeAbbreviations(result);
+    }
+    if (mergedConfig.cleanupSpaces) {
+        result = cleanupSpaces(result);
+    }
     return result;
 }

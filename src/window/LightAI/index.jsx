@@ -31,7 +31,7 @@ import {
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
 import { saveHistory } from '../../utils/aiHistory';
 import { APP_FONT_FAMILY_VAR } from '../../utils/appFont';
-import { formatText } from '../../utils/formatter';
+import { FORMATTER_CONFIG_KEY, formatText } from '../../utils/formatter';
 import detect from '../../utils/lang_detect';
 import { languageList, normalizeLanguageKey } from '../../utils/language';
 import { streamTextToInput } from '../../utils/streamInput';
@@ -422,6 +422,7 @@ export default function LightAI() {
         'translate_target_language',
         'en'
     );
+    const [formatterConfig] = useConfig(FORMATTER_CONFIG_KEY, undefined);
     const [sourceLanguage, setSourceLanguage] = useState('auto');
     const [extraPrompt, setExtraPrompt] = useState('');
     const [styleResult, setStyleResult] = useState('');
@@ -546,7 +547,7 @@ export default function LightAI() {
             setError('');
 
             if (activeTab === 'fix') {
-                setFixResult(formatText(sourceText));
+                setFixResult(formatText(sourceText, formatterConfig));
                 return;
             }
 
@@ -618,6 +619,7 @@ export default function LightAI() {
             clearResults,
             currentLanguageLabel,
             extraPrompt,
+            formatterConfig,
             refreshApiConfig,
             resolvedSelectedStyle,
             sourceText,

@@ -8,6 +8,7 @@ import { MdKeyboardArrowDown } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 
 import AiProviderIcon from '../../../../../components/AiProviderIcon';
+import { SettingsSection } from '../../../../../components/SettingsSection';
 import { useToastStyle } from '../../../../../hooks';
 import { useConfig, deleteKey } from '../../../../../hooks';
 import {
@@ -348,9 +349,9 @@ export default function AIConfig() {
 
     return (
         <>
-            <section className='overflow-hidden rounded-[14px] border border-default-200/70 bg-content1/90'>
-                <div className='flex h-14 items-center justify-between border-b border-default-100 px-4'>
-                    <h2 className='text-[16px] font-bold'>{t('ai_config.title', { defaultValue: 'AI Services' })}</h2>
+            <SettingsSection
+                title={t('ai_config.title', { defaultValue: 'AI Services' })}
+                action={
                     <Button
                         size='sm'
                         variant='flat'
@@ -366,7 +367,8 @@ export default function AIConfig() {
                     >
                         {t('config.service.add_service')}
                     </Button>
-                </div>
+                }
+            >
                 <div className='p-4'>
                     {customAiServicesLocked ? (
                         <div className='mb-4 flex flex-col gap-2 rounded-[10px] border border-default-200 bg-default-50 px-3 py-2 text-xs leading-5 text-default-500 sm:flex-row sm:items-center sm:justify-between'>
@@ -427,14 +429,12 @@ export default function AIConfig() {
                         </Droppable>
                     </DragDropContext>
                 </div>
-            </section>
+            </SettingsSection>
 
-            <section className='mt-4 overflow-hidden rounded-[14px] border border-default-200/70 bg-content1/90'>
-                <div className='flex h-14 items-center justify-between border-b border-default-100 px-4'>
-                    <h2 className='text-[16px] font-bold'>
-                        {getLocalizedDefaultValue(isChineseUI, '语音配置', 'Speech Configuration')}
-                    </h2>
-                </div>
+            <SettingsSection
+                className='mt-4'
+                title={getLocalizedDefaultValue(isChineseUI, '语音配置', 'Speech Configuration')}
+            >
                 <div className='p-4'>
                     <DragDropContext onDragEnd={onSpeechDragEnd}>
                         <Droppable
@@ -479,7 +479,7 @@ export default function AIConfig() {
                         </Droppable>
                     </DragDropContext>
                 </div>
-            </section>
+            </SettingsSection>
 
             <AddServiceModal
                 isOpen={isAddOpen}
