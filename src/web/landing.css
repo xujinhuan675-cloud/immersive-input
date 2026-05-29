@@ -11,6 +11,8 @@
     --accent: #2563eb;
     --accent-soft: #e7eefc;
     --green: #0f8f7d;
+    --amber: #b7791f;
+    --amber-soft: #fff4df;
     --shadow: 0 24px 70px rgba(20, 22, 26, 0.1);
 }
 
@@ -26,7 +28,10 @@ body {
     margin: 0;
     min-height: 100vh;
     color: var(--ink);
-    background: var(--page);
+    background:
+        radial-gradient(circle at 18% 8%, rgba(37, 99, 235, 0.08), transparent 28%),
+        radial-gradient(circle at 82% 20%, rgba(15, 143, 125, 0.08), transparent 24%),
+        var(--page);
     font-family: 'Manrope', 'Segoe UI', sans-serif;
 }
 
@@ -50,13 +55,13 @@ img {
 }
 
 .hero-section {
-    padding: 72px 0 42px;
+    padding: 64px 0 30px;
 }
 
 .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 0.96fr) minmax(360px, 0.8fr);
-    gap: 56px;
+    grid-template-columns: minmax(0, 0.92fr) minmax(390px, 0.86fr);
+    gap: 52px;
     align-items: center;
 }
 
@@ -88,6 +93,7 @@ img {
     color: var(--green);
     font-size: 13px;
     font-weight: 800;
+    letter-spacing: 0;
 }
 
 .hero-copy h1 {
@@ -103,7 +109,7 @@ img {
     max-width: 660px;
     margin: 22px 0 0;
     color: var(--ink-soft);
-    font-size: 20px;
+    font-size: 19px;
     line-height: 1.75;
 }
 
@@ -127,6 +133,11 @@ img {
         box-shadow 150ms ease,
         background-color 150ms ease,
         border-color 150ms ease;
+}
+
+.button-mark {
+    font-size: 17px;
+    line-height: 1;
 }
 
 .download-button:hover {
@@ -163,18 +174,19 @@ img {
     font-weight: 700;
 }
 
-.release-details svg {
+.check-mark {
     color: var(--green);
+    font-weight: 900;
 }
 
 .product-preview {
-    min-height: 420px;
+    min-height: 460px;
 }
 
 .preview-window {
     position: relative;
     overflow: hidden;
-    min-height: 420px;
+    min-height: 460px;
     padding: 22px;
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -203,7 +215,7 @@ img {
 
 .preview-doc {
     position: relative;
-    min-height: 230px;
+    min-height: 244px;
     margin-top: 26px;
     padding: 24px;
     border: 1px solid var(--line);
@@ -221,7 +233,7 @@ img {
 
 .selected-line {
     display: inline-flex;
-    margin-top: 24px;
+    margin-top: 20px;
     padding: 8px 10px;
     border-radius: 6px;
     color: #17356d;
@@ -236,7 +248,9 @@ img {
     left: 24px;
     bottom: 22px;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
+    max-width: calc(100% - 48px);
 }
 
 .floating-actions span {
@@ -254,7 +268,7 @@ img {
 
 .stream-result {
     gap: 10px;
-    margin-top: 18px;
+    margin-top: 14px;
     padding: 14px 16px;
     border: 1px solid rgba(37, 99, 235, 0.2);
     border-radius: 8px;
@@ -264,35 +278,108 @@ img {
     font-weight: 800;
 }
 
-.stream-result svg {
-    color: var(--accent);
+.tool-dock {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.tool-dock span {
+    min-height: 44px;
+    padding: 12px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.74);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+}
+
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.12);
 }
 
 .scenario-section {
-    padding: 34px 0 72px;
+    padding: 44px 0 78px;
 }
 
-.scenario-grid {
+.section-heading {
+    max-width: 640px;
+    margin-bottom: 18px;
+}
+
+.section-heading .kicker {
+    margin: 0;
+}
+
+.section-heading h2 {
+    margin: 8px 0 0;
+    font-size: 30px;
+    line-height: 1.22;
+    letter-spacing: 0;
+}
+
+.tool-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
 }
 
-.scenario-card {
+.tool-card {
     min-height: 220px;
     padding: 24px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--paper);
+    box-shadow: 0 1px 0 rgba(20, 22, 26, 0.03);
 }
 
-.scenario-card svg {
-    width: 24px;
-    height: 24px;
+.primary-tool {
+    grid-column: span 1;
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+}
+
+.scenario-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--accent-soft);
     color: var(--accent);
+    font-size: 12px;
+    font-weight: 900;
 }
 
-.scenario-card h2 {
+.tool-card:nth-child(3) .scenario-icon {
+    color: var(--green);
+    background: #e6f6f2;
+}
+
+.tool-card:nth-child(5) .scenario-icon,
+.tool-card:nth-child(6) .scenario-icon,
+.tool-card:nth-child(7) .scenario-icon {
+    color: var(--amber);
+    background: var(--amber-soft);
+}
+
+.privacy-tool {
+    background: linear-gradient(180deg, #ffffff, #f8fbfa);
+}
+
+.privacy-tool .scenario-icon {
+    color: var(--green);
+    background: #e6f6f2;
+}
+
+.tool-card h2 {
     margin: 24px 0 0;
     color: var(--ink);
     font-size: 21px;
@@ -300,56 +387,15 @@ img {
     letter-spacing: 0;
 }
 
-.scenario-card p {
+.tool-card p {
     margin: 12px 0 0;
     color: var(--muted);
     font-size: 15px;
     line-height: 1.75;
 }
 
-.download-section {
-    padding: 0 0 72px;
-}
-
-.download-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 32px;
-    align-items: center;
-    padding: 28px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--paper);
-}
-
-.download-card .kicker {
-    margin: 0;
-}
-
-.download-card h2 {
-    margin: 8px 0 0;
-    font-size: 28px;
-    line-height: 1.2;
-    letter-spacing: 0;
-}
-
-.download-card p {
-    max-width: 620px;
-    margin: 10px 0 0;
-    color: var(--muted);
-    font-size: 15px;
-    line-height: 1.7;
-}
-
-.download-stack {
-    display: grid;
-    gap: 10px;
-    min-width: 190px;
-}
-
 @media (max-width: 920px) {
-    .hero-grid,
-    .download-card {
+    .hero-grid {
         grid-template-columns: 1fr;
     }
 
@@ -357,13 +403,10 @@ img {
         font-size: 52px;
     }
 
-    .scenario-grid {
-        grid-template-columns: 1fr;
+    .tool-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .download-stack {
-        min-width: 0;
-    }
 }
 
 @media (max-width: 560px) {
@@ -383,8 +426,7 @@ img {
         font-size: 17px;
     }
 
-    .hero-actions,
-    .download-stack {
+    .hero-actions {
         align-items: stretch;
         flex-direction: column;
     }
@@ -395,13 +437,12 @@ img {
 
     .product-preview,
     .preview-window {
-        min-height: 390px;
+        min-height: 430px;
     }
 
     .preview-window,
     .preview-doc,
-    .scenario-card,
-    .download-card {
+    .tool-card {
         padding: 18px;
     }
 
@@ -414,13 +455,23 @@ img {
     }
 
     .floating-actions {
-        right: 18px;
-        left: 18px;
+        position: static;
+        max-width: none;
+        margin-top: 16px;
         flex-wrap: wrap;
     }
 
     .floating-actions span {
-        flex: 1 1 calc(33.33% - 8px);
+        flex: 1 1 calc(50% - 8px);
         justify-content: center;
+    }
+
+    .tool-dock,
+    .tool-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-heading h2 {
+        font-size: 24px;
     }
 }

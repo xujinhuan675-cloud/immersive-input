@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
     <head>
         <meta charset="UTF-8" />
         <meta
@@ -8,11 +8,11 @@
         />
         <meta
             name="description"
-            content="Flow Input is an AI-native desktop companion for translation, OCR, rewrite, explain, and chat workflows across any app."
+            content="Flow Input 是桌面上的顺手 AI 文本工具，支持划词翻译、AI 改写、OCR 和解释助手。"
         />
         <meta
             name="theme-color"
-            content="#0f172a"
+            content="#f6f7f8"
         />
         <link
             rel="icon"
@@ -20,25 +20,134 @@
             href="/icon.png"
         />
         <link
-            rel="preconnect"
-            href="https://fonts.googleapis.com"
-        />
-        <link
-            rel="preconnect"
-            href="https://fonts.gstatic.com"
-            crossorigin
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
             rel="stylesheet"
+            href="/src/web/landing.css"
         />
-        <title>Flow Input | AI-native desktop workflows</title>
+        <title>Flow Input 下载</title>
     </head>
     <body>
-        <div id="root"></div>
-        <script
-            type="module"
-            src="/src/landing-main.jsx"
-        ></script>
+        <main class="landing-page">
+            <section class="hero-section">
+                <div class="shell hero-grid">
+                    <div class="hero-copy">
+                        <div class="brand-line">
+                            <img
+                                src="/icon.svg"
+                                alt="Flow Input"
+                            />
+                            <span>Flow Input</span>
+                        </div>
+
+                        <p class="kicker">桌面上的顺手 AI 工具箱</p>
+                        <h1>选中文本，结果就在手边。</h1>
+                        <p class="hero-subtitle">
+                            划词翻译、AI 改写、截图 OCR、解释、对话、快捷常用语和密码本，在网页、文档、聊天软件和任意桌面程序里都能自然接上你的工作流。
+                        </p>
+
+                        <div class="hero-actions">
+                            <a
+                                class="download-button primary"
+                                href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
+                            >
+                                <span class="button-mark">↓</span>
+                                <span>下载 Windows 版</span>
+                            </a>
+                            <a
+                                class="download-button secondary"
+                                href="https://github.com/xujinhuan675-cloud/immersive-input/releases/download/4.2.4/flow-input_4.2.4_x64.msi.zip"
+                            >
+                                <span>备用下载</span>
+                            </a>
+                        </div>
+
+                        <div class="release-details">
+                            <span><span class="check-mark">✓</span>当前版本 4.2.4</span>
+                            <span><span class="check-mark">✓</span>适用于 Windows 10/11</span>
+                            <span><span class="check-mark">✓</span>数据本地离线保存，支持定时备份</span>
+                        </div>
+                    </div>
+
+                    <div
+                        class="product-preview"
+                        aria-label="Flow Input 使用场景预览"
+                    >
+                        <div class="preview-window">
+                            <div class="preview-titlebar">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <strong>任意输入框</strong>
+                            </div>
+                            <div class="preview-doc">
+                                <p>Could you make this paragraph clearer before I send it?</p>
+                                <div class="selected-line">让这句话更自然、更像中文表达。</div>
+                                <div class="floating-actions">
+                                    <span>翻译</span>
+                                    <span>改写</span>
+                                    <span>解释</span>
+                                    <span>对话</span>
+                                    <span>格式化</span>
+                                </div>
+                            </div>
+                            <div class="tool-dock">
+                                <span>截图 OCR</span>
+                                <span>常用语</span>
+                                <span>密码本</span>
+                            </div>
+                            <div class="stream-result">
+                                <span class="status-dot"></span>
+                                <span>正在实时写入更自然的表达...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="scenario-section">
+                <div class="shell">
+                    <div class="section-heading">
+                        <p class="kicker">Tools and scenes</p>
+                        <h2>像一个安静的工具面板，跟着你的文本出现。</h2>
+                    </div>
+                    <div class="tool-grid">
+                        <article class="tool-card primary-tool">
+                            <span class="scenario-icon">Any</span>
+                            <h2>网页、文档、聊天窗口里都能用</h2>
+                            <p>选中文本后，翻译、解释、改写会出现在手边，不需要复制到另一个工具里来回切换。</p>
+                        </article>
+                        <article class="tool-card">
+                            <span class="scenario-icon">AI</span>
+                            <h2>改写和解释</h2>
+                            <p>把生硬句子变自然，把长段内容压缩成要点，也能围绕选中文本继续追问。</p>
+                        </article>
+                        <article class="tool-card">
+                            <span class="scenario-icon">OCR</span>
+                            <h2>截图文字识别</h2>
+                            <p>遇到图片、PDF 或不可复制内容时，先识别成文本，再接着翻译、润色或解释。</p>
+                        </article>
+                        <article class="tool-card privacy-tool">
+                            <span class="scenario-icon">Lock</span>
+                            <h2>密码本本地管理</h2>
+                            <p>账号、密码和私密备注保存在本地，用起来顺手，也更容易掌控自己的敏感数据。</p>
+                        </article>
+                        <article class="tool-card">
+                            <span class="scenario-icon">In</span>
+                            <h2>实时写回原位置</h2>
+                            <p>常用操作支持实时写入，像继续打字一样把 AI 结果放回当前输入框。</p>
+                        </article>
+                        <article class="tool-card">
+                            <span class="scenario-icon">Fmt</span>
+                            <h2>整理复制文本</h2>
+                            <p>清理多余空格、异常换行和中英文间距，让从网页、PDF、邮件复制来的文本更干净。</p>
+                        </article>
+                        <article class="tool-card">
+                            <span class="scenario-icon">Cmd</span>
+                            <h2>快捷常用语和备份</h2>
+                            <p>常用回复、模板和历史记录可以随时取回，全部数据支持定时备份，换机也不慌。</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </main>
     </body>
 </html>
