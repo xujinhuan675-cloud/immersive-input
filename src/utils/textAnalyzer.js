@@ -5,7 +5,9 @@
 
 const URL_RE    = /^(?:(?:https?:\/\/)|(?:www\.))?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{2,5})?(?:[/?#][^\s]*)?$/i;
 const EMAIL_RE  = /^[\w.+-]+@[\w.-]+\.\w{2,}$/i;
-const PATH_RE   = /^[a-zA-Z]:\\[^<>:"/|?*]+/;
+const WINDOWS_DRIVE_PATH_RE = /^[a-zA-Z]:[\\/][^<>:"|?*\r\n]+$/;
+const WINDOWS_UNC_PATH_RE = /^\\\\[^\\/:*?"<>|\r\n]+\\[^\\/:*?"<>|\r\n]+(?:\\[^<>:"/|?*\r\n]+)*\\?$/;
+const FILE_URI_RE = /^file:\/\/(?:\/?[a-zA-Z]:[\\/]|\/|[^/\s]+\/)[^\r\n]+$/i;
 const NUMBER_RE = /^[\d\s\t\n\r.+\-*/()（）×÷%=]+$/;
 const COLOR_RE  = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$|^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i;
 
@@ -15,7 +17,7 @@ export function detectType(text) {
     if (!t) return 'text';
     if (URL_RE.test(t))    return 'url';
     if (EMAIL_RE.test(t))  return 'email';
-    if (PATH_RE.test(t))   return 'filepath';
+    if (isFilePath(t))     return 'filepath';
     if (COLOR_RE.test(t))  return 'color';
     if (NUMBER_RE.test(t) && t.length <= 200) return 'number';
     if (isEnglish(t))      return 'english';
@@ -42,6 +44,14 @@ export function calculateExpr(expr) {
     } catch {
         return null;
     }
+}
+
+function isFilePath(text) {
+    return (
+        WINDOWS_DRIVE_PATH_RE.test(text) ||
+        WINDOWS_UNC_PATH_RE.test(text) ||
+        FILE_URI_RE.test(text)
+    );
 }
 
 /** Return true if text is predominantly English letters. */

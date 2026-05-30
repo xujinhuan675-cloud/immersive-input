@@ -669,7 +669,7 @@ export default function FloatToolbar() {
 
     const refreshSelectionState = useCallback(async () => {
         try {
-            const text = await invoke('get_text');
+            const text = await invoke('get_auto_toolbar_text');
             selectedText.current = text || '';
             setCalcResult(null);
             setColorVal(null);
