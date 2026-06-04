@@ -8,11 +8,11 @@
         />
         <meta
             name="description"
-            content="Flow Input 是桌面上的顺手 AI 文本工具，支持划词翻译、AI 改写、OCR 和解释助手。"
+            content="Flow Input 是给办公写作和高频输入用户准备的桌面 AI 工具。选中文本即可翻译、改写、解释、OCR，并直接写回当前输入位置。"
         />
         <meta
             name="theme-color"
-            content="#f6f7f8"
+            content="#f6f7f4"
         />
         <link
             rel="icon"
@@ -23,47 +23,78 @@
             rel="stylesheet"
             href="/src/web/landing.css"
         />
-        <title>Flow Input 下载</title>
+        <title>Flow Input 下载 | 让 AI 直接出现在你的输入框旁</title>
     </head>
     <body>
         <main class="landing-page">
-            <section class="hero-section">
-                <div class="shell hero-grid">
-                    <div class="hero-copy">
-                        <div class="brand-line">
-                            <img
-                                src="/icon.svg"
-                                alt="Flow Input"
-                            />
-                            <span>Flow Input</span>
-                        </div>
+            <header class="site-header">
+                <div class="shell nav-shell">
+                    <a
+                        class="brand-line"
+                        href="#top"
+                    >
+                        <img
+                            src="/icon.svg"
+                            alt="Flow Input"
+                        />
+                        <span>Flow Input</span>
+                    </a>
 
-                        <p class="kicker">桌面上的顺手 AI 工具箱</p>
-                        <h1>选中文本，结果就在手边。</h1>
+                    <nav
+                        class="site-nav"
+                        aria-label="页面导航"
+                    >
+                        <a href="#pain">痛点</a>
+                        <a href="#solution">解决方案</a>
+                        <a href="#reasons">使用理由</a>
+                        <a href="#install">下载</a>
+                    </nav>
+
+                    <a
+                        class="nav-download"
+                        href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
+                    >
+                        安装
+                    </a>
+                </div>
+            </header>
+
+            <section
+                class="hero-section"
+                id="top"
+            >
+                <div class="shell hero-shell">
+                    <div class="hero-copy">
+                        <p class="hero-pill">让 AI 接住你的文字工作流</p>
+                        <h1>
+                            <span>别把时间浪费在复制和切换上</span>
+                            <span class="hero-accent">沟通表达，可以更自然</span>
+                        </h1>
                         <p class="hero-subtitle">
-                            划词翻译、AI 改写、截图 OCR、解释、对话、快捷常用语和密码本，在网页、文档、聊天软件和任意桌面程序里都能自然接上你的工作流。
+                            改写、解释、翻译、OCR，都该在原地完成。 少一点打断，多一点自然表达。
                         </p>
+                        <p class="hero-emphasis">现在，选中就能处理。</p>
 
                         <div class="hero-actions">
                             <a
                                 class="download-button primary"
-                                href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
+                                href="#solution"
                             >
-                                <span class="button-mark">↓</span>
-                                <span>下载 Windows 版</span>
+                                <span class="button-mark">↘</span>
+                                <span>看看怎么更顺</span>
                             </a>
                             <a
                                 class="download-button secondary"
-                                href="https://github.com/xujinhuan675-cloud/immersive-input/releases/download/4.2.4/flow-input_4.2.4_x64.msi.zip"
+                                href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
                             >
-                                <span>备用下载</span>
+                                <span>直接下载 Windows 版</span>
                             </a>
                         </div>
 
-                        <div class="release-details">
-                            <span><span class="check-mark">✓</span>当前版本 4.2.4</span>
+                        <div class="hero-proof">
                             <span><span class="check-mark">✓</span>适用于 Windows 10/11</span>
                             <span><span class="check-mark">✓</span>数据本地离线保存，支持定时备份</span>
+                            <span><span class="check-mark">✓</span>当前版本 4.2.4</span>
                         </div>
                     </div>
 
@@ -78,73 +109,255 @@
                                 <span></span>
                                 <strong>任意输入框</strong>
                             </div>
-                            <div class="preview-doc">
-                                <p>Could you make this paragraph clearer before I send it?</p>
-                                <div class="selected-line">让这句话更自然、更像中文表达。</div>
-                                <div class="floating-actions">
-                                    <span>翻译</span>
-                                    <span>改写</span>
-                                    <span>解释</span>
-                                    <span>对话</span>
-                                    <span>格式化</span>
+
+                            <div class="preview-stage">
+                                <div class="preview-panel preview-source">
+                                    <p class="panel-title">正在写邮件</p>
+                                    <p class="panel-copy">
+                                        Could you make this paragraph clearer before I send it to the client?
+                                    </p>
+                                    <div class="selected-line">把这段话改得更自然，也更像正式中文邮件。</div>
+                                    <div class="floating-actions">
+                                        <span>翻译</span>
+                                        <span>改写</span>
+                                        <span>解释</span>
+                                        <span>继续追问</span>
+                                    </div>
+                                </div>
+
+                                <div class="preview-panel preview-result">
+                                    <p class="panel-title">实时写回结果</p>
+                                    <p class="result-line">
+                                        您好，这段内容我已经整理为更清晰的表达，方便您直接发送给客户。
+                                    </p>
+                                    <div class="tool-dock">
+                                        <span>截图 OCR</span>
+                                        <span>常用语</span>
+                                        <span>密码本</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="tool-dock">
-                                <span>截图 OCR</span>
-                                <span>常用语</span>
-                                <span>密码本</span>
-                            </div>
+
                             <div class="stream-result">
                                 <span class="status-dot"></span>
-                                <span>正在实时写入更自然的表达...</span>
+                                <span>AI 正在当前输入位置继续工作，而不是把你带去另一个窗口...</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section class="scenario-section">
+            <section
+                class="pain-section"
+                id="pain"
+            >
                 <div class="shell">
                     <div class="section-heading">
-                        <p class="kicker">Tools and scenes</p>
-                        <h2>像一个安静的工具面板，跟着你的文本出现。</h2>
+                        <h2>这些打断，很常见</h2>
+                        <p>不是不会用 AI，而是总被碎步骤截断。</p>
                     </div>
-                    <div class="tool-grid">
-                        <article class="tool-card primary-tool">
-                            <span class="scenario-icon">Any</span>
-                            <h2>网页、文档、聊天窗口里都能用</h2>
-                            <p>选中文本后，翻译、解释、改写会出现在手边，不需要复制到另一个工具里来回切换。</p>
+
+                    <div class="pain-grid">
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-pink">改</span>
+                            <h3>一句话改写，也要来回复制</h3>
+                            <p>想把一句话变自然，却还得复制出去，再贴回来。</p>
                         </article>
-                        <article class="tool-card">
-                            <span class="scenario-icon">AI</span>
-                            <h2>改写和解释</h2>
-                            <p>把生硬句子变自然，把长段内容压缩成要点，也能围绕选中文本继续追问。</p>
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-blue">释</span>
+                            <h3>看不懂的词句，还得跳出去查</h3>
+                            <p>读网页、看文档时，想知道一句话是什么意思，也容易被打断。</p>
                         </article>
-                        <article class="tool-card">
-                            <span class="scenario-icon">OCR</span>
-                            <h2>截图文字识别</h2>
-                            <p>遇到图片、PDF 或不可复制内容时，先识别成文本，再接着翻译、润色或解释。</p>
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-green">句</span>
+                            <h3>常说的话，每天都在重复打</h3>
+                            <p>固定回复、常用话术和模板天天会发，重复输入很耗时间。</p>
                         </article>
-                        <article class="tool-card privacy-tool">
-                            <span class="scenario-icon">Lock</span>
-                            <h2>密码本本地管理</h2>
-                            <p>账号、密码和私密备注保存在本地，用起来顺手，也更容易掌控自己的敏感数据。</p>
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-amber">图</span>
+                            <h3>图片和 PDF，一下就断线</h3>
+                            <p>想先识别再处理，往往要换工具，节奏立刻被切开。</p>
                         </article>
-                        <article class="tool-card">
-                            <span class="scenario-icon">In</span>
-                            <h2>实时写回原位置</h2>
-                            <p>常用操作支持实时写入，像继续打字一样把 AI 结果放回当前输入框。</p>
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-green">填</span>
+                            <h3>账号和地址，填写时最浪费时间</h3>
+                            <p>重要信息散在各处，摘录和填写时总要来回找、反复粘贴。</p>
                         </article>
-                        <article class="tool-card">
-                            <span class="scenario-icon">Fmt</span>
-                            <h2>整理复制文本</h2>
-                            <p>清理多余空格、异常换行和中英文间距，让从网页、PDF、邮件复制来的文本更干净。</p>
+                        <article class="pain-card">
+                            <span class="scenario-icon icon-violet">切</span>
+                            <h3>真正高频的场景，都不在一个网页里</h3>
+                            <p>聊天、文档、表单、网页来回切，AI 却常常只在另一个标签页里。</p>
                         </article>
-                        <article class="tool-card">
-                            <span class="scenario-icon">Cmd</span>
-                            <h2>快捷常用语和备份</h2>
-                            <p>常用回复、模板和历史记录可以随时取回，全部数据支持定时备份，换机也不慌。</p>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="solution-section"
+                id="solution"
+            >
+                <div class="shell solution-layout">
+                    <div class="solution-story">
+                        <div class="section-heading section-heading-left">
+                            <h2>处理文字，不再断线</h2>
+                            <p>不是多一个 AI 网站，而是少一整段来回。</p>
+                        </div>
+
+                        <div class="solution-points">
+                            <article class="solution-point">
+                                <span class="point-check">✓</span>
+                                <div>
+                                    <h3>划词就地解释</h3>
+                                    <p>看到不懂的词句，选中当场解释，不打断阅读。</p>
+                                </div>
+                            </article>
+                            <article class="solution-point">
+                                <span class="point-check">✓</span>
+                                <div>
+                                    <h3>常用语不用重打</h3>
+                                    <p>每天都要发的话，保存一次，后面随手插入。</p>
+                                </div>
+                            </article>
+                            <article class="solution-point">
+                                <span class="point-check">✓</span>
+                                <div>
+                                    <h3>密码本快速摘录和填写</h3>
+                                    <p>账号、地址、密钥和重要信息，需要时直接填入。</p>
+                                </div>
+                            </article>
+                            <article class="solution-point">
+                                <span class="point-check">✓</span>
+                                <div>
+                                    <h3>图片和 PDF 接着处理</h3>
+                                    <p>OCR 识别完之后，马上继续翻译、总结和改写。</p>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div class="solution-stack">
+                        <article class="feature-card">
+                            <span class="feature-icon icon-blue">AI</span>
+                            <div>
+                                <h3>任意输入框都能接上</h3>
+                                <p>网页、文档、聊天和表单里，都能顺着当前工作流继续。</p>
+                            </div>
                         </article>
+                        <article class="feature-card">
+                            <span class="feature-icon icon-green">OCR</span>
+                            <div>
+                                <h3>结果直接写回</h3>
+                                <p>像继续打字一样，把结果放回原来的位置。</p>
+                            </div>
+                        </article>
+                        <article class="feature-card">
+                            <span class="feature-icon icon-violet">Any</span>
+                            <div>
+                                <h3>本地保存更安心</h3>
+                                <p>常用语、密码本和备份都适合长期高频使用。</p>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="reason-section"
+                id="reasons"
+            >
+                <div class="shell">
+                    <div class="section-heading">
+                        <h2>停止在复制粘贴上浪费时间</h2>
+                        <p>每一次来回切换的打断，每一次贴回重排的烦躁。现在，在原地解决。</p>
+                    </div>
+
+                    <div class="reason-grid compact-reasons">
+                        <article class="reason-card">
+                            <span class="feature-icon icon-blue">写</span>
+                            <h3>不懂就地解释</h3>
+                            <p>看到不懂的词句，划一下就能当场看懂。</p>
+                        </article>
+                        <article class="reason-card">
+                            <span class="feature-icon icon-amber">读</span>
+                            <h3>常用语随手发</h3>
+                            <p>每天要发的内容，不必重复输入，不再浪费时间。</p>
+                        </article>
+                        <article class="reason-card">
+                            <span class="feature-icon icon-green">用</span>
+                            <h3>重要信息一键填</h3>
+                            <p>账号、地址和密钥能快速摘录，也能直接填写到位。</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="install-section"
+                id="install"
+            >
+                <div class="shell">
+                    <div class="section-heading">
+                        <h2>2 分钟，装上就能用</h2>
+                        <p>下载安装，然后选中一段文字试一下。</p>
+                    </div>
+
+                    <div class="install-card">
+                        <div class="install-copy">
+                            <p class="install-badge">推荐</p>
+                            <h3>Windows 安装包</h3>
+                            <div class="install-steps">
+                                <div class="install-step">
+                                    <span>1</span>
+                                    <p>下载安装包并完成安装</p>
+                                </div>
+                                <div class="install-step">
+                                    <span>2</span>
+                                    <p>打开一个你最常用的输入框或文档</p>
+                                </div>
+                                <div class="install-step">
+                                    <span>3</span>
+                                    <p>选中一段文字，试一次翻译、改写或解释</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="install-actions">
+                            <a
+                                class="download-button primary"
+                                href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
+                            >
+                                <span class="button-mark">↓</span>
+                                <span>立即下载 Windows 版</span>
+                            </a>
+                            <a
+                                class="download-button secondary"
+                                href="https://github.com/xujinhuan675-cloud/immersive-input/releases/download/4.2.4/flow-input_4.2.4_x64.msi.zip"
+                            >
+                                <span>备用下载</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="cta-section">
+                <div class="shell cta-panel">
+                    <h2>让 AI 丝滑接手文字处理</h2>
+                    <p>少复制，少切换，少打断。现在就装上。</p>
+                    <div class="hero-actions">
+                        <a
+                            class="download-button primary"
+                            href="https://1823644663.share.123865.com/123pan/RfeFjv-bFbDh"
+                        >
+                            <span class="button-mark">↓</span>
+                            <span>立即安装，开始新体验</span>
+                        </a>
+                        <a
+                            class="download-button secondary"
+                            href="https://github.com/xujinhuan675-cloud/immersive-input/releases/download/4.2.4/flow-input_4.2.4_x64.msi.zip"
+                        >
+                            <span>备用下载</span>
+                        </a>
                     </div>
                 </div>
             </section>
