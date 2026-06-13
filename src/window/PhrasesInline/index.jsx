@@ -52,8 +52,6 @@ const PANEL_WINDOW_WIDTH = 408;
 const PANEL_WINDOW_HEIGHT = 480;
 const QUICK_MANAGE_TOOLTIP = '\u7ba1\u7406\u5e38\u7528\u8bed';
 const QUICK_CLOSE_LABEL = '\u5173\u95ed';
-const QUICK_VISIBLE_TAGS = 5;
-
 const styles = {
     view: {
         display: 'flex',
@@ -254,9 +252,12 @@ const styles = {
         display: 'flex',
         gap: '5px',
         alignItems: 'center',
-        overflow: 'hidden',
+        overflowX: 'auto',
+        overflowY: 'hidden',
         width: '100%',
         minWidth: 0,
+        paddingBottom: 0,
+        overscrollBehaviorX: 'contain',
     },
     quickPill: (active) => ({
         display: 'inline-flex',
@@ -373,7 +374,9 @@ const styles = {
         flex: 1,
         gap: '6px',
         overflowX: 'auto',
+        overflowY: 'hidden',
         paddingBottom: '1px',
+        overscrollBehaviorX: 'contain',
     },
     pill: (active) => ({
         display: 'inline-flex',
@@ -387,6 +390,7 @@ const styles = {
         color: active ? '#ffffff' : '#475569',
         fontSize: '12px',
         whiteSpace: 'nowrap',
+        flexShrink: 0,
     }),
     listWrap: {
         flex: 1,
@@ -522,6 +526,18 @@ const styles = {
         color: '#0f172a',
         fontWeight: 500,
     },
+    tagOpenButton: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '10px',
+        flex: 1,
+        minWidth: 0,
+        border: 'none',
+        background: 'transparent',
+        padding: 0,
+        color: 'inherit',
+        textAlign: 'left',
+    },
     tagEditInput: {
         flex: 1,
         minWidth: 0,
@@ -654,7 +670,7 @@ function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrima
     );
 }
 
-function TagsView({ onBack, onChanged, onClose, pined, onTogglePin }) {
+function TagsView({ onBack, onChanged, onClose, onSelectTag, pined, onTogglePin }) {
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [editingId, setEditingId] = useState(null);
@@ -715,7 +731,10 @@ function TagsView({ onBack, onChanged, onClose, pined, onTogglePin }) {
                 }
                 right={
                     <div className='flex items-center gap-1.5'>
-                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderPinButton
+                            active={pined}
+                            onClick={() => void onTogglePin()}
+                        />
                         <WindowHeaderCloseButton onClick={onClose} />
                     </div>
                 }
@@ -795,8 +814,16 @@ function TagsView({ onBack, onChanged, onClose, pined, onTogglePin }) {
                             key={tag.id}
                             style={styles.tagRow}
                         >
-                            <span style={styles.tagDot(tag.color)} />
-                            <span style={styles.tagName}>{tag.name}</span>
+                            <button
+                                type='button'
+                                style={styles.tagOpenButton}
+                                title={`查看「${tag.name}」下的常用语`}
+                                aria-label={`查看「${tag.name}」下的常用语`}
+                                onClick={() => onSelectTag(tag.id)}
+                            >
+                                <span style={styles.tagDot(tag.color)} />
+                                <span style={styles.tagName}>{tag.name}</span>
+                            </button>
                             <div style={styles.itemActions}>
                                 <button
                                     type='button'
@@ -908,7 +935,10 @@ function EditView({ phrase, allTags, onSaved, onCancel, onClose, pined, onToggle
                 }
                 right={
                     <div className='flex items-center gap-1.5'>
-                        <WindowHeaderPinButton active={pined} onClick={() => void onTogglePin()} />
+                        <WindowHeaderPinButton
+                            active={pined}
+                            onClick={() => void onTogglePin()}
+                        />
                         <WindowHeaderCloseButton onClick={onClose} />
                     </div>
                 }
@@ -1025,10 +1055,7 @@ export default function PhrasesInline() {
     const [quickCloseHovered, setQuickCloseHovered] = useState(false);
     const searchRef = useRef(null);
     const quickResultsRef = useRef(null);
-    const quickTagBarRef = useRef(null);
-    const quickTagMeasureRef = useRef(null);
     const [quickResultsMeasuredHeight, setQuickResultsMeasuredHeight] = useState(0);
-    const [quickTagBarWidth, setQuickTagBarWidth] = useState(0);
 
     const resetQuickState = useCallback(() => {
         setView('quick');
@@ -1055,6 +1082,34 @@ export default function PhrasesInline() {
         }
 
         void appWindow.startDragging().catch(() => {});
+    }, []);
+
+    const handleHorizontalWheel = useCallback((event) => {
+        const node = event.currentTarget;
+
+        if (!node || node.scrollWidth <= node.clientWidth) {
+            return;
+        }
+
+        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+
+        if (delta === 0) {
+            return;
+        }
+
+        node.scrollLeft += delta;
+
+        if (Math.abs(event.deltaY) >= Math.abs(event.deltaX)) {
+            event.preventDefault();
+        }
+    }, []);
+
+    const openManagedTag = useCallback((tagId) => {
+        setSelectedTagId(tagId);
+        setSearch('');
+        setHoverId(null);
+        setActiveIdx(0);
+        setView('manage');
     }, []);
 
     const dismiss = useCallback(async () => {
@@ -1097,7 +1152,6 @@ export default function PhrasesInline() {
                 setSelectedTagId(null);
                 setActiveIdx(0);
                 setHoverId(null);
-                setManageHovered(false);
                 setQuickCloseHovered(false);
                 setTimeout(() => searchRef.current?.focus(), 60);
             }
@@ -1106,27 +1160,6 @@ export default function PhrasesInline() {
         return () => {
             void unlisten.then((fn) => fn());
         };
-    }, [view]);
-
-    useEffect(() => {
-        if (view !== 'quick' || !quickTagBarRef.current || typeof ResizeObserver === 'undefined') {
-            return undefined;
-        }
-
-        const node = quickTagBarRef.current;
-        const updateWidth = () => {
-            setQuickTagBarWidth(node.clientWidth);
-        };
-
-        updateWidth();
-
-        const observer = new ResizeObserver(() => {
-            updateWidth();
-        });
-
-        observer.observe(node);
-
-        return () => observer.disconnect();
     }, [view]);
 
     const tagMap = useMemo(() => {
@@ -1177,18 +1210,35 @@ export default function PhrasesInline() {
         setActiveIdx(0);
     }, [quickCandidates]);
 
-    const tagPills = useMemo(
-        () => [
+    const tagPills = useMemo(() => {
+        const sortedTags = [...tags].sort((left, right) => {
+            const leftCount = Number(tagCounts[left.id] ?? 0);
+            const rightCount = Number(tagCounts[right.id] ?? 0);
+
+            if (rightCount !== leftCount) {
+                return rightCount - leftCount;
+            }
+
+            const leftOrder = left.sort_order ?? 0;
+            const rightOrder = right.sort_order ?? 0;
+
+            if (leftOrder !== rightOrder) {
+                return leftOrder - rightOrder;
+            }
+
+            return (left.id ?? 0) - (right.id ?? 0);
+        });
+
+        return [
             { id: null, name: '全部', count: allPhrases.length },
-            ...tags.map((tag) => ({
+            ...sortedTags.map((tag) => ({
                 id: tag.id,
                 name: tag.name,
-                count: tagCounts[tag.id] ?? 0,
+                count: Number(tagCounts[tag.id] ?? 0),
             })),
-            { id: '__uncat__', name: t('phrases.uncategorized'), count: tagCounts.__uncat__ ?? 0 },
-        ],
-        [allPhrases.length, tagCounts, t, tags]
-    );
+            { id: '__uncat__', name: t('phrases.uncategorized'), count: Number(tagCounts.__uncat__ ?? 0) },
+        ];
+    }, [allPhrases.length, tagCounts, t, tags]);
 
     const activeTag = tags.find((tag) => tag.id === selectedTagId) ?? null;
 
@@ -1225,71 +1275,7 @@ export default function PhrasesInline() {
         return sorted;
     }, [allPhrases, tags]);
 
-    const measureQuickTagWidth = useCallback((label) => {
-        if (typeof document === 'undefined') {
-            return Math.max(label.length * 12 + 18, 54);
-        }
-
-        if (!quickTagMeasureRef.current) {
-            quickTagMeasureRef.current = document.createElement('canvas');
-        }
-
-        const context = quickTagMeasureRef.current.getContext('2d');
-
-        if (!context) {
-            return Math.max(label.length * 12 + 18, 54);
-        }
-
-        context.font = '500 12px "Microsoft YaHei UI", "Segoe UI", sans-serif';
-        return Math.ceil(context.measureText(label).width) + 20;
-    }, []);
-
-    const quickTagPills = useMemo(() => {
-        if (quickTagCandidates.length === 0) {
-            return [];
-        }
-
-        const visible = [];
-        let usedWidth = 0;
-
-        quickTagCandidates.forEach((tag) => {
-            if (visible.length >= QUICK_VISIBLE_TAGS) {
-                return;
-            }
-
-            const nextWidth = measureQuickTagWidth(tag.name);
-            const gap = visible.length > 0 ? 6 : 0;
-
-            if (visible.length > 0 && usedWidth + gap + nextWidth > quickTagBarWidth) {
-                return;
-            }
-
-            visible.push(tag);
-            usedWidth += gap + nextWidth;
-        });
-
-        if (visible.length === 0) {
-            visible.push(...quickTagCandidates.slice(0, 1));
-        }
-
-        if (
-            selectedTagId !== null &&
-            selectedTagId !== '__uncat__' &&
-            !visible.some((tag) => tag.id === selectedTagId)
-        ) {
-            const selectedTag = tags.find((tag) => tag.id === selectedTagId);
-
-            if (selectedTag) {
-                if (visible.length >= QUICK_VISIBLE_TAGS) {
-                    visible[visible.length - 1] = selectedTag;
-                } else {
-                    visible.push(selectedTag);
-                }
-            }
-        }
-
-        return visible.filter(Boolean);
-    }, [measureQuickTagWidth, quickTagBarWidth, quickTagCandidates, selectedTagId, tags]);
+    const quickTagPills = quickTagCandidates;
     const showQuickResults = search.trim().length > 0 || selectedTagId !== null;
 
     useEffect(() => {
@@ -1464,6 +1450,7 @@ export default function PhrasesInline() {
                 onBack={() => setView('manage')}
                 onChanged={reload}
                 onClose={dismiss}
+                onSelectTag={openManagedTag}
                 pined={pined}
                 onTogglePin={togglePin}
             />
@@ -1484,7 +1471,10 @@ export default function PhrasesInline() {
                     }
                     right={
                         <div className='flex items-center gap-1.5'>
-                            <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
+                            <WindowHeaderPinButton
+                                active={pined}
+                                onClick={() => void togglePin()}
+                            />
                             <WindowHeaderCloseButton onClick={dismiss} />
                         </div>
                     }
@@ -1504,6 +1494,7 @@ export default function PhrasesInline() {
                     <div
                         className='phrases-inline-scroll-hidden'
                         style={styles.filterScroll}
+                        onWheel={handleHorizontalWheel}
                     >
                         {tagPills.map((tag) => (
                             <button
@@ -1634,11 +1625,12 @@ export default function PhrasesInline() {
                 ) : null}
 
                 <div style={styles.quickHeaderRow}>
-                    <div
-                        ref={quickTagBarRef}
-                        style={styles.quickTagBar}
-                    >
-                        <div style={styles.quickTagScroll}>
+                    <div style={styles.quickTagBar}>
+                        <div
+                            className='phrases-inline-scroll-hidden'
+                            style={styles.quickTagScroll}
+                            onWheel={handleHorizontalWheel}
+                        >
                             {quickTagPills.map((tag) => (
                                 <button
                                     key={String(tag.id)}
@@ -1698,32 +1690,12 @@ export default function PhrasesInline() {
     }
 
     return (
-        <TrayWindow
-            style={
-                view !== 'quick'
-                    ? styles.manageWindow
-                    : view === 'quick'
-                      ? styles.quickWindow
-                      : undefined
-            }
-        >
+        <TrayWindow style={view !== 'quick' ? styles.manageWindow : view === 'quick' ? styles.quickWindow : undefined}>
             <TrayWindowBody
-                style={
-                    view === 'quick'
-                        ? styles.quickBody
-                        : view !== 'quick'
-                          ? styles.manageBody
-                          : undefined
-                }
+                style={view === 'quick' ? styles.quickBody : view !== 'quick' ? styles.manageBody : undefined}
             >
                 <TrayWindowSurface
-                    style={
-                        view === 'quick'
-                            ? styles.quickSurface
-                            : view !== 'quick'
-                              ? styles.manageSurface
-                            : undefined
-                    }
+                    style={view === 'quick' ? styles.quickSurface : view !== 'quick' ? styles.manageSurface : undefined}
                 >
                     {content}
                 </TrayWindowSurface>
