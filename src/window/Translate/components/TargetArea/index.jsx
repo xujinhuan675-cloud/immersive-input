@@ -102,7 +102,7 @@ export default function TargetArea(props) {
     const detectLanguage = useAtomValue(detectLanguageAtom);
 
     const { t } = useTranslation();
-    const textAreaRef = useRef(null);
+    const resultBodyRef = useRef(null);
     const pendingResultRef = useRef(undefined);
     const resultUpdateTimerRef = useRef(null);
     const toastStyle = useToastStyle();
@@ -522,15 +522,10 @@ export default function TargetArea(props) {
     };
 
     useEffect(() => {
-        if (!textAreaRef.current) {
-            return;
-        }
-
-        textAreaRef.current.style.height = '0px';
-        if (typeof result === 'string' && result !== '') {
-            textAreaRef.current.style.height = textAreaRef.current.scrollHeight + 'px';
-        }
-    }, [result, collapsed]);
+        const resultBody = resultBodyRef.current;
+        if (!resultBody || collapsed) return;
+        resultBody.scrollTop = resultBody.scrollHeight;
+    }, [result, error, isLoading, collapsed]);
 
     const hasStringResult = typeof result === 'string' && result.trim() !== '';
     const hasStructuredResult =
@@ -756,22 +751,24 @@ export default function TargetArea(props) {
 
             {showBody ? (
                 <div className='overflow-hidden'>
-                    <div className='border-t border-default-200/60 px-3 py-2.5 text-default-700'>
+                    <div
+                        ref={resultBodyRef}
+                        className='max-h-[42vh] overflow-y-auto overscroll-contain border-t border-default-200/60 px-3 py-2.5 text-default-700 [scrollbar-gutter:stable]'
+                    >
                         {isLoading && !hasStringResult && !hasStructuredResult && error === '' ? (
                             <div className='py-1 text-[12px] text-default-400'>{t('translate.translate')}...</div>
                         ) : null}
 
                         {hasStringResult ? (
-                            <textarea
-                                ref={textAreaRef}
-                                className='h-0 w-full resize-none bg-transparent text-foreground outline-none'
+                            <div
+                                className='select-text whitespace-pre-wrap break-words text-foreground'
                                 style={{
                                     fontSize: DEFAULT_APP_FONT_SIZE,
                                     lineHeight: 1.6,
                                 }}
-                                readOnly
-                                value={result}
-                            />
+                            >
+                                {result}
+                            </div>
                         ) : null}
                         {hasStructuredResult ? (
                             <div className='space-y-1.5 text-[14px] leading-[1.6] text-default-700'>

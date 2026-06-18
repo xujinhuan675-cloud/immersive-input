@@ -217,7 +217,11 @@ fn main() {
             // Check Update
             check_update(app.handle());
             init_lang_detect();
-            let clipboard_action_mode = get_clipboard_action_mode();
+            let mut clipboard_action_mode = get_clipboard_action_mode();
+            if clipboard_action_enabled(&clipboard_action_mode) {
+                set_clipboard_action_mode(COPY_ACTION_MODE_OFF);
+                clipboard_action_mode = COPY_ACTION_MODE_OFF.to_string();
+            }
             app.manage(ClipboardActionModeWrapper(Mutex::new(
                 clipboard_action_mode.clone(),
             )));

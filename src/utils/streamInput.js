@@ -13,6 +13,8 @@ export function createStreamInputWriter(options = {}) {
         bufferLimit = DEFAULT_BUFFER_LIMIT,
         restoreFocus = true,
         selectAllOnFirstWrite = false,
+        deleteSelectionOnFirstWrite = false,
+        pasteOnWrite = false,
     } = options;
 
     let bufferedText = '';
@@ -20,6 +22,7 @@ export function createStreamInputWriter(options = {}) {
     let processing = false;
     let shouldRestoreFocus = restoreFocus;
     let shouldSelectAllFirst = selectAllOnFirstWrite;
+    let shouldDeleteSelectionFirst = deleteSelectionOnFirstWrite;
     let hasTypedContent = false;
     let queue = [];
     let failed = null;
@@ -48,9 +51,12 @@ export function createStreamInputWriter(options = {}) {
                     text: nextText,
                     restoreFocus: shouldRestoreFocus,
                     selectAllFirst: shouldSelectAllFirst,
+                    deleteSelectionFirst: shouldDeleteSelectionFirst,
+                    pasteText: pasteOnWrite,
                 });
                 shouldRestoreFocus = false;
                 shouldSelectAllFirst = false;
+                shouldDeleteSelectionFirst = false;
                 hasTypedContent = true;
             }
         } catch (error) {

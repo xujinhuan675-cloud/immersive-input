@@ -1,5 +1,5 @@
-use crate::clipboard::*;
 use crate::config::{get, set};
+use crate::hotkey::set_text_select_behavior;
 use crate::phrases::open_phrases_window;
 use crate::window::chat_window;
 use crate::window::config_window;
@@ -16,7 +16,7 @@ use tauri::SystemTrayEvent;
 use tauri::SystemTrayMenu;
 use tauri::SystemTrayMenuItem;
 use tauri::SystemTraySubmenu;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 fn resolve_text_select_behavior() -> String {
     match get("text_select_behavior") {
@@ -51,26 +51,24 @@ pub fn update_tray(app_handle: tauri::AppHandle, mut language: String, mut copy_
             }
         };
     }
-    let clipboard_action_mode = get_clipboard_action_mode();
-
     debug!(
-        "Update tray with language: {}, copy mode: {}, text select behavior: {}, clipboard action mode: {}",
-        language, copy_mode, text_select_behavior, clipboard_action_mode
+        "Update tray with language: {}, copy mode: {}, text select behavior: {}",
+        language, copy_mode, text_select_behavior
     );
     tray_handle
         .set_menu(match language.as_str() {
-            "en" => tray_menu_en_refined(&clipboard_action_mode, &text_select_behavior),
-            "zh_cn" => tray_menu_zh_cn_refined(&clipboard_action_mode, &text_select_behavior),
-            "zh_tw" => tray_menu_zh_tw_refined(&clipboard_action_mode, &text_select_behavior),
-            "ja" => tray_menu_ja_refined(&clipboard_action_mode, &text_select_behavior),
-            "ko" => tray_menu_ko_refined(&clipboard_action_mode, &text_select_behavior),
-            "fr" => tray_menu_fr_refined(&clipboard_action_mode, &text_select_behavior),
-            "de" => tray_menu_de_refined(&clipboard_action_mode, &text_select_behavior),
-            "ru" => tray_menu_ru_refined(&clipboard_action_mode, &text_select_behavior),
-            "pt_br" => tray_menu_pt_br_refined(&clipboard_action_mode, &text_select_behavior),
-            "fa" => tray_menu_fa_refined(&clipboard_action_mode, &text_select_behavior),
-            "uk" => tray_menu_uk_refined(&clipboard_action_mode, &text_select_behavior),
-            _ => tray_menu_en_refined(&clipboard_action_mode, &text_select_behavior),
+            "en" => tray_menu_en_refined(&text_select_behavior),
+            "zh_cn" => tray_menu_zh_cn_refined(&text_select_behavior),
+            "zh_tw" => tray_menu_zh_tw_refined(&text_select_behavior),
+            "ja" => tray_menu_ja_refined(&text_select_behavior),
+            "ko" => tray_menu_ko_refined(&text_select_behavior),
+            "fr" => tray_menu_fr_refined(&text_select_behavior),
+            "de" => tray_menu_de_refined(&text_select_behavior),
+            "ru" => tray_menu_ru_refined(&text_select_behavior),
+            "pt_br" => tray_menu_pt_br_refined(&text_select_behavior),
+            "fa" => tray_menu_fa_refined(&text_select_behavior),
+            "uk" => tray_menu_uk_refined(&text_select_behavior),
+            _ => tray_menu_en_refined(&text_select_behavior),
         })
         .unwrap();
     #[cfg(not(target_os = "linux"))]
@@ -85,14 +83,13 @@ pub fn tray_event_handler<'a>(app: &'a AppHandle, event: SystemTrayEvent) {
         SystemTrayEvent::LeftClick { .. } => on_tray_click(),
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
             "input_translate" => on_input_translate_click(),
-            "copy_action_translate" => on_copy_action_mode_click(app, COPY_ACTION_MODE_TRANSLATE),
-            "copy_action_light_ai" => on_copy_action_mode_click(app, COPY_ACTION_MODE_LIGHT_AI),
-            "copy_action_explain" => on_copy_action_mode_click(app, COPY_ACTION_MODE_EXPLAIN),
-            "copy_action_off" => on_copy_action_mode_click(app, COPY_ACTION_MODE_OFF),
             "text_select_behavior_toolbar" => on_text_select_behavior_click(app, "toolbar"),
             "text_select_behavior_direct" => on_text_select_behavior_click(app, "direct_translate"),
             "text_select_behavior_direct_explain" => {
                 on_text_select_behavior_click(app, "direct_explain")
+            }
+            "text_select_behavior_direct_light_ai" => {
+                on_text_select_behavior_click(app, "direct_light_ai")
             }
             "text_select_behavior_disabled" => on_text_select_behavior_click(app, "disabled"),
             "ocr_recognize" => on_ocr_recognize_click(),
@@ -132,29 +129,10 @@ fn on_tray_click() {
 fn on_input_translate_click() {
     input_translate();
 }
-fn on_copy_action_mode_click(app: &AppHandle, mode: &str) {
-    debug!("Set copy action mode to: {}", mode);
-
-    let state = app.state::<ClipboardActionModeWrapper>();
-    let previous_mode = {
-        let mut guard = state.0.lock().unwrap();
-        let previous = guard.clone();
-        *guard = mode.to_string();
-        previous
-    };
-
-    set_clipboard_action_mode(mode);
-    if !clipboard_action_enabled(&previous_mode) && clipboard_action_enabled(mode) {
-        start_clipboard_monitor(app.app_handle());
-    }
-    update_tray(app.app_handle(), "".to_string(), "".to_string());
-}
 fn on_text_select_behavior_click(app: &AppHandle, mode: &str) {
     debug!("Set text select behavior to: {}", mode);
-    set("text_select_behavior", mode);
-    app.emit_all("text_select_behavior_changed", mode)
-        .unwrap_or_default();
-    update_tray(app.app_handle(), "".to_string(), "".to_string());
+    let _ = app;
+    set_text_select_behavior(mode);
 }
 fn on_ocr_recognize_click() {
     ocr_recognize();
@@ -182,79 +160,68 @@ fn on_quit_click(app: &AppHandle) {
 
 #[allow(dead_code)]
 fn tray_menu_en() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_en_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_en_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_zh_cn() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_zh_cn_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_zh_cn_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_zh_tw() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_zh_tw_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_zh_tw_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_ja() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_ja_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_ja_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_ko() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_ko_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_ko_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_fr() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_fr_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_fr_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_de() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_de_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_de_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_ru() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_ru_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_ru_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_fa() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_fa_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_fa_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_pt_br() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_pt_br_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_pt_br_refined(&text_select_behavior)
 }
 
 #[allow(dead_code)]
 fn tray_menu_uk() -> tauri::SystemTrayMenu {
-    let clipboard_action_mode = get_clipboard_action_mode();
     let text_select_behavior = resolve_text_select_behavior();
-    tray_menu_uk_refined(&clipboard_action_mode, &text_select_behavior)
+    tray_menu_uk_refined(&text_select_behavior)
 }
 
 struct TrayMenuLabels<'a> {
@@ -266,15 +233,11 @@ struct TrayMenuLabels<'a> {
     recognition_tools: &'a str,
     ocr_recognize: &'a str,
     ocr_translate: &'a str,
-    copy_actions: &'a str,
-    copy_action_translate: &'a str,
-    copy_action_light_ai: &'a str,
-    copy_action_explain: &'a str,
-    copy_action_off: &'a str,
     text_selection: &'a str,
     text_selection_toolbar: &'a str,
     text_selection_direct: &'a str,
     text_selection_direct_explain: &'a str,
+    text_selection_direct_light_ai: &'a str,
     text_selection_disabled: &'a str,
     more: &'a str,
     config: &'a str,
@@ -289,7 +252,6 @@ fn selected_item(item: CustomMenuItem, selected: bool) -> CustomMenuItem {
 
 fn build_tray_menu(
     labels: TrayMenuLabels<'_>,
-    clipboard_action_mode: &str,
     text_select_behavior: &str,
 ) -> tauri::SystemTrayMenu {
     let input_translate = CustomMenuItem::new("input_translate", labels.input_translate);
@@ -303,22 +265,6 @@ fn build_tray_menu(
     let restart = CustomMenuItem::new("restart", labels.restart);
     let quit = CustomMenuItem::new("quit", labels.quit);
 
-    let copy_action_translate = selected_item(
-        CustomMenuItem::new("copy_action_translate", labels.copy_action_translate),
-        clipboard_action_mode == COPY_ACTION_MODE_TRANSLATE,
-    );
-    let copy_action_light_ai = selected_item(
-        CustomMenuItem::new("copy_action_light_ai", labels.copy_action_light_ai),
-        clipboard_action_mode == COPY_ACTION_MODE_LIGHT_AI,
-    );
-    let copy_action_explain = selected_item(
-        CustomMenuItem::new("copy_action_explain", labels.copy_action_explain),
-        clipboard_action_mode == COPY_ACTION_MODE_EXPLAIN,
-    );
-    let copy_action_off = selected_item(
-        CustomMenuItem::new("copy_action_off", labels.copy_action_off),
-        clipboard_action_mode == COPY_ACTION_MODE_OFF,
-    );
     let text_select_behavior_toolbar = selected_item(
         CustomMenuItem::new("text_select_behavior_toolbar", labels.text_selection_toolbar),
         text_select_behavior == "toolbar",
@@ -333,6 +279,13 @@ fn build_tray_menu(
             labels.text_selection_direct_explain,
         ),
         text_select_behavior == "direct_explain",
+    );
+    let text_select_behavior_direct_light_ai = selected_item(
+        CustomMenuItem::new(
+            "text_select_behavior_direct_light_ai",
+            labels.text_selection_direct_light_ai,
+        ),
+        text_select_behavior == "direct_light_ai",
     );
     let text_select_behavior_disabled = selected_item(
         CustomMenuItem::new("text_select_behavior_disabled", labels.text_selection_disabled),
@@ -354,6 +307,7 @@ fn build_tray_menu(
                 .add_item(text_select_behavior_toolbar)
                 .add_item(text_select_behavior_direct)
                 .add_item(text_select_behavior_direct_explain)
+                .add_item(text_select_behavior_direct_light_ai)
                 .add_item(text_select_behavior_disabled),
         ))
         .add_native_item(SystemTrayMenuItem::Separator)
@@ -362,14 +316,6 @@ fn build_tray_menu(
             SystemTrayMenu::new()
                 .add_item(ocr_recognize)
                 .add_item(ocr_translate),
-        ))
-        .add_submenu(SystemTraySubmenu::new(
-            labels.copy_actions,
-            SystemTrayMenu::new()
-                .add_item(copy_action_translate)
-                .add_item(copy_action_light_ai)
-                .add_item(copy_action_explain)
-                .add_item(copy_action_off),
         ))
         .add_item(config)
         .add_submenu(SystemTraySubmenu::new(
@@ -382,10 +328,7 @@ fn build_tray_menu(
         .add_item(quit)
 }
 
-fn tray_menu_en_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
+fn tray_menu_en_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "Translate",
         light_ai: "Text Assistant",
@@ -395,28 +338,21 @@ fn tray_menu_en_refined(
         recognition_tools: "Recognition Tools",
         ocr_recognize: "OCR Recognize",
         ocr_translate: "OCR Translate",
-        copy_actions: "After Copy",
-        copy_action_translate: "Direct Translate",
-        copy_action_light_ai: "Direct Polish",
-        copy_action_explain: "Direct Explain",
-        copy_action_off: "Disabled",
         text_selection: "Text Selection Behavior",
         text_selection_toolbar: "Show Toolbar",
-        text_selection_direct: "Direct Translate",
-        text_selection_direct_explain: "Direct Explain",
+        text_selection_direct: "Open Translate Window",
+        text_selection_direct_explain: "Open Explain Window",
+        text_selection_direct_light_ai: "Open Text Assistant",
         text_selection_disabled: "Disabled",
         more: "More",
         config: "Config",
         check_update: "Check Update",
         restart: "Restart",
         quit: "Quit",
-    }, clipboard_action_mode, text_select_behavior)
+    }, text_select_behavior)
 }
 
-fn tray_menu_zh_cn_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
+fn tray_menu_zh_cn_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{7FFB}\u{8BD1}",
         light_ai: "\u{6587}\u{672C}\u{52A9}\u{624B}",
@@ -426,28 +362,21 @@ fn tray_menu_zh_cn_refined(
         recognition_tools: "\u{8BC6}\u{522B}\u{5DE5}\u{5177}",
         ocr_recognize: "\u{6587}\u{5B57}\u{8BC6}\u{522B}",
         ocr_translate: "\u{622A}\u{56FE}\u{7FFB}\u{8BD1}",
-        copy_actions: "\u{590D}\u{5236}\u{540E}\u{64CD}\u{4F5C}",
-        copy_action_translate: "\u{76F4}\u{63A5}\u{7FFB}\u{8BD1}",
-        copy_action_light_ai: "\u{76F4}\u{63A5}\u{6DA6}\u{8272}",
-        copy_action_explain: "\u{76F4}\u{63A5}\u{89E3}\u{91CA}",
-        copy_action_off: "\u{7981}\u{7528}",
         text_selection: "\u{5212}\u{8BCD}\u{884C}\u{4E3A}",
         text_selection_toolbar: "\u{663E}\u{793A}\u{5DE5}\u{5177}\u{680F}",
-        text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8BD1}",
-        text_selection_direct_explain: "\u{76F4}\u{63A5}\u{89E3}\u{91CA}",
+        text_selection_direct: "\u{6253}\u{5F00}\u{7FFB}\u{8BD1}\u{7A97}\u{53E3}",
+        text_selection_direct_explain: "\u{6253}\u{5F00}\u{89E3}\u{91CA}\u{7A97}\u{53E3}",
+        text_selection_direct_light_ai: "\u{6253}\u{5F00}\u{6587}\u{672C}\u{52A9}\u{624B}",
         text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8BBE}\u{7F6E}",
         check_update: "\u{68C0}\u{67E5}\u{66F4}\u{65B0}",
         restart: "\u{91CD}\u{542F}\u{5E94}\u{7528}",
         quit: "\u{9000}\u{51FA}",
-    }, clipboard_action_mode, text_select_behavior)
+    }, text_select_behavior)
 }
 
-fn tray_menu_zh_tw_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
+fn tray_menu_zh_tw_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
     build_tray_menu(TrayMenuLabels {
         input_translate: "\u{7FFB}\u{8B6F}",
         light_ai: "\u{6587}\u{672C}\u{52A9}\u{624B}",
@@ -457,76 +386,48 @@ fn tray_menu_zh_tw_refined(
         recognition_tools: "\u{8B58}\u{5225}\u{5DE5}\u{5177}",
         ocr_recognize: "\u{6587}\u{5B57}\u{8B58}\u{5225}",
         ocr_translate: "\u{622A}\u{5716}\u{7FFB}\u{8B6F}",
-        copy_actions: "\u{8907}\u{88FD}\u{5F8C}\u{64CD}\u{4F5C}",
-        copy_action_translate: "\u{76F4}\u{63A5}\u{7FFB}\u{8B6F}",
-        copy_action_light_ai: "\u{76F4}\u{63A5}\u{6F64}\u{8272}",
-        copy_action_explain: "\u{76F4}\u{63A5}\u{89E3}\u{91CB}",
-        copy_action_off: "\u{7981}\u{7528}",
         text_selection: "\u{5283}\u{8A5E}\u{884C}\u{70BA}",
         text_selection_toolbar: "\u{986F}\u{793A}\u{5DE5}\u{5177}\u{5217}",
-        text_selection_direct: "\u{76F4}\u{63A5}\u{7FFB}\u{8B6F}",
-        text_selection_direct_explain: "\u{76F4}\u{63A5}\u{89E3}\u{91CB}",
+        text_selection_direct: "\u{6253}\u{958B}\u{7FFB}\u{8B6F}\u{8996}\u{7A97}",
+        text_selection_direct_explain: "\u{6253}\u{958B}\u{89E3}\u{91CB}\u{8996}\u{7A97}",
+        text_selection_direct_light_ai: "\u{6253}\u{958B}\u{6587}\u{672C}\u{52A9}\u{624B}",
         text_selection_disabled: "\u{7981}\u{7528}",
         more: "\u{66F4}\u{591A}",
         config: "\u{504F}\u{597D}\u{8A2D}\u{5B9A}",
         check_update: "\u{6AA2}\u{67E5}\u{66F4}\u{65B0}",
         restart: "\u{91CD}\u{555F}\u{61C9}\u{7528}",
         quit: "\u{9000}\u{51FA}",
-    }, clipboard_action_mode, text_select_behavior)
+    }, text_select_behavior)
 }
 
-fn tray_menu_ja_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_ja_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_ko_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_ko_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_fr_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_fr_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_de_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_de_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_ru_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_ru_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_fa_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_fa_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_pt_br_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_pt_br_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }
 
-fn tray_menu_uk_refined(
-    clipboard_action_mode: &str,
-    text_select_behavior: &str,
-) -> tauri::SystemTrayMenu {
-    tray_menu_en_refined(clipboard_action_mode, text_select_behavior)
+fn tray_menu_uk_refined(text_select_behavior: &str) -> tauri::SystemTrayMenu {
+    tray_menu_en_refined(text_select_behavior)
 }

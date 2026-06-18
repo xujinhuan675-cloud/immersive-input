@@ -121,12 +121,70 @@ export function buildAiChatCompletionsBody(config = {}, messages = [], options =
     };
 }
 
+function readAiTextContent(content) {
+    if (typeof content === 'string') {
+        return content;
+    }
+
+    if (Array.isArray(content)) {
+        return content
+            .map((part) => {
+                if (typeof part === 'string') {
+                    return part;
+                }
+                return (
+                    readAiTextContent(part?.text) ||
+                    readAiTextContent(part?.content) ||
+                    readAiTextContent(part?.output_text) ||
+                    ''
+                );
+            })
+            .filter(Boolean)
+            .join('');
+    }
+
+    if (content && typeof content === 'object') {
+        return (
+            readAiTextContent(content.text) ||
+            readAiTextContent(content.content) ||
+            readAiTextContent(content.output_text) ||
+            ''
+        );
+    }
+
+    return '';
+}
+
 function readAiChatDelta(payload) {
-    return payload?.choices?.[0]?.delta?.content ?? '';
+    const choice = payload?.choices?.[0] ?? {};
+    const delta = choice.delta ?? {};
+    return (
+        readAiTextContent(delta.content) ||
+        readAiTextContent(delta.text) ||
+        readAiTextContent(delta.output_text) ||
+        readAiTextContent(choice.message?.content) ||
+        readAiTextContent(choice.text) ||
+        readAiTextContent(payload?.message?.content) ||
+        readAiTextContent(payload?.content) ||
+        readAiTextContent(payload?.output_text) ||
+        readAiTextContent(payload?.text) ||
+        readAiTextContent(payload?.output) ||
+        ''
+    );
 }
 
 export function readAiChatCompletionsMessage(payload) {
-    return payload?.choices?.[0]?.message?.content ?? '';
+    const choice = payload?.choices?.[0] ?? {};
+    return (
+        readAiTextContent(choice.message?.content) ||
+        readAiTextContent(choice.text) ||
+        readAiTextContent(payload?.message?.content) ||
+        readAiTextContent(payload?.content) ||
+        readAiTextContent(payload?.output_text) ||
+        readAiTextContent(payload?.text) ||
+        readAiTextContent(payload?.output) ||
+        ''
+    );
 }
 
 async function readAiErrorText(response) {
@@ -138,6 +196,7 @@ export async function readAiChatCompletionsStream(response, onChunk = () => {}) 
     const decoder = new TextDecoder();
     let fullText = '';
     let buffer = '';
+    let rawText = '';
 
     const readLine = (line) => {
         const trimmed = line.trim();
@@ -160,7 +219,9 @@ export async function readAiChatCompletionsStream(response, onChunk = () => {}) 
             const { done, value } = await reader.read();
             if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
+            const decoded = decoder.decode(value, { stream: true });
+            rawText += decoded;
+            buffer += decoded;
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
             lines.forEach(readLine);
@@ -171,6 +232,17 @@ export async function readAiChatCompletionsStream(response, onChunk = () => {}) 
         }
     } finally {
         reader.releaseLock();
+    }
+
+    if (!fullText) {
+        try {
+            const payload = JSON.parse(rawText.trim());
+            const message = readAiChatCompletionsMessage(payload) || readAiChatDelta(payload);
+            if (message) {
+                fullText = message;
+                onChunk(message);
+            }
+        } catch {}
     }
 
     return fullText;
@@ -209,9 +281,12 @@ export async function streamAiChatCompletions(
 
         const fullText = await readAiChatCompletionsStream(response, onChunk);
         onComplete(fullText);
+        return fullText;
     } catch (error) {
         onError(error?.name === 'AbortError' ? null : error?.message ?? String(error));
     }
+
+    return '';
 }
 
 export async function requestAiChatCompletions(messages, apiConfig, retryOptions, options = {}) {

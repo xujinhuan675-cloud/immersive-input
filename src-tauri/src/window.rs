@@ -708,7 +708,7 @@ pub fn selection_translate() {
             return;
         }
     }
-    // Check config: show floating toolbar or go directly to the configured action.
+    // Check config: show floating toolbar or open the configured window directly.
     crate::config::reload();
     let behavior = match get("text_select_behavior") {
         Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
@@ -718,8 +718,14 @@ pub fn selection_translate() {
         "toolbar" if !text.trim().is_empty() => {
             float_toolbar_window();
         }
+        "direct_translate" => {
+            auto_selection_translate(text);
+        }
         "direct_explain" => {
-            chat_explain_window_with_text(text);
+            auto_selection_explain(text);
+        }
+        "direct_light_ai" => {
+            auto_selection_light_ai(text);
         }
         _ => {
             let window = translate_window();
@@ -728,19 +734,33 @@ pub fn selection_translate() {
     }
 }
 
-/// Called from mouse_hook when behavior is "direct_translate".
-/// Writes the already-captured text into state and opens the translate window directly.
-pub fn direct_translate_selection(text: String) {
+pub fn selection_explain() {
+    save_foreground_window();
+    let text = crate::selection_capture::get_text(None);
+    chat_explain_window_with_text(text);
+}
+
+fn save_text_to_selection_state(text: &str) {
     let app_handle = APP.get().unwrap();
     let state: tauri::State<StringWrapper> = app_handle.state();
-    state.0.lock().unwrap().replace_range(.., &text);
+    state.0.lock().unwrap().replace_range(.., text);
+}
 
-    if append_to_existing_translate_window_if_excerpt(&text) {
-        return;
-    }
+pub fn auto_selection_translate(text: String) {
+    save_text_to_selection_state(&text);
+    text_translate(text);
+}
 
-    let window = translate_window();
-    window.emit("new_text", text).unwrap();
+pub fn auto_selection_explain(text: String) {
+    save_text_to_selection_state(&text);
+    chat_explain_window_with_text(text);
+}
+
+pub fn auto_selection_light_ai(text: String) {
+    set_light_ai_opened_from_input_handle(false);
+    set_light_ai_target("selection");
+    save_text_to_selection_state(&text);
+    light_ai_window();
 }
 
 pub fn input_translate() {

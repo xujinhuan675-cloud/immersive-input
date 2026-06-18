@@ -1,8 +1,9 @@
 use crate::config::{get, reload};
+use crate::hotkey::toggle_text_select_behavior;
 use crate::phrases::open_phrases_window;
 use crate::vault::{vault_quick_add_window, vault_quick_fill_window};
 use crate::window::{
-    input_translate, ocr_recognize, ocr_translate, selection_light_ai, selection_translate,
+    input_translate, ocr_recognize, ocr_translate, selection_explain, selection_light_ai,
 };
 use log::debug;
 use once_cell::sync::Lazy;
@@ -173,11 +174,12 @@ fn dispatch(key: Key, key_str: &str) {
     reload();
 
     let actions: &[(&str, fn())] = &[
-        ("doubletap_selection_translate", selection_translate),
         ("doubletap_input_translate", input_translate),
         ("doubletap_ocr_recognize", ocr_recognize),
         ("doubletap_ocr_translate", ocr_translate),
         ("doubletap_light_ai", selection_light_ai),
+        ("doubletap_explain", selection_explain),
+        ("doubletap_text_select_toggle", toggle_text_select_behavior),
         ("doubletap_vault_quick_add", vault_quick_add_window),
         ("doubletap_vault_quick_fill", vault_quick_fill_window),
         ("doubletap_phrases", open_phrases_window),

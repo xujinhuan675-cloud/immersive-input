@@ -164,8 +164,12 @@ pub fn get_plugin_list(plugin_type: &str) -> Option<Vec<String>> {
 }
 
 pub fn get(key: &str) -> Option<Value> {
-    let state = APP.get().unwrap().state::<StoreWrapper>();
-    let store = state.0.lock().unwrap();
+    let Some(app_handle) = APP.get() else {
+        warn!("Config get skipped before app init: {}", key);
+        return None;
+    };
+    let state = app_handle.state::<StoreWrapper>();
+    let store = state.0.lock().unwrap_or_else(|e| e.into_inner());
     match store.get(key) {
         Some(value) => Some(value.clone()),
         None => None,
@@ -173,15 +177,29 @@ pub fn get(key: &str) -> Option<Value> {
 }
 
 pub fn set<T: serde::ser::Serialize>(key: &str, value: T) {
-    let state = APP.get().unwrap().state::<StoreWrapper>();
-    let mut store = state.0.lock().unwrap();
-    store.insert(key.to_string(), json!(value)).unwrap();
-    store.save().unwrap();
+    let Some(app_handle) = APP.get() else {
+        warn!("Config set skipped before app init: {}", key);
+        return;
+    };
+    let state = app_handle.state::<StoreWrapper>();
+    let mut store = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    if let Err(error) = store.insert(key.to_string(), json!(value)) {
+        warn!("Config insert error for {}: {:?}", key, error);
+        return;
+    }
+    if let Err(error) = store.save() {
+        warn!("Config save error for {}: {:?}", key, error);
+    }
 }
 
 /// Reload the in-memory store from disk so Rust always sees the latest JS-side changes.
 pub fn reload() {
-    let state = APP.get().unwrap().state::<StoreWrapper>();
+    let Some(app_handle) = APP.get() else {
+        return;
+    };
+    let state = app_handle.state::<StoreWrapper>();
     let mut store = state.0.lock().unwrap_or_else(|e| e.into_inner());
-    let _ = store.load();
+    if let Err(error) = store.load() {
+        warn!("Config reload error: {:?}", error);
+    }
 }

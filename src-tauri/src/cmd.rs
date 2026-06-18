@@ -7,7 +7,7 @@ use crate::PendingTtsTextWrapper;
 use crate::PrevForegroundWindow;
 use crate::StringWrapper;
 use crate::APP;
-use log::{debug, error};
+use log::{debug, error, warn};
 use serde_json::{json, Value};
 use std::io::Read;
 use tauri::Manager;
@@ -70,10 +70,21 @@ pub fn take_pending_tts_text(state: tauri::State<PendingTtsTextWrapper>) -> Stri
 }
 
 #[tauri::command]
-pub fn reload_store() {
-    let state = APP.get().unwrap().state::<StoreWrapper>();
-    let mut store = state.0.lock().unwrap();
-    store.load().unwrap();
+pub fn reload_store() -> Result<(), String> {
+    let Some(app_handle) = APP.get() else {
+        return Ok(());
+    };
+    let state = app_handle.state::<StoreWrapper>();
+    let mut store = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    match store.load() {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let message = format!("Store reload error: {:?}", error);
+            warn!("{}", message);
+            crate::crash_log::record("store", &message);
+            Err(message)
+        }
+    }
 }
 
 #[tauri::command]
@@ -411,6 +422,8 @@ pub fn stream_input_text(
     text: String,
     restore_focus: Option<bool>,
     select_all_first: Option<bool>,
+    delete_selection_first: Option<bool>,
+    paste_text: Option<bool>,
     state: tauri::State<PrevForegroundWindow>,
 ) -> Result<(), String> {
     if text.is_empty() {
@@ -419,7 +432,7 @@ pub fn stream_input_text(
 
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_CONTROL};
+        use windows::Win32::UI::Input::KeyboardAndMouse::{VK_A, VK_BACK, VK_CONTROL, VK_V};
 
         if restore_focus.unwrap_or(false) {
             restore_previous_window(&state);
@@ -428,13 +441,25 @@ pub fn stream_input_text(
             send_windows_key_chord(&[VK_CONTROL, VK_A]);
             std::thread::sleep(std::time::Duration::from_millis(60));
         }
-        send_windows_unicode_text(&text);
+        if delete_selection_first.unwrap_or(false) {
+            send_windows_key_chord(&[VK_BACK]);
+            std::thread::sleep(std::time::Duration::from_millis(40));
+        }
+        if paste_text.unwrap_or(false) {
+            set_internal_clipboard_text(&text)?;
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            send_windows_key_chord(&[VK_CONTROL, VK_V]);
+        } else {
+            send_windows_unicode_text(&text);
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
     {
         let _ = restore_focus;
         let _ = select_all_first;
+        let _ = delete_selection_first;
+        let _ = paste_text;
         paste_result(text, state)?;
     }
 

@@ -1,7 +1,7 @@
 use crate::config::{get, reload};
 use crate::crash_log;
 use crate::window::{
-    chat_explain_window_with_text, direct_translate_selection, float_toolbar_window,
+    auto_selection_explain, auto_selection_light_ai, auto_selection_translate, float_toolbar_window,
     save_foreground_window,
 };
 use crate::StringWrapper;
@@ -66,7 +66,8 @@ fn point_inside_float_toolbar(x: i64, y: i64) -> bool {
 
 /// Start the global mouse hook in a background thread.
 /// Detects left-button drag → release events and triggers the configured behavior
-/// (show toolbar / direct translate / direct explain / disabled) based on `text_select_behavior` config.
+/// (show toolbar / open translate window / open explain window / disabled)
+/// based on `text_select_behavior` config.
 pub fn start_mouse_hook() {
     crash_log::record("mouse_hook", "starting hook thread");
     std::thread::Builder::new()
@@ -235,8 +236,8 @@ fn handle_event(event: Event) {
                         {
                             return;
                         }
-                        crash_log::record("mouse_hook", "opening direct translate");
-                        direct_translate_selection(trimmed);
+                        crash_log::record("mouse_hook", "opening auto translate");
+                        auto_selection_translate(trimmed);
                     }
                     "direct_explain" => {
                         let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
@@ -246,8 +247,19 @@ fn handle_event(event: Event) {
                         {
                             return;
                         }
-                        crash_log::record("mouse_hook", "opening direct explain");
-                        chat_explain_window_with_text(trimmed);
+                        crash_log::record("mouse_hook", "opening auto explain");
+                        auto_selection_explain(trimmed);
+                    }
+                    "direct_light_ai" => {
+                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let trimmed = text.trim().to_string();
+                        if crate::vault::handle_quick_add_capture(&trimmed)
+                            || trimmed.len() < min_len
+                        {
+                            return;
+                        }
+                        crash_log::record("mouse_hook", "opening auto light ai");
+                        auto_selection_light_ai(trimmed);
                     }
                     _ => {
                         if let Some(app) = APP.get() {

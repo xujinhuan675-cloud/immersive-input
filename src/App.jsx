@@ -32,6 +32,7 @@ import './i18n';
 const authRequiredWindows = ['config', 'translate', 'light_ai', 'chat', 'recognize', 'vault', 'phrases'];
 
 const windowMap = {
+    daemon: <FloatToolbar />,
     translate: <Translate />,
     float_toolbar: <FloatToolbar />,
     input_ai_handle: <InputAiHandle />,

@@ -204,21 +204,23 @@ function HotkeyRow(props) {
 }
 
 export default function Hotkey() {
-    const [selectionTranslate, setSelectionTranslate] = useConfig('hotkey_selection_translate', '');
     const [inputTranslate, setInputTranslate] = useConfig('hotkey_input_translate', '');
     const [ocrRecognize, setOcrRecognize] = useConfig('hotkey_ocr_recognize', '');
     const [ocrTranslate, setOcrTranslate] = useConfig('hotkey_ocr_translate', '');
     const [lightAi, setLightAi] = useConfig('hotkey_light_ai', '');
+    const [explain, setExplain] = useConfig('hotkey_explain', '');
+    const [textSelectToggle, setTextSelectToggle] = useConfig('hotkey_text_select_toggle', '');
     const [vaultQuickAdd, setVaultQuickAdd] = useConfig('hotkey_vault_quick_add', '');
     const [vaultQuickFill, setVaultQuickFill] = useConfig('hotkey_vault_quick_fill', '');
     const [phrases, setPhrases] = useConfig('hotkey_phrases', '');
 
     // Double-tap hotkey configs (single-key, no OK button needed — saved on keydown)
-    const [dtSelectionTranslate, setDtSelectionTranslate] = useConfig('doubletap_selection_translate', '');
     const [dtInputTranslate, setDtInputTranslate] = useConfig('doubletap_input_translate', '');
     const [dtOcrRecognize, setDtOcrRecognize] = useConfig('doubletap_ocr_recognize', '');
     const [dtOcrTranslate, setDtOcrTranslate] = useConfig('doubletap_ocr_translate', '');
     const [dtLightAi, setDtLightAi] = useConfig('doubletap_light_ai', '');
+    const [dtExplain, setDtExplain] = useConfig('doubletap_explain', '');
+    const [dtTextSelectToggle, setDtTextSelectToggle] = useConfig('doubletap_text_select_toggle', '');
     const [dtVaultQuickAdd, setDtVaultQuickAdd] = useConfig('doubletap_vault_quick_add', '');
     const [dtVaultQuickFill, setDtVaultQuickFill] = useConfig('doubletap_vault_quick_fill', '');
     const [dtPhrases, setDtPhrases] = useConfig('doubletap_phrases', '');
@@ -394,87 +396,125 @@ export default function Hotkey() {
 
     const hotkeyRows = [
         {
-            label: t('config.hotkey.selection_translate'),
-            configKey: 'hotkey_selection_translate',
-            combo: selectionTranslate,
-            doubleTap: dtSelectionTranslate,
-            setCombo: setSelectionTranslate,
-            setDoubleTap: setDtSelectionTranslate,
+            title: t('config.hotkey.group_text_selection'),
+            rows: [
+                {
+                    label: t('config.hotkey.text_select_toggle'),
+                    configKey: 'hotkey_text_select_toggle',
+                    combo: textSelectToggle,
+                    doubleTap: dtTextSelectToggle,
+                    setCombo: setTextSelectToggle,
+                    setDoubleTap: setDtTextSelectToggle,
+                },
+                {
+                    label: t('config.hotkey.light_ai'),
+                    configKey: 'hotkey_light_ai',
+                    combo: lightAi,
+                    doubleTap: dtLightAi,
+                    setCombo: setLightAi,
+                    setDoubleTap: setDtLightAi,
+                },
+                {
+                    label: t('config.hotkey.explain'),
+                    configKey: 'hotkey_explain',
+                    combo: explain,
+                    doubleTap: dtExplain,
+                    setCombo: setExplain,
+                    setDoubleTap: setDtExplain,
+                },
+                {
+                    label: t('config.hotkey.input_translate'),
+                    configKey: 'hotkey_input_translate',
+                    combo: inputTranslate,
+                    doubleTap: dtInputTranslate,
+                    setCombo: setInputTranslate,
+                    setDoubleTap: setDtInputTranslate,
+                },
+                {
+                    label: t('config.hotkey.phrases'),
+                    configKey: 'hotkey_phrases',
+                    combo: phrases,
+                    doubleTap: dtPhrases,
+                    setCombo: setPhrases,
+                    setDoubleTap: setDtPhrases,
+                },
+            ],
         },
         {
-            label: t('config.hotkey.input_translate'),
-            configKey: 'hotkey_input_translate',
-            combo: inputTranslate,
-            doubleTap: dtInputTranslate,
-            setCombo: setInputTranslate,
-            setDoubleTap: setDtInputTranslate,
+            title: t('config.hotkey.group_capture'),
+            rows: [
+                {
+                    label: t('config.hotkey.ocr_recognize'),
+                    configKey: 'hotkey_ocr_recognize',
+                    combo: ocrRecognize,
+                    doubleTap: dtOcrRecognize,
+                    setCombo: setOcrRecognize,
+                    setDoubleTap: setDtOcrRecognize,
+                },
+                {
+                    label: t('config.hotkey.ocr_translate'),
+                    configKey: 'hotkey_ocr_translate',
+                    combo: ocrTranslate,
+                    doubleTap: dtOcrTranslate,
+                    setCombo: setOcrTranslate,
+                    setDoubleTap: setDtOcrTranslate,
+                },
+            ],
         },
         {
-            label: t('config.hotkey.ocr_recognize'),
-            configKey: 'hotkey_ocr_recognize',
-            combo: ocrRecognize,
-            doubleTap: dtOcrRecognize,
-            setCombo: setOcrRecognize,
-            setDoubleTap: setDtOcrRecognize,
-        },
-        {
-            label: t('config.hotkey.ocr_translate'),
-            configKey: 'hotkey_ocr_translate',
-            combo: ocrTranslate,
-            doubleTap: dtOcrTranslate,
-            setCombo: setOcrTranslate,
-            setDoubleTap: setDtOcrTranslate,
-        },
-        {
-            label: t('config.hotkey.light_ai'),
-            configKey: 'hotkey_light_ai',
-            combo: lightAi,
-            doubleTap: dtLightAi,
-            setCombo: setLightAi,
-            setDoubleTap: setDtLightAi,
-        },
-        {
-            label: t('config.hotkey.vault_quick_add'),
-            configKey: 'hotkey_vault_quick_add',
-            combo: vaultQuickAdd,
-            doubleTap: dtVaultQuickAdd,
-            setCombo: setVaultQuickAdd,
-            setDoubleTap: setDtVaultQuickAdd,
-        },
-        {
-            label: t('config.hotkey.vault_quick_fill'),
-            configKey: 'hotkey_vault_quick_fill',
-            combo: vaultQuickFill,
-            doubleTap: dtVaultQuickFill,
-            setCombo: setVaultQuickFill,
-            setDoubleTap: setDtVaultQuickFill,
-        },
-        {
-            label: t('config.hotkey.phrases'),
-            configKey: 'hotkey_phrases',
-            combo: phrases,
-            doubleTap: dtPhrases,
-            setCombo: setPhrases,
-            setDoubleTap: setDtPhrases,
+            title: t('config.hotkey.group_vault'),
+            rows: [
+                {
+                    label: t('config.hotkey.vault_quick_fill'),
+                    configKey: 'hotkey_vault_quick_fill',
+                    combo: vaultQuickFill,
+                    doubleTap: dtVaultQuickFill,
+                    setCombo: setVaultQuickFill,
+                    setDoubleTap: setDtVaultQuickFill,
+                },
+                {
+                    label: t('config.hotkey.vault_quick_add'),
+                    configKey: 'hotkey_vault_quick_add',
+                    combo: vaultQuickAdd,
+                    doubleTap: dtVaultQuickAdd,
+                    setCombo: setVaultQuickAdd,
+                    setDoubleTap: setDtVaultQuickAdd,
+                },
+            ],
         },
     ];
 
     return (
-        <section className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'>
+        <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
             <Toaster />
-            {hotkeyRows
-                .filter((row) => row.combo !== null)
-                .map((row) => (
-                    <HotkeyRow
-                        key={row.configKey}
-                        {...row}
-                        displayVal={displayVal}
-                        handleKeyDown={handleKeyDown}
-                        handleFocus={handleFocus}
-                        confirmHandler={confirmHandler}
-                        t={t}
-                    />
-                ))}
-        </section>
+            {hotkeyRows.map((group) => {
+                const rows = group.rows.filter((row) => row.combo !== null);
+                if (rows.length === 0) return null;
+
+                return (
+                    <section
+                        key={group.title}
+                        className='overflow-hidden rounded-xl border border-default-200/80 bg-content1'
+                    >
+                        <div className='border-b border-default-100 px-5 py-4'>
+                            <h2 className='text-[15px] font-semibold leading-none text-foreground'>
+                                {group.title}
+                            </h2>
+                        </div>
+                        {rows.map((row) => (
+                            <HotkeyRow
+                                key={row.configKey}
+                                {...row}
+                                displayVal={displayVal}
+                                handleKeyDown={handleKeyDown}
+                                handleFocus={handleFocus}
+                                confirmHandler={confirmHandler}
+                                t={t}
+                            />
+                        ))}
+                    </section>
+                );
+            })}
+        </div>
     );
 }

@@ -1,6 +1,5 @@
 import {
     Button,
-    DropdownItem,
     Modal,
     ModalBody,
     ModalContent,
@@ -9,14 +8,12 @@ import {
     Switch,
     useDisclosure,
 } from '@nextui-org/react';
-import { invoke } from '@tauri-apps/api';
 import React, { useEffect, useMemo, useState } from 'react';
 import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { useTranslation } from 'react-i18next';
 import { MdKeyboardArrowDown } from 'react-icons/md';
 
-import { SettingsRow, SettingsSection } from '../../../../components/SettingsSection';
-import SettingsDropdown from '../../../../components/SettingsDropdown';
+import { SettingsSection } from '../../../../components/SettingsSection';
 import { useConfig } from '../../../../hooks/useConfig';
 import {
     DEFAULT_FORMATTER_CONFIG,
@@ -175,11 +172,14 @@ function getButtonActionSummary(button, actionBehavior, t, isChineseUI) {
 }
 
 function ToolbarButtonActionModal(props) {
-    const { button, label, actionBehavior, setActionBehavior, t, isChineseUI } = props;
+    const { button, label, actionBehavior, setActionBehavior, subtitle, t, isChineseUI } = props;
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
     const [draftBehavior, setDraftBehavior] = useState(normalizeToolbarButtonActionBehavior(actionBehavior));
     const Icon = button.Icon;
-    const options = useMemo(() => getButtonActionOptions(button, t, isChineseUI), [button, t, isChineseUI]);
+    const options = useMemo(
+        () => getButtonActionOptions(button, t, isChineseUI),
+        [button, t, isChineseUI]
+    );
 
     useEffect(() => {
         if (!isOpen) {
@@ -214,7 +214,7 @@ function ToolbarButtonActionModal(props) {
                                     <div className='flex flex-col'>
                                         <span className='text-sm font-semibold text-foreground'>{label}</span>
                                         <span className='text-xs font-normal text-default-400'>
-                                            {getLocalizedDefaultValue(
+                                            {subtitle ?? getLocalizedDefaultValue(
                                                 isChineseUI,
                                                 '选择点击该按钮后的行为',
                                                 'Choose what happens after clicking this button'
@@ -572,21 +572,11 @@ function ToolbarButtonItem(props) {
 
 export default function TextSelection() {
     const { t, i18n } = useTranslation();
-    const [behavior, setBehavior] = useConfig('text_select_behavior', 'toolbar');
     const [btnOrder, setBtnOrder] = useConfig('toolbar_btn_order', DEFAULT_BTN_ORDER);
     const [smartConfig, setSmartConfig] = useConfig(SMART_TOOLBAR_CONFIG_KEY, DEFAULT_SMART_TOOLBAR_CONFIG);
     const isChineseUI = String(i18n?.resolvedLanguage || i18n?.language || '')
         .toLowerCase()
         .startsWith('zh');
-
-    const behaviorLabelKey =
-        behavior === 'direct_translate'
-            ? 'behavior_direct'
-            : behavior === 'direct_explain'
-              ? 'behavior_direct_explain'
-              : behavior === 'disabled'
-                ? 'behavior_disabled'
-                : 'behavior_toolbar';
 
     const allButtons = BASE_TOOLBAR_BUTTONS.map((button) => ({
         ...button,
@@ -620,36 +610,6 @@ export default function TextSelection() {
 
     return (
         <div className='mx-auto flex w-full max-w-[880px] flex-col gap-4 px-1 pb-2'>
-            <SettingsSection>
-                <SettingsRow
-                    title={t('config.text_selection.behavior_label')}
-                    action={
-                        behavior !== null ? (
-                            <SettingsDropdown
-                                label={t(`config.text_selection.${behaviorLabelKey}`)}
-                                ariaLabel='text selection behavior'
-                                selectedKey={behavior}
-                                onAction={(key) => {
-                                    setBehavior(key);
-                                    invoke('update_tray', { language: '', copyMode: '' }).catch(() => {});
-                                }}
-                            >
-                                <DropdownItem key='toolbar'>{t('config.text_selection.behavior_toolbar')}</DropdownItem>
-                                <DropdownItem key='direct_translate'>
-                                    {t('config.text_selection.behavior_direct')}
-                                </DropdownItem>
-                                <DropdownItem key='direct_explain'>
-                                    {t('config.text_selection.behavior_direct_explain')}
-                                </DropdownItem>
-                                <DropdownItem key='disabled'>
-                                    {t('config.text_selection.behavior_disabled')}
-                                </DropdownItem>
-                            </SettingsDropdown>
-                        ) : null
-                    }
-                />
-            </SettingsSection>
-
             <SettingsSection title={t('config.text_selection.buttons_title')}>
                 <div>
                     <DragDropContext onDragEnd={onDragEnd}>

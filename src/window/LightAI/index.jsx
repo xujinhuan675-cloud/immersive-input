@@ -106,6 +106,17 @@ function getSourceModeLabel(targetMode, sourceText) {
     return '选中文本';
 }
 
+const cardBodyBase = {
+    minHeight: '118px',
+    padding: '14px',
+    color: '#0f172a',
+    lineHeight: 1.75,
+    fontSize: '13px',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    fontFamily: APP_FONT_FAMILY_VAR,
+};
+
 const styles = {
     window: {
         background: '#fff',
@@ -206,7 +217,7 @@ const styles = {
     pane: {
         flex: 1,
         minHeight: 0,
-        overflow: 'auto',
+        overflow: 'hidden',
         padding: '10px 12px 12px',
         display: 'flex',
         flexDirection: 'column',
@@ -219,6 +230,16 @@ const styles = {
         background: '#ffffff',
         boxShadow: 'none',
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+    },
+    sourceCard: {
+        flex: '0 0 auto',
+    },
+    resultCard: {
+        flex: '1 1 220px',
+        minHeight: '210px',
     },
     cardHeader: {
         padding: '12px 14px 9px',
@@ -256,15 +277,15 @@ const styles = {
         transition: 'background 140ms ease, color 140ms ease, opacity 140ms ease',
         flexShrink: 0,
     }),
-    cardBody: {
-        minHeight: '118px',
-        padding: '14px',
-        color: '#0f172a',
-        lineHeight: 1.75,
-        fontSize: '13px',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: APP_FONT_FAMILY_VAR,
+    cardBody: cardBodyBase,
+    resultBody: {
+        ...cardBodyBase,
+        flex: '1 1 auto',
+        minHeight: '168px',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+        scrollbarGutter: 'stable',
     },
     sourceInput: {
         display: 'block',
@@ -432,6 +453,7 @@ export default function LightAI() {
     const [error, setError] = useState('');
     const abortRef = useRef(null);
     const autoRunRef = useRef(false);
+    const resultBodyRef = useRef(null);
     const resolvedSelectedStyle = STYLE_KEYS.includes(selectedStyle)
         ? selectedStyle
         : STYLE_KEYS[0];
@@ -650,6 +672,12 @@ export default function LightAI() {
     }, [activeTab, resolvedSelectedStyle, resolvedTargetLanguage]);
 
     useEffect(() => {
+        const resultBody = resultBodyRef.current;
+        if (!resultBody) return;
+        resultBody.scrollTop = resultBody.scrollHeight;
+    }, [currentResult, error, loading]);
+
+    useEffect(() => {
         setSelectedStyles([resolvedSelectedStyle]);
     }, [resolvedSelectedStyle, setSelectedStyles]);
 
@@ -850,7 +878,7 @@ export default function LightAI() {
                     </div>
 
                     <div style={styles.pane}>
-                        <div style={styles.card}>
+                        <div style={{ ...styles.card, ...styles.sourceCard }}>
                             <div style={styles.cardHeader}>
                                 <span>原文</span>
                                 <div style={styles.cardHeaderActions}>
@@ -898,7 +926,7 @@ export default function LightAI() {
                             </div>
                         </div>
 
-                        <div style={styles.card}>
+                        <div style={{ ...styles.card, ...styles.resultCard }}>
                             <div style={styles.cardHeader}>
                                 <span>{panelTitle}</span>
                                 <div style={styles.cardHeaderActions}>
@@ -933,7 +961,7 @@ export default function LightAI() {
                                     </button>
                                 </div>
                             </div>
-                            <div style={styles.cardBody}>
+                            <div ref={resultBodyRef} style={styles.resultBody}>
                                 {error ? (
                                     <span style={{ color: '#dc2626' }}>{error}</span>
                                 ) : currentResult ? (

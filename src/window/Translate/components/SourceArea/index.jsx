@@ -105,12 +105,12 @@ export default function SourceArea(props) {
                                 if (excerptMode) {
                                     setSourceText((old) => {
                                         return appendIncrementalText(old, newText);
-                                    });
+                                    }, true);
                                 } else {
-                                    setSourceText(newText);
+                                    setSourceText(newText, true);
                                 }
                                 detect_language(newText).then(() => {
-                                    syncSourceText();
+                                    syncSourceText(newText);
                                 });
                             },
                             (e) => {
@@ -140,12 +140,12 @@ export default function SourceArea(props) {
                                     if (excerptMode) {
                                         setSourceText((old) => {
                                             return appendIncrementalText(old, newText);
-                                        });
+                                        }, true);
                                     } else {
-                                        setSourceText(newText);
+                                        setSourceText(newText, true);
                                     }
                                     detect_language(newText).then(() => {
-                                        syncSourceText();
+                                        syncSourceText(newText);
                                     });
                                 },
                                 (e) => {
@@ -164,12 +164,12 @@ export default function SourceArea(props) {
             if (excerptMode) {
                 setSourceText((old) => {
                     return appendIncrementalText(old, newText);
-                });
+                }, true);
             } else {
-                setSourceText(newText);
+                setSourceText(newText, true);
             }
             detect_language(newText).then(() => {
-                syncSourceText();
+                syncSourceText(newText);
             });
         },
         [

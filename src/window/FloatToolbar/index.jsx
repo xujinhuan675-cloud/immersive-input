@@ -6,6 +6,7 @@ import { appWindow, LogicalSize } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuClipboardCopy } from 'react-icons/lu';
+import { error as logError } from 'tauri-plugin-log-api';
 
 import { useConfig } from '../../hooks/useConfig';
 import * as builtinTranslateServices from '../../services/translate';
@@ -178,12 +179,15 @@ async function streamLightAiQuickResult(text, styleKey) {
     }
 
     const resolvedStyle = STYLE_KEYS.includes(styleKey) ? styleKey : STYLE_KEYS[0];
-    const writer = createStreamInputWriter();
+    const writer = createStreamInputWriter({
+        deleteSelectionOnFirstWrite: true,
+        pasteOnWrite: true,
+    });
     let streamedText = '';
     let finalText = '';
     let requestError = null;
 
-    await lightAiStream(
+    const returnedText = await lightAiStream(
         sourceText,
         resolvedStyle,
         '',
@@ -202,6 +206,14 @@ async function streamLightAiQuickResult(text, styleKey) {
         }
     );
 
+    const resultText = normalizeQuickTextResult(
+        finalText || returnedText || streamedText,
+        'Empty AI polish result'
+    );
+    if (resultText && !writer.hasTyped()) {
+        writer.enqueue(resultText);
+    }
+
     try {
         await writer.finish();
     } catch (error) {
@@ -211,11 +223,6 @@ async function streamLightAiQuickResult(text, styleKey) {
     if (requestError) {
         throw createPartialAppliedError(new Error(requestError), writer);
     }
-
-    const resultText = normalizeQuickTextResult(
-        finalText || streamedText,
-        'Empty AI polish result'
-    );
 
     await saveHistory('lightai', sourceText, resultText, {
         mode: 'style',
@@ -238,7 +245,10 @@ async function streamExplainQuickResult(text) {
         throw new Error('No active AI API configuration');
     }
 
-    const writer = createStreamInputWriter();
+    const writer = createStreamInputWriter({
+        deleteSelectionOnFirstWrite: true,
+        pasteOnWrite: true,
+    });
     let streamedText = '';
     let finalText = '';
     let requestError = null;
@@ -263,6 +273,14 @@ async function streamExplainQuickResult(text) {
         }
     );
 
+    const resultText = normalizeQuickTextResult(
+        finalText || streamedText,
+        'Empty explain result'
+    );
+    if (resultText && !writer.hasTyped()) {
+        writer.enqueue(resultText);
+    }
+
     try {
         await writer.finish();
     } catch (error) {
@@ -272,11 +290,6 @@ async function streamExplainQuickResult(text) {
     if (requestError) {
         throw createPartialAppliedError(new Error(requestError), writer);
     }
-
-    const resultText = normalizeQuickTextResult(
-        finalText || streamedText,
-        'Empty explain result'
-    );
 
     await saveHistory('explain', sourceText, resultText, {
         applyTarget: 'selection_stream',
@@ -466,7 +479,10 @@ async function resolveTranslateQuickResult(text, options = {}) {
 }
 
 async function streamTranslateQuickResult(text) {
-    const writer = createStreamInputWriter();
+    const writer = createStreamInputWriter({
+        deleteSelectionOnFirstWrite: true,
+        pasteOnWrite: true,
+    });
     const onCumulativeResult = createCumulativeStreamInputAdapter(writer);
     let resultText = '';
 
@@ -484,8 +500,9 @@ async function streamTranslateQuickResult(text) {
 }
 
 const BUTTON_ACTIONS = {
-    translate: async (text, { hide, translateActionBehavior }) => {
+    translate: async (text, { hide, translateActionBehavior, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(translateActionBehavior);
+        const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
@@ -495,7 +512,9 @@ const BUTTON_ACTIONS = {
                 await streamTranslateQuickResult(text);
             } catch (error) {
                 console.error('Stream translate failed:', error);
-                if (!error?.partialApplied) {
+                if (isAutoSelectionLaunch) {
+                    logError(`Auto selection stream translate failed: ${error?.message || error}`).catch(() => {});
+                } else if (!error?.partialApplied) {
                     invoke('open_translate_from_toolbar').catch(() => {});
                 }
             }
@@ -507,8 +526,27 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    explain: async (text, { hide, explainActionBehavior }) => {
+    translate_window: async (_text, { hide }) => {
+        invoke('open_translate_from_toolbar').catch(() => {});
+        await delay(80);
+        hide();
+    },
+
+    translate_stream_apply: async (text, { hide }) => {
+        hide();
+        await delay(80);
+
+        try {
+            await streamTranslateQuickResult(text);
+        } catch (error) {
+            console.error('Stream translate failed:', error);
+            logError(`Stream translate failed: ${error?.message || error}`).catch(() => {});
+        }
+    },
+
+    explain: async (text, { hide, explainActionBehavior, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(explainActionBehavior);
+        const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
@@ -518,7 +556,9 @@ const BUTTON_ACTIONS = {
                 await streamExplainQuickResult(text);
             } catch (error) {
                 console.error('Stream explain failed:', error);
-                if (!error?.partialApplied) {
+                if (isAutoSelectionLaunch) {
+                    logError(`Auto selection stream explain failed: ${error?.message || error}`).catch(() => {});
+                } else if (!error?.partialApplied) {
                     invoke('open_chat_explain_from_toolbar').catch(() => {});
                 }
             }
@@ -530,8 +570,27 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    lightai: async (text, { hide, lightAiActionBehavior, selectedStyle }) => {
+    explain_window: async (_text, { hide }) => {
+        invoke('open_chat_explain_from_toolbar').catch(() => {});
+        await delay(80);
+        hide();
+    },
+
+    explain_stream_apply: async (text, { hide }) => {
+        hide();
+        await delay(80);
+
+        try {
+            await streamExplainQuickResult(text);
+        } catch (error) {
+            console.error('Stream explain failed:', error);
+            logError(`Stream explain failed: ${error?.message || error}`).catch(() => {});
+        }
+    },
+
+    lightai: async (text, { hide, lightAiActionBehavior, selectedStyle, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(lightAiActionBehavior);
+        const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
             hide();
@@ -541,7 +600,9 @@ const BUTTON_ACTIONS = {
                 await streamLightAiQuickResult(text, selectedStyle);
             } catch (error) {
                 console.error('Stream AI polish failed:', error);
-                if (!error?.partialApplied) {
+                if (isAutoSelectionLaunch) {
+                    logError(`Auto selection stream AI polish failed: ${error?.message || error}`).catch(() => {});
+                } else if (!error?.partialApplied) {
                     invoke('open_light_ai_window').catch(() => {});
                 }
             }
@@ -551,6 +612,24 @@ const BUTTON_ACTIONS = {
         invoke('open_light_ai_window').catch(() => {});
         await delay(80);
         hide();
+    },
+
+    lightai_window: async (_text, { hide }) => {
+        invoke('open_light_ai_window').catch(() => {});
+        await delay(80);
+        hide();
+    },
+
+    lightai_stream_apply: async (text, { hide, selectedStyle }) => {
+        hide();
+        await delay(80);
+
+        try {
+            await streamLightAiQuickResult(text, selectedStyle);
+        } catch (error) {
+            console.error('Stream AI polish failed:', error);
+            logError(`Stream AI polish failed: ${error?.message || error}`).catch(() => {});
+        }
     },
 
     format: async (text, { hide, formatterConfig }) => {
@@ -628,6 +707,7 @@ const BUTTON_ACTIONS = {
 };
 
 export default function FloatToolbar() {
+    const isActionHost = appWindow.label === 'daemon';
     const { t } = useTranslation();
     const timerRef = useRef(null);
     const selectedText = useRef('');
@@ -735,18 +815,30 @@ export default function FloatToolbar() {
     }, []);
 
     useEffect(() => {
+        if (isActionHost) {
+            return;
+        }
+
         resizeWindow(
             [...smartBtns, ...baseVisible],
             calcResult != null || colorVal != null
         );
-    }, [smartBtns, baseVisible, calcResult, colorVal, resizeWindow]);
+    }, [isActionHost, smartBtns, baseVisible, calcResult, colorVal, resizeWindow]);
 
     useEffect(() => {
+        if (isActionHost) {
+            return;
+        }
+
         loadConfig();
         refreshSelectionState();
-    }, [loadConfig, refreshSelectionState]);
+    }, [isActionHost, loadConfig, refreshSelectionState]);
 
     useEffect(() => {
+        if (isActionHost) {
+            return;
+        }
+
         const forceTransparentBackground = (element) => {
             if (!element) return;
             element.style.setProperty('background', 'transparent', 'important');
@@ -756,7 +848,7 @@ export default function FloatToolbar() {
         forceTransparentBackground(document.documentElement);
         forceTransparentBackground(document.body);
         forceTransparentBackground(document.getElementById('root'));
-    }, []);
+    }, [isActionHost]);
 
     const hide = useCallback(() => {
         setCalcResult(null);
@@ -779,7 +871,50 @@ export default function FloatToolbar() {
         timerRef.current = setTimeout(hide, autoHideMs);
     }, [hide, autoHideMs, hasStickyExtraPanel, pendingSelection]);
 
+    const handleClick = useCallback(
+        async (id, overrideText, options = {}) => {
+            resetTimer();
+            const action = BUTTON_ACTIONS[id];
+            if (!action) return;
+            const text = typeof overrideText === 'string' ? overrideText : await ensureSelectionText();
+
+            const ctx = {
+                hide: isActionHost ? () => {} : hide,
+                setCalcResult,
+                setColorVal,
+                calcResult,
+                colorVal,
+                translateActionBehavior,
+                explainActionBehavior,
+                lightAiActionBehavior,
+                formatterConfig,
+                selectedStyle,
+                launchSource: options.launchSource,
+                t,
+            };
+
+            await action(text || '', ctx);
+        },
+        [
+            hide,
+            resetTimer,
+            ensureSelectionText,
+            calcResult,
+            colorVal,
+            translateActionBehavior,
+            explainActionBehavior,
+            lightAiActionBehavior,
+            formatterConfig,
+            selectedStyle,
+            t,
+        ]
+    );
+
     useEffect(() => {
+        if (isActionHost) {
+            return undefined;
+        }
+
         resetTimer();
 
         const onKeyDown = (event) => {
@@ -810,7 +945,6 @@ export default function FloatToolbar() {
             refreshSelectionState();
             resetTimer();
         });
-
         return () => {
             if (timerRef.current) {
                 clearTimeout(timerRef.current);
@@ -825,44 +959,14 @@ export default function FloatToolbar() {
             unlistenFocus.then((fn) => fn());
             unlistenSelectionUpdate.then((fn) => fn());
         };
-    }, [hasStickyExtraPanel, hide, pendingSelection, refreshSelectionState, resetTimer]);
-
-    const handleClick = useCallback(
-        async (id) => {
-            resetTimer();
-            const action = BUTTON_ACTIONS[id];
-            if (!action) return;
-            const text = await ensureSelectionText();
-
-            const ctx = {
-                hide,
-                setCalcResult,
-                setColorVal,
-                calcResult,
-                colorVal,
-                translateActionBehavior,
-                explainActionBehavior,
-                lightAiActionBehavior,
-                formatterConfig,
-                selectedStyle,
-                t,
-            };
-
-            await action(text || '', ctx);
-        },
-        [
-            hide,
-            resetTimer,
-            ensureSelectionText,
-            calcResult,
-            colorVal,
-            translateActionBehavior,
-            explainActionBehavior,
-            lightAiActionBehavior,
-            formatterConfig,
-            selectedStyle,
-        ]
-    );
+    }, [
+        hasStickyExtraPanel,
+        hide,
+        isActionHost,
+        pendingSelection,
+        refreshSelectionState,
+        resetTimer,
+    ]);
 
     const renderToolbarButton = useCallback(
         (button) => {
@@ -953,6 +1057,10 @@ export default function FloatToolbar() {
             {label}
         </button>
     );
+
+    if (isActionHost) {
+        return null;
+    }
 
     return (
         <div
