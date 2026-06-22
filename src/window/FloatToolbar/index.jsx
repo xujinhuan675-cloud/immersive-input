@@ -25,6 +25,7 @@ import { FORMATTER_CONFIG_KEY, formatText } from '../../utils/formatter';
 import { invoke_plugin } from '../../utils/invoke_plugin';
 import detect from '../../utils/lang_detect';
 import { getServiceName, whetherPluginService } from '../../utils/service_instance';
+import { streamTextToInput } from '../../utils/streamInput';
 import { store } from '../../utils/store';
 import {
     BASE_TOOLBAR_BUTTONS,
@@ -193,7 +194,7 @@ async function streamLightAiQuickResult(text, styleKey) {
     }
 
     const resultText = normalizeQuickTextResult(finalText || returnedText || streamedText, 'Empty AI polish result');
-    await invoke('paste_result', { text: resultText });
+    await streamTextToInput(resultText);
 
     await saveHistory('lightai', sourceText, resultText, {
         mode: 'style',
@@ -244,7 +245,7 @@ async function streamExplainQuickResult(text) {
     }
 
     const resultText = normalizeQuickTextResult(finalText || streamedText, 'Empty explain result');
-    await invoke('paste_result', { text: resultText });
+    await streamTextToInput(resultText);
 
     await saveHistory('explain', sourceText, resultText, {
         applyTarget: 'selection_replace',
@@ -416,7 +417,7 @@ async function streamTranslateQuickResult(text) {
     const resultText = await resolveTranslateQuickResult(text, { onCumulativeResult: rememberCumulativeResult });
     const finalText = resultText || latestResultText;
     if (finalText) {
-        await invoke('paste_result', { text: finalText });
+        await streamTextToInput(finalText);
     }
 
     return finalText;
