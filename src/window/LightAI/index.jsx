@@ -26,6 +26,7 @@ import {
     STYLE_KEYS,
     STYLE_NAMES,
     lightAiStream,
+    streamOpenAiMessages,
     translateTextStream,
 } from '../../services/light_ai/openai';
 import { getActiveAiApiConfig, getAiHistoryServiceMeta } from '../../utils/aiConfig';
@@ -36,10 +37,18 @@ import detect from '../../utils/lang_detect';
 import { languageList, normalizeLanguageKey } from '../../utils/language';
 import { streamTextToInput } from '../../utils/streamInput';
 
+const FIX_SYSTEM_PROMPT = [
+    'You are a conservative proofreading and correction assistant.',
+    'Correct grammar, typos, missing or duplicated words, punctuation, whitespace, blank lines, and obvious formatting issues.',
+    'Preserve the original meaning, factual content, terminology, tone, person, language, and paragraph structure as much as possible.',
+    'Do not rewrite for style, do not summarize, do not expand, and do not add explanations.',
+    'Only return the corrected text.',
+].join('\n');
+
 const TAB_OPTIONS = [
     { key: 'translate', label: '翻译' },
     { key: 'style', label: '润色' },
-    { key: 'fix', label: '修正' },
+    { key: 'fix', label: '校对' },
 ];
 
 const STYLE_LABELS_ZH = {
@@ -203,9 +212,7 @@ const styles = {
         height: '26px',
         padding: '0 9px',
         borderRadius: '999px',
-        border: active
-            ? '1px solid rgba(59, 130, 246, 0.38)'
-            : '1px solid rgba(226, 232, 240, 0.78)',
+        border: active ? '1px solid rgba(59, 130, 246, 0.38)' : '1px solid rgba(226, 232, 240, 0.78)',
         background: active ? 'rgba(239, 246, 255, 0.72)' : '#ffffff',
         color: active ? '#1d4ed8' : '#475569',
         fontSize: '11px',
@@ -432,17 +439,9 @@ export default function LightAI() {
     const [activeTab, setActiveTab] = useState('style');
     const [sourceText, setSourceText] = useState('');
     const [targetMode, setTargetMode] = useState('selection');
-    const [selectedStyle, setSelectedStyle] = useConfig(
-        'light_ai_selected_style',
-        STYLE_KEYS[0]
-    );
-    const [, setSelectedStyles] = useConfig('light_ai_selected_styles', [
-        STYLE_KEYS[0],
-    ]);
-    const [targetLanguage, setTargetLanguage] = useConfig(
-        'translate_target_language',
-        'en'
-    );
+    const [selectedStyle, setSelectedStyle] = useConfig('light_ai_selected_style', STYLE_KEYS[0]);
+    const [, setSelectedStyles] = useConfig('light_ai_selected_styles', [STYLE_KEYS[0]]);
+    const [targetLanguage, setTargetLanguage] = useConfig('translate_target_language', 'en');
     const [formatterConfig] = useConfig(FORMATTER_CONFIG_KEY, undefined);
     const [sourceLanguage, setSourceLanguage] = useState('auto');
     const [extraPrompt, setExtraPrompt] = useState('');
@@ -454,9 +453,7 @@ export default function LightAI() {
     const abortRef = useRef(null);
     const autoRunRef = useRef(false);
     const resultBodyRef = useRef(null);
-    const resolvedSelectedStyle = STYLE_KEYS.includes(selectedStyle)
-        ? selectedStyle
-        : STYLE_KEYS[0];
+    const resolvedSelectedStyle = STYLE_KEYS.includes(selectedStyle) ? selectedStyle : STYLE_KEYS[0];
     const resolvedTargetLanguage = targetLanguage || 'en';
 
     const currentResult = useMemo(() => {
@@ -465,14 +462,8 @@ export default function LightAI() {
         return styleResult;
     }, [activeTab, fixResult, styleResult, translateResult]);
 
-    const currentLanguageLabel = useMemo(
-        () => getLanguageLabelZh(sourceLanguage),
-        [sourceLanguage]
-    );
-    const targetLanguageLabel = useMemo(
-        () => getLanguageLabelZh(resolvedTargetLanguage),
-        [resolvedTargetLanguage]
-    );
+    const currentLanguageLabel = useMemo(() => getLanguageLabelZh(sourceLanguage), [sourceLanguage]);
+    const targetLanguageLabel = useMemo(() => getLanguageLabelZh(resolvedTargetLanguage), [resolvedTargetLanguage]);
     const currentResultLanguage = useMemo(() => {
         if (activeTab === 'translate') {
             return normalizeLanguageKey(resolvedTargetLanguage) || 'auto';
@@ -483,10 +474,7 @@ export default function LightAI() {
 
     const loadInitialContext = useCallback(async () => {
         try {
-            const [text, nextTargetMode] = await Promise.all([
-                invoke('get_text'),
-                invoke('get_light_ai_target'),
-            ]);
+            const [text, nextTargetMode] = await Promise.all([invoke('get_text'), invoke('get_light_ai_target')]);
             autoRunRef.current = Boolean(String(text || '').trim());
             setSourceText(text || '');
             setTargetMode(nextTargetMode || 'selection');
@@ -568,16 +556,59 @@ export default function LightAI() {
             stop();
             setError('');
 
-            if (activeTab === 'fix') {
-                setFixResult(formatText(sourceText, formatterConfig));
-                return;
-            }
-
             if (apiConfig === undefined) {
                 return;
             }
 
             const requestApiConfig = apiConfig || (await refreshApiConfig());
+
+            if (activeTab === 'fix') {
+                const formattedText = formatText(sourceText, {
+                    ...formatterConfig,
+                    repairLineBreaks: true,
+                });
+                setFixResult(formattedText);
+
+                if (!requestApiConfig) {
+                    return;
+                }
+
+                const controller = new AbortController();
+                abortRef.current = controller;
+                setLoading(true);
+                let hasAiFixChunk = false;
+
+                await streamOpenAiMessages(
+                    [
+                        { role: 'system', content: FIX_SYSTEM_PROMPT },
+                        { role: 'user', content: formattedText },
+                    ],
+                    requestApiConfig,
+                    (chunk) => {
+                        if (!hasAiFixChunk) {
+                            hasAiFixChunk = true;
+                            setFixResult(chunk);
+                            return;
+                        }
+                        setFixResult((prev) => `${prev}${chunk}`);
+                    },
+                    (result) => {
+                        abortRef.current = null;
+                        setLoading(false);
+                        setFixResult(result || formattedText);
+                    },
+                    (nextError) => {
+                        abortRef.current = null;
+                        setLoading(false);
+                        if (nextError) {
+                            setError(nextError);
+                        }
+                    },
+                    controller.signal,
+                    { refreshConfig: refreshApiConfig }
+                );
+                return;
+            }
 
             if (!requestApiConfig) {
                 setError('请先在配置里填写可用的 AI 接口。');
@@ -652,7 +683,7 @@ export default function LightAI() {
 
     useEffect(() => {
         if (!sourceText.trim() || !autoRunRef.current) return;
-        if (activeTab !== 'fix' && apiConfig === undefined) return;
+        if (apiConfig === undefined) return;
         autoRunRef.current = false;
         void runCurrentTab('');
     }, [activeTab, apiConfig, runCurrentTab, sourceText]);
@@ -767,12 +798,7 @@ export default function LightAI() {
         }
     };
 
-    const panelTitle =
-        activeTab === 'translate'
-            ? '翻译结果'
-            : activeTab === 'fix'
-              ? '修正结果'
-              : '润色结果';
+    const panelTitle = activeTab === 'translate' ? '翻译结果' : activeTab === 'fix' ? '校对结果' : '润色结果';
 
     const canRun = Boolean(sourceText.trim());
     const canCopy = Boolean(currentResult);
@@ -794,7 +820,10 @@ export default function LightAI() {
                 }
                 right={
                     <div className='flex items-center gap-1.5'>
-                        <WindowHeaderPinButton active={pined} onClick={() => void togglePin()} />
+                        <WindowHeaderPinButton
+                            active={pined}
+                            onClick={() => void togglePin()}
+                        />
                         <WindowHeaderCloseButton onClick={() => void handleDismiss()} />
                     </div>
                 }
@@ -846,7 +875,10 @@ export default function LightAI() {
                                         }}
                                     >
                                         {languageList.map((languageKey) => (
-                                            <option key={languageKey} value={languageKey}>
+                                            <option
+                                                key={languageKey}
+                                                value={languageKey}
+                                            >
                                                 {getLanguageLabelZh(languageKey)}
                                             </option>
                                         ))}
@@ -861,16 +893,12 @@ export default function LightAI() {
                                     <button
                                         key={styleKey}
                                         type='button'
-                                        style={styles.styleChip(
-                                            resolvedSelectedStyle === styleKey
-                                        )}
+                                        style={styles.styleChip(resolvedSelectedStyle === styleKey)}
                                         onClick={() => {
                                             setSelectedStyle(styleKey);
                                         }}
                                     >
-                                        {STYLE_LABELS_ZH[styleKey] ??
-                                            STYLE_NAMES[styleKey] ??
-                                            styleKey}
+                                        {STYLE_LABELS_ZH[styleKey] ?? STYLE_NAMES[styleKey] ?? styleKey}
                                     </button>
                                 ))}
                             </div>
@@ -910,10 +938,7 @@ export default function LightAI() {
                                         handleSourceTextChange(event.target.value);
                                     }}
                                     onKeyDown={(event) => {
-                                        if (
-                                            (event.ctrlKey || event.metaKey) &&
-                                            event.key === 'Enter'
-                                        ) {
+                                        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                                             event.preventDefault();
                                             if (loading) {
                                                 stop();
@@ -961,7 +986,10 @@ export default function LightAI() {
                                     </button>
                                 </div>
                             </div>
-                            <div ref={resultBodyRef} style={styles.resultBody}>
+                            <div
+                                ref={resultBodyRef}
+                                style={styles.resultBody}
+                            >
                                 {error ? (
                                     <span style={{ color: '#dc2626' }}>{error}</span>
                                 ) : currentResult ? (

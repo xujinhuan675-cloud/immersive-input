@@ -37,7 +37,8 @@ pub fn get_auto_toolbar_text(
         return trimmed;
     }
 
-    existing
+    text_state.0.lock().unwrap().clear();
+    String::new()
 }
 
 #[tauri::command]

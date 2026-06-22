@@ -492,7 +492,7 @@
                 "behavior_direct_light_ai": "Auto Text Assistant",
                 "behavior_disabled": "Disabled",
                 "lightai_action_window": "Open Window",
-                "lightai_action_stream_apply": "Stream Input Result",
+                "lightai_action_stream_apply": "Apply Directly",
                 "buttons_title": "Fixed Buttons",
                 "btn_translate": "Translate",
                 "btn_explain": "Explain",

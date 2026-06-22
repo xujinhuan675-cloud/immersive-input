@@ -126,7 +126,11 @@ function getFormatterSummary(formatterConfig, isChineseUI) {
         .join(getLocalizedDefaultValue(isChineseUI, '、', ', '));
     const suffix =
         enabledRules.length > 3
-            ? getLocalizedDefaultValue(isChineseUI, `等 ${enabledRules.length} 项`, ` and ${enabledRules.length - 3} more`)
+            ? getLocalizedDefaultValue(
+                  isChineseUI,
+                  `等 ${enabledRules.length} 项`,
+                  ` and ${enabledRules.length - 3} more`
+              )
             : '';
 
     return getLocalizedDefaultValue(
@@ -152,12 +156,12 @@ function getButtonActionOptions(button, t, isChineseUI) {
         {
             key: TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY,
             label: t('config.text_selection.lightai_action_stream_apply', {
-                defaultValue: getLocalizedDefaultValue(isChineseUI, '流式输入结果', 'Stream Input Result'),
+                defaultValue: getLocalizedDefaultValue(isChineseUI, '直接应用', 'Apply Directly'),
             }),
             description: getLocalizedDefaultValue(
                 isChineseUI,
-                '在原光标位置边生成边输入，像实时打字一样替换选中文本。',
-                'Stream the generated text into the current cursor position, replacing the selection as it arrives.'
+                '生成结果后，直接应用到选中文本。',
+                'Generate the result, then apply it directly to the selected text.'
             ),
         },
     ];
@@ -176,10 +180,7 @@ function ToolbarButtonActionModal(props) {
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
     const [draftBehavior, setDraftBehavior] = useState(normalizeToolbarButtonActionBehavior(actionBehavior));
     const Icon = button.Icon;
-    const options = useMemo(
-        () => getButtonActionOptions(button, t, isChineseUI),
-        [button, t, isChineseUI]
-    );
+    const options = useMemo(() => getButtonActionOptions(button, t, isChineseUI), [button, t, isChineseUI]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -214,11 +215,12 @@ function ToolbarButtonActionModal(props) {
                                     <div className='flex flex-col'>
                                         <span className='text-sm font-semibold text-foreground'>{label}</span>
                                         <span className='text-xs font-normal text-default-400'>
-                                            {subtitle ?? getLocalizedDefaultValue(
-                                                isChineseUI,
-                                                '选择点击该按钮后的行为',
-                                                'Choose what happens after clicking this button'
-                                            )}
+                                            {subtitle ??
+                                                getLocalizedDefaultValue(
+                                                    isChineseUI,
+                                                    '选择点击该按钮后的行为',
+                                                    'Choose what happens after clicking this button'
+                                                )}
                                         </span>
                                     </div>
                                 </div>
@@ -549,7 +551,10 @@ function SmartCapabilityRow(props) {
                             });
                         }}
                     />
-                    <div className='h-8 w-8 min-w-8 shrink-0' aria-hidden='true' />
+                    <div
+                        className='h-8 w-8 min-w-8 shrink-0'
+                        aria-hidden='true'
+                    />
                 </>
             }
         />

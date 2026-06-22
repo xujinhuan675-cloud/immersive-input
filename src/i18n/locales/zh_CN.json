@@ -491,7 +491,7 @@
                 "behavior_direct_light_ai": "自动文本助手",
                 "behavior_disabled": "禁用",
                 "lightai_action_window": "打开窗口",
-                "lightai_action_stream_apply": "流式输入结果",
+                "lightai_action_stream_apply": "直接应用",
                 "buttons_title": "固定按钮",
                 "btn_translate": "翻译",
                 "btn_explain": "解释",

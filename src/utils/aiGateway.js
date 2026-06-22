@@ -10,7 +10,9 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
     }
 
     let apiKey = String(apiConfig.apiKey || '').trim();
-    const purpose = String(apiConfig.purpose || 'chat').trim().toLowerCase();
+    const purpose = String(apiConfig.purpose || 'chat')
+        .trim()
+        .toLowerCase();
     if (purpose === 'chat' || purpose === 'speech') {
         const entitlement = await getAiServiceEntitlement().catch(() => ({
             canUseCustomAiServices: false,
@@ -74,10 +76,7 @@ export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retr
     const doFetch = getFetch();
 
     const createRequestOptions = (config) => {
-        const options =
-            typeof optionsOrFactory === 'function'
-                ? optionsOrFactory(config)
-                : optionsOrFactory;
+        const options = typeof optionsOrFactory === 'function' ? optionsOrFactory(config) : optionsOrFactory;
         const { headers = {}, ...fetchOptions } = options ?? {};
 
         return {
@@ -155,22 +154,34 @@ function readAiTextContent(content) {
     return '';
 }
 
-function readAiChatDelta(payload) {
+function readAiChatDeltaPayload(payload) {
     const choice = payload?.choices?.[0] ?? {};
     const delta = choice.delta ?? {};
-    return (
+    const incrementalText =
         readAiTextContent(delta.content) ||
         readAiTextContent(delta.text) ||
         readAiTextContent(delta.output_text) ||
-        readAiTextContent(choice.message?.content) ||
-        readAiTextContent(choice.text) ||
-        readAiTextContent(payload?.message?.content) ||
-        readAiTextContent(payload?.content) ||
-        readAiTextContent(payload?.output_text) ||
-        readAiTextContent(payload?.text) ||
-        readAiTextContent(payload?.output) ||
-        ''
-    );
+        readAiTextContent(choice.text);
+
+    if (incrementalText) {
+        return { text: incrementalText, cumulative: false };
+    }
+
+    return {
+        text:
+            readAiTextContent(choice.message?.content) ||
+            readAiTextContent(payload?.message?.content) ||
+            readAiTextContent(payload?.content) ||
+            readAiTextContent(payload?.output_text) ||
+            readAiTextContent(payload?.text) ||
+            readAiTextContent(payload?.output) ||
+            '',
+        cumulative: true,
+    };
+}
+
+function readAiChatDelta(payload) {
+    return readAiChatDeltaPayload(payload).text;
 }
 
 export function readAiChatCompletionsMessage(payload) {
@@ -195,8 +206,32 @@ export async function readAiChatCompletionsStream(response, onChunk = () => {}) 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let lastCumulativeText = '';
     let buffer = '';
     let rawText = '';
+
+    const emitStreamText = (text, cumulative = false) => {
+        if (!text) return;
+
+        let delta = text;
+        if (cumulative) {
+            if (text === fullText || text === lastCumulativeText) {
+                return;
+            }
+            if (text.startsWith(fullText)) {
+                delta = text.slice(fullText.length);
+            } else if (text.startsWith(lastCumulativeText)) {
+                delta = text.slice(lastCumulativeText.length);
+            }
+            lastCumulativeText = text;
+        } else {
+            lastCumulativeText += text;
+        }
+
+        if (!delta) return;
+        fullText += delta;
+        onChunk(delta);
+    };
 
     const readLine = (line) => {
         const trimmed = line.trim();
@@ -206,11 +241,8 @@ export async function readAiChatCompletionsStream(response, onChunk = () => {}) 
         if (!payload || payload === '[DONE]') return;
 
         try {
-            const delta = readAiChatDelta(JSON.parse(payload));
-            if (delta) {
-                fullText += delta;
-                onChunk(delta);
-            }
+            const deltaPayload = readAiChatDeltaPayload(JSON.parse(payload));
+            emitStreamText(deltaPayload.text, deltaPayload.cumulative);
         } catch {}
     };
 
