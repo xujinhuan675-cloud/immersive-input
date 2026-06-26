@@ -23,6 +23,13 @@ import {
 } from '../../components/TrayWindow';
 import { useToastStyle } from '../../hooks';
 import { osType } from '../../utils/env';
+import { store } from '../../utils/store';
+import {
+    clearResolvedUpdateReminder,
+    clearUpdateReminder,
+    getUpdateReminderState,
+    markUpdateAvailable,
+} from '../../utils/updateReminder';
 
 let unlisten = 0;
 let eventId = 0;
@@ -68,34 +75,66 @@ export default function Updater() {
     const [isChecking, setIsChecking] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
     const [releaseVersion, setReleaseVersion] = useState('');
+    const [restartReady, setRestartReady] = useState(false);
     const { t, i18n } = useTranslation();
     const toastStyle = useToastStyle();
     const isChineseUI = i18n.language?.startsWith('zh');
 
     useEffect(() => {
+        let cancelled = false;
+
         if (appWindow.label === 'updater') {
             appWindow.show();
         }
 
-        setIsChecking(true);
-        checkUpdate().then(
-            (update) => {
-                setHasUpdate(Boolean(update.shouldUpdate));
-                setReleaseVersion(String(update.manifest?.version || '').trim());
-                setErrorMessage('');
-                setBody(update.shouldUpdate ? update.manifest.body || update.manifest.notes || '' : '');
-                setIsChecking(false);
-            },
-            (error) => {
-                const nextError = error?.toString?.() || String(error);
+        async function hydrateUpdateState() {
+            await clearResolvedUpdateReminder();
+            const reminderState = await getUpdateReminderState();
+            const hasPendingRestart = Boolean(reminderState.restartReady);
+            if (cancelled) return;
+
+            if (hasPendingRestart) {
+                setRestartReady(true);
                 setHasUpdate(false);
                 setReleaseVersion('');
+                setErrorMessage('');
                 setBody('');
-                setErrorMessage(nextError);
                 setIsChecking(false);
-                toast.error(nextError, { style: toastStyle });
+                return;
             }
-        );
+
+            setIsChecking(true);
+            checkUpdate().then(
+                (update) => {
+                    if (cancelled) return;
+
+                    setHasUpdate(Boolean(update.shouldUpdate));
+                    setReleaseVersion(String(update.manifest?.version || '').trim());
+                    setErrorMessage('');
+                    setBody(update.shouldUpdate ? update.manifest.body || update.manifest.notes || '' : '');
+                    setIsChecking(false);
+
+                    if (update.shouldUpdate) {
+                        void markUpdateAvailable(update.manifest?.version || '');
+                    } else {
+                        void clearUpdateReminder();
+                    }
+                },
+                (error) => {
+                    if (cancelled) return;
+
+                    const nextError = error?.toString?.() || String(error);
+                    setHasUpdate(false);
+                    setReleaseVersion('');
+                    setBody('');
+                    setErrorMessage(nextError);
+                    setIsChecking(false);
+                    toast.error(nextError, { style: toastStyle });
+                }
+            );
+        }
+
+        void hydrateUpdateState();
 
         if (unlisten === 0) {
             unlisten = listen('tauri://update-download-progress', (event) => {
@@ -109,12 +148,16 @@ export default function Updater() {
                 }
             });
         }
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const isBusy = downloaded !== 0;
     const isInstalling = isBusy && total > 0 && downloaded > total;
     const progressValue = total > 0 ? Math.min((downloaded / total) * 100, 100) : 0;
-    const isLatestState = !isChecking && !errorMessage && !hasUpdate;
+    const isLatestState = !isChecking && !errorMessage && !hasUpdate && !restartReady;
     const closeButtonLabel = t('common.close', {
         defaultValue: getLocalizedDefaultValue(isChineseUI, '关闭', 'Close'),
     });
@@ -128,12 +171,16 @@ export default function Updater() {
             return UPDATER_WINDOW_PRESETS.error;
         }
 
+        if (restartReady) {
+            return UPDATER_WINDOW_PRESETS.latest;
+        }
+
         if (hasUpdate) {
             return UPDATER_WINDOW_PRESETS.update;
         }
 
         return UPDATER_WINDOW_PRESETS.latest;
-    }, [errorMessage, hasUpdate, isChecking]);
+    }, [errorMessage, hasUpdate, isChecking, restartReady]);
 
     useEffect(() => {
         if (appWindow.label !== 'updater') {
@@ -185,6 +232,18 @@ export default function Updater() {
             };
         }
 
+        if (restartReady) {
+            return {
+                badge: getLocalizedDefaultValue(isChineseUI, '更新已准备好', 'Update ready'),
+                headline: getLocalizedDefaultValue(isChineseUI, '重启后完成更新', 'Restart to finish updating'),
+                description: getLocalizedDefaultValue(
+                    isChineseUI,
+                    '新版本已经在后台安装完成。你可以现在重启应用，让更新生效。',
+                    'The new version has been installed in the background. Restart the app to finish.'
+                ),
+            };
+        }
+
         if (hasUpdate) {
             return {
                 badge: getLocalizedDefaultValue(isChineseUI, '发现新版本', 'Update available'),
@@ -206,11 +265,15 @@ export default function Updater() {
                 'There are no updates available right now. New releases will appear here when they are ready.'
             ),
         };
-    }, [errorMessage, hasUpdate, isChecking, isChineseUI]);
+    }, [errorMessage, hasUpdate, isChecking, isChineseUI, restartReady]);
 
     const panelTitle = useMemo(() => {
         if (errorMessage) {
             return getLocalizedDefaultValue(isChineseUI, '错误详情', 'Error details');
+        }
+
+        if (restartReady) {
+            return getLocalizedDefaultValue(isChineseUI, '更新状态', 'Update status');
         }
 
         if (hasUpdate) {
@@ -218,11 +281,23 @@ export default function Updater() {
         }
 
         return '';
-    }, [errorMessage, hasUpdate, isChineseUI]);
+    }, [errorMessage, hasUpdate, isChineseUI, restartReady]);
 
     const panelContent = useMemo(() => {
         if (errorMessage) {
             return <div className='text-[13px] leading-6 text-danger-600'>{errorMessage}</div>;
+        }
+
+        if (restartReady) {
+            return (
+                <div className='text-[13px] leading-6 text-default-600'>
+                    {getLocalizedDefaultValue(
+                        isChineseUI,
+                        '应用会在重启后切换到已下载的新版本。未保存的输入内容请先处理好。',
+                        'The app will switch to the downloaded version after restart. Please finish any unsaved input first.'
+                    )}
+                </div>
+            );
         }
 
         if (!body.trim()) {
@@ -238,7 +313,7 @@ export default function Updater() {
         }
 
         return <MarkdownContent body={body} />;
-    }, [body, errorMessage, isChineseUI]);
+    }, [body, errorMessage, isChineseUI, restartReady]);
 
     const primaryButtonText = isBusy
         ? isInstalling
@@ -385,7 +460,28 @@ export default function Updater() {
                             ) : null}
 
                             <div className='flex shrink-0 items-center justify-end gap-3 border-t border-default-200/70 bg-default-50/40 px-6 py-4'>
-                                {hasUpdate ? (
+                                {restartReady ? (
+                                    <>
+                                        <Button
+                                            variant='bordered'
+                                            className='h-10 min-w-[96px] rounded-[12px] border-default-200 bg-white px-5 text-[13px] font-medium text-default-600 shadow-none'
+                                            onPress={() => {
+                                                appWindow.close();
+                                            }}
+                                        >
+                                            {getLocalizedDefaultValue(isChineseUI, '稍后', 'Later')}
+                                        </Button>
+                                        <Button
+                                            className='h-10 min-w-[116px] rounded-[12px] px-5 text-[13px] font-medium'
+                                            style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
+                                            onPress={async () => {
+                                                await relaunch();
+                                            }}
+                                        >
+                                            {getLocalizedDefaultValue(isChineseUI, '重启应用', 'Restart app')}
+                                        </Button>
+                                    </>
+                                ) : hasUpdate ? (
                                     <>
                                         <Button
                                             variant='bordered'
@@ -403,7 +499,8 @@ export default function Updater() {
                                             style={TRAY_WINDOW_PRIMARY_BUTTON_STYLE}
                                             onPress={() => {
                                                 installUpdate().then(
-                                                    () => {
+                                                    async () => {
+                                                        await clearUpdateReminder();
                                                         toast.success(t('updater.installed'), {
                                                             style: toastStyle,
                                                             duration: 10000,
