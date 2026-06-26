@@ -720,11 +720,11 @@ export default function LightAI() {
         };
     }, []);
 
-    const handleCopy = async () => {
-        if (!currentResult) return;
+    const handleCopyText = async (text, successMessage = '已复制') => {
+        if (!text) return;
         try {
-            await invoke('write_clipboard', { text: currentResult });
-            toast.success('已复制结果', { style: toastStyle });
+            await invoke('write_clipboard', { text });
+            toast.success(successMessage, { style: toastStyle });
         } catch {
             toast.error('复制失败', { style: toastStyle });
         }
@@ -912,7 +912,21 @@ export default function LightAI() {
                                 <div style={styles.cardHeaderActions}>
                                     <button
                                         type='button'
+                                        title='复制原文'
+                                        aria-label='复制原文'
+                                        className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
+                                        style={styles.cardIconButton(!sourceText.trim())}
+                                        disabled={!sourceText.trim()}
+                                        onClick={() => {
+                                            void handleCopyText(sourceText, '已复制原文');
+                                        }}
+                                    >
+                                        <MdContentCopy className='text-[15px]' />
+                                    </button>
+                                    <button
+                                        type='button'
                                         title='朗读'
+                                        className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!sourceText.trim())}
                                         disabled={!sourceText.trim()}
                                         onClick={() => {
@@ -963,7 +977,7 @@ export default function LightAI() {
                                         style={styles.cardIconButton(!currentResult)}
                                         disabled={!currentResult}
                                         onClick={() => {
-                                            void handleCopy();
+                                            void handleCopyText(currentResult, '已复制结果');
                                         }}
                                     >
                                         <MdContentCopy className='text-[15px]' />

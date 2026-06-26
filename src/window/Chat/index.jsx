@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { HiOutlineDocumentSearch, HiOutlineVolumeUp } from 'react-icons/hi';
-import { MdDeleteOutline, MdOutlineNoteAdd } from 'react-icons/md';
+import { MdContentCopy, MdDeleteOutline, MdOutlineNoteAdd } from 'react-icons/md';
 import remarkGfm from 'remark-gfm';
 
 import WindowHeader, {
@@ -406,6 +406,21 @@ export default function Chat() {
         [readAloud]
     );
 
+    const handleCopyMessage = useCallback(
+        async (message) => {
+            const text = String(message?.content || '');
+            if (!text.trim()) return;
+
+            try {
+                await invoke('write_clipboard', { text });
+                toast.success('已复制', { style: toastStyle });
+            } catch {
+                toast.error('复制失败', { style: toastStyle });
+            }
+        },
+        [toastStyle]
+    );
+
     const appendDraftText = useCallback((rawText) => {
         const text = String(rawText || '').trim();
         if (!text) return;
@@ -639,6 +654,17 @@ export default function Chat() {
                                     {message.role === 'user' ? '\u4F60' : 'AI'}
                                 </div>
                                 <div style={styles.bubbleRow(message.role === 'user')}>
+                                    <button
+                                        type='button'
+                                        title={'\u590D\u5236'}
+                                        style={styles.bubbleActionButton(!String(message.content || '').trim())}
+                                        disabled={!String(message.content || '').trim()}
+                                        onClick={() => {
+                                            void handleCopyMessage(message);
+                                        }}
+                                    >
+                                        <MdContentCopy className='text-[14px]' />
+                                    </button>
                                     <button
                                         type='button'
                                         title={'\u6717\u8BFB'}
