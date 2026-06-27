@@ -78,15 +78,26 @@ pub fn get_text_for_auto_toolbar(
     user_copy_priority_marker: Option<u64>,
     release_x: i32,
     release_y: i32,
+    allow_clipboard_fallback: bool,
 ) -> String {
     #[cfg(target_os = "windows")]
     {
-        return get_text_windows_for_auto_toolbar(user_copy_priority_marker, release_x, release_y);
+        return get_text_windows_for_auto_toolbar(
+            user_copy_priority_marker,
+            release_x,
+            release_y,
+            allow_clipboard_fallback,
+        );
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = (user_copy_priority_marker, release_x, release_y);
+        let _ = (
+            user_copy_priority_marker,
+            release_x,
+            release_y,
+            allow_clipboard_fallback,
+        );
         selection::get_text()
     }
 }
@@ -116,19 +127,49 @@ pub fn has_auto_toolbar_pending_selection() -> bool {
         .unwrap_or(false)
 }
 
-pub fn capture_auto_toolbar_pending_selection() -> String {
+fn clear_auto_toolbar_pending_selection_if_current(context: AutoToolbarSelectionContext) {
+    let mut guard = AUTO_TOOLBAR_PENDING_SELECTION
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+
+    let should_clear = guard
+        .as_ref()
+        .map(|current| {
+            current.marker == context.marker
+                && current.release_x == context.release_x
+                && current.release_y == context.release_y
+        })
+        .unwrap_or(false);
+
+    if should_clear {
+        *guard = None;
+    }
+}
+
+pub fn capture_auto_toolbar_pending_selection(allow_clipboard_fallback: bool) -> String {
     let context = {
-        let mut guard = AUTO_TOOLBAR_PENDING_SELECTION
+        let guard = AUTO_TOOLBAR_PENDING_SELECTION
             .lock()
             .unwrap_or_else(|err| err.into_inner());
-        guard.take()
+        *guard
     };
 
     let Some(context) = context else {
         return String::new();
     };
 
-    get_text_for_auto_toolbar(Some(context.marker), context.release_x, context.release_y)
+    let text = get_text_for_auto_toolbar(
+        Some(context.marker),
+        context.release_x,
+        context.release_y,
+        allow_clipboard_fallback,
+    );
+
+    if !text.trim().is_empty() || allow_clipboard_fallback {
+        clear_auto_toolbar_pending_selection_if_current(context);
+    }
+
+    text
 }
 
 fn copy_modifier_active() -> bool {
@@ -232,6 +273,7 @@ fn get_text_windows_for_auto_toolbar(
     user_copy_priority_marker: Option<u64>,
     release_x: i32,
     release_y: i32,
+    allow_clipboard_fallback: bool,
 ) -> String {
     if let Some(text) = read_user_clipboard_text(user_copy_priority_marker) {
         crash_log::record(
@@ -241,7 +283,10 @@ fn get_text_windows_for_auto_toolbar(
         return text;
     }
 
-    crash_log::record("selection_capture", "auto toolbar focused automation capture start");
+    crash_log::record(
+        "selection_capture",
+        "auto toolbar focused automation capture start",
+    );
     match get_text_by_automation() {
         Ok(text) if !text.is_empty() => {
             crash_log::record(
@@ -251,10 +296,7 @@ fn get_text_windows_for_auto_toolbar(
             return text;
         }
         Ok(_) => {
-            crash_log::record(
-                "selection_capture",
-                "auto toolbar focused automation empty",
-            );
+            crash_log::record("selection_capture", "auto toolbar focused automation empty");
             debug!("auto toolbar focused automation is empty");
         }
         Err(err) => {
@@ -300,6 +342,14 @@ fn get_text_windows_for_auto_toolbar(
             format!("auto toolbar late user clipboard text chars={}", text.len()),
         );
         return text;
+    }
+
+    if !allow_clipboard_fallback {
+        crash_log::record(
+            "selection_capture",
+            "auto toolbar automation capture empty; skip clipboard fallback",
+        );
+        return String::new();
     }
 
     if copy_modifier_active() {

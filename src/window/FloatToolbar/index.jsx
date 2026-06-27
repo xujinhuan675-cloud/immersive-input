@@ -660,7 +660,7 @@ export default function FloatToolbar() {
 
     const refreshSelectionState = useCallback(async () => {
         try {
-            const text = await invoke('get_auto_toolbar_text');
+            const text = await invoke('get_auto_toolbar_text', { allowClipboardFallback: false });
             selectedText.current = text || '';
             setCalcResult(null);
             setColorVal(null);
@@ -680,7 +680,7 @@ export default function FloatToolbar() {
 
     const ensureSelectionText = useCallback(async () => {
         try {
-            const text = await invoke('get_auto_toolbar_text');
+            const text = await invoke('get_auto_toolbar_text', { allowClipboardFallback: true });
             selectedText.current = text || '';
             setPendingSelection(false);
 

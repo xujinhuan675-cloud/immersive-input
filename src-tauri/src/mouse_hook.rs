@@ -221,7 +221,8 @@ fn handle_event(event: Event) {
                 }
 
                 if crate::vault::quick_add_capture_active() {
-                    let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                    let text =
+                        crate::selection_capture::capture_auto_toolbar_pending_selection(false);
                     let trimmed = text.trim().to_string();
                     let _ = crate::vault::handle_quick_add_capture(&trimmed);
                     return;
@@ -229,7 +230,8 @@ fn handle_event(event: Event) {
 
                 match behavior.as_str() {
                     "direct_translate" => {
-                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let text =
+                            crate::selection_capture::capture_auto_toolbar_pending_selection(false);
                         let trimmed = text.trim().to_string();
                         if crate::vault::handle_quick_add_capture(&trimmed)
                             || trimmed.len() < min_len
@@ -240,7 +242,8 @@ fn handle_event(event: Event) {
                         auto_selection_translate(trimmed);
                     }
                     "direct_explain" => {
-                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let text =
+                            crate::selection_capture::capture_auto_toolbar_pending_selection(false);
                         let trimmed = text.trim().to_string();
                         if crate::vault::handle_quick_add_capture(&trimmed)
                             || trimmed.len() < min_len
@@ -251,7 +254,8 @@ fn handle_event(event: Event) {
                         auto_selection_explain(trimmed);
                     }
                     "direct_light_ai" => {
-                        let text = crate::selection_capture::capture_auto_toolbar_pending_selection();
+                        let text =
+                            crate::selection_capture::capture_auto_toolbar_pending_selection(false);
                         let trimmed = text.trim().to_string();
                         if crate::vault::handle_quick_add_capture(&trimmed)
                             || trimmed.len() < min_len

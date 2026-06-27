@@ -21,6 +21,7 @@ pub fn get_text(state: tauri::State<StringWrapper>) -> String {
 pub fn get_auto_toolbar_text(
     text_state: tauri::State<StringWrapper>,
     _prev_window_state: tauri::State<PrevForegroundWindow>,
+    allow_clipboard_fallback: Option<bool>,
 ) -> String {
     let existing = text_state.0.lock().unwrap().trim().to_string();
     if !crate::selection_capture::has_auto_toolbar_pending_selection() {
@@ -30,7 +31,9 @@ pub fn get_auto_toolbar_text(
     #[cfg(target_os = "windows")]
     restore_previous_window(&_prev_window_state);
 
-    let captured = crate::selection_capture::capture_auto_toolbar_pending_selection();
+    let captured = crate::selection_capture::capture_auto_toolbar_pending_selection(
+        allow_clipboard_fallback.unwrap_or(false),
+    );
     let trimmed = captured.trim().to_string();
     if !trimmed.is_empty() {
         text_state.0.lock().unwrap().replace_range(.., &trimmed);
