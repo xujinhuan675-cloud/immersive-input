@@ -5,6 +5,7 @@ import {
     LuGripVertical,
     LuLanguages,
     LuLink,
+    LuListTodo,
     LuMail,
     LuPalette,
     LuSparkles,
@@ -69,6 +70,13 @@ export const BASE_TOOLBAR_BUTTONS = [
         fallbackLabel: 'AI',
         actionBehaviorKey: 'toolbar_btn_lightai_behavior',
         Icon: LuSparkles,
+    },
+    {
+        id: 'todo',
+        cfgKey: 'toolbar_btn_todo',
+        labelKey: 'config.text_selection.btn_todo',
+        fallbackLabel: 'Todo',
+        Icon: LuListTodo,
     },
 ];
 

@@ -27,6 +27,7 @@ import detect from '../../utils/lang_detect';
 import { getServiceName, whetherPluginService } from '../../utils/service_instance';
 import { streamTextToInput } from '../../utils/streamInput';
 import { store } from '../../utils/store';
+import { appendTodoItems } from '../../utils/todoNotebook';
 import {
     BASE_TOOLBAR_BUTTONS,
     DEFAULT_SMART_TOOLBAR_CONFIG,
@@ -58,6 +59,14 @@ const RESULT_PANEL_STYLE = {
     padding: '8px 10px',
     borderTop: '1px solid rgba(148, 163, 184, 0.18)',
     background: 'rgba(248, 250, 252, 0.72)',
+};
+
+const STATUS_PANEL_STYLE = {
+    ...RESULT_PANEL_STYLE,
+    minHeight: '44px',
+    color: '#334155',
+    fontSize: '12px',
+    fontWeight: 600,
 };
 const EXPLAIN_SYSTEM_PROMPT =
     '你是一位知识渊博、表达清晰的解释助手。请围绕用户提供的文本或问题，解释核心含义、关键概念、上下文和实际用法。回答要准确、简洁、易懂。';
@@ -570,6 +579,35 @@ const BUTTON_ACTIONS = {
         }
     },
 
+    todo: async (text, { setStatusText, t }) => {
+        const sourceText = String(text || '').trim();
+        if (!sourceText) {
+            setStatusText(
+                t('float_toolbar.todo_empty', {
+                    defaultValue: 'No text selected',
+                })
+            );
+            return;
+        }
+
+        try {
+            const { count } = await appendTodoItems(sourceText);
+            setStatusText(
+                t('float_toolbar.todo_saved', {
+                    count,
+                    defaultValue: `Saved ${count} todo item`,
+                })
+            );
+        } catch (error) {
+            console.error('Save todo error:', error);
+            setStatusText(
+                t('float_toolbar.todo_failed', {
+                    defaultValue: 'Failed to save todo',
+                })
+            );
+        }
+    },
+
     open_url: (text, { hide }) => {
         const trimmedText = text.trim();
         const url = /^https?:\/\//i.test(trimmedText) ? trimmedText : `https://${trimmedText.replace(/^\/\//, '')}`;
@@ -646,8 +684,10 @@ export default function FloatToolbar() {
     const [smartBtns, setSmartBtns] = useState([]);
     const [calcResult, setCalcResult] = useState(null);
     const [colorVal, setColorVal] = useState(null);
+    const [statusText, setStatusText] = useState('');
     const [pendingSelection, setPendingSelection] = useState(false);
     const hasStickyExtraPanel = calcResult != null || colorVal != null;
+    const hasExtraPanel = calcResult != null || colorVal != null || Boolean(statusText);
 
     const resizeWindow = useCallback((buttons, hasExtra) => {
         const buttonCount = Math.max(buttons.length, 2);
@@ -664,6 +704,7 @@ export default function FloatToolbar() {
             selectedText.current = text || '';
             setCalcResult(null);
             setColorVal(null);
+            setStatusText('');
             setPendingSelection(!text);
 
             const detectedType = detectType(text);
@@ -673,6 +714,7 @@ export default function FloatToolbar() {
             selectedText.current = '';
             setCalcResult(null);
             setColorVal(null);
+            setStatusText('');
             setPendingSelection(true);
             setSmartBtns([]);
         }
@@ -682,6 +724,7 @@ export default function FloatToolbar() {
         try {
             const text = await invoke('get_auto_toolbar_text', { allowClipboardFallback: true });
             selectedText.current = text || '';
+            setStatusText('');
             setPendingSelection(false);
 
             const detectedType = detectType(text);
@@ -702,8 +745,13 @@ export default function FloatToolbar() {
                 setAutoHideMs(Number(storedAutoHide));
             }
 
+            const defaultOrder = BASE_TOOLBAR_BUTTONS.map((button) => button.id);
             const storedOrder = await store.get('toolbar_btn_order');
-            const order = Array.isArray(storedOrder) ? storedOrder : BASE_TOOLBAR_BUTTONS.map((button) => button.id);
+            const storedOrderList = Array.isArray(storedOrder) ? storedOrder : [];
+            const order = [
+                ...storedOrderList.filter((id) => defaultOrder.includes(id)),
+                ...defaultOrder.filter((id) => !storedOrderList.includes(id)),
+            ];
 
             const orderedButtons = order
                 .map((id) => BASE_TOOLBAR_BUTTONS.find((button) => button.id === id))
@@ -726,8 +774,8 @@ export default function FloatToolbar() {
             return;
         }
 
-        resizeWindow([...smartBtns, ...baseVisible], calcResult != null || colorVal != null);
-    }, [isActionHost, smartBtns, baseVisible, calcResult, colorVal, resizeWindow]);
+        resizeWindow([...smartBtns, ...baseVisible], hasExtraPanel);
+    }, [isActionHost, smartBtns, baseVisible, hasExtraPanel, resizeWindow]);
 
     useEffect(() => {
         if (isActionHost) {
@@ -757,6 +805,7 @@ export default function FloatToolbar() {
     const hide = useCallback(() => {
         setCalcResult(null);
         setColorVal(null);
+        setStatusText('');
         setPendingSelection(false);
         invoke('clear_auto_toolbar_pending_selection').catch(() => {});
         appWindow.hide().catch(() => {});
@@ -786,6 +835,7 @@ export default function FloatToolbar() {
                 hide: isActionHost ? () => {} : hide,
                 setCalcResult,
                 setColorVal,
+                setStatusText,
                 calcResult,
                 colorVal,
                 translateActionBehavior,
@@ -1084,6 +1134,8 @@ export default function FloatToolbar() {
                     </button>
                 </div>
             )}
+
+            {statusText ? <div style={STATUS_PANEL_STYLE}>{statusText}</div> : null}
         </div>
     );
 }

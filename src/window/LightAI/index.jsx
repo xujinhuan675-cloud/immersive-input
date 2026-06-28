@@ -4,7 +4,7 @@ import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { HiOutlineVolumeUp, HiSparkles } from 'react-icons/hi';
-import { MdContentCopy } from 'react-icons/md';
+import { MdContentCopy, MdFolderOpen, MdPlaylistAddCheck } from 'react-icons/md';
 
 import WindowHeader, {
     WindowHeaderCloseButton,
@@ -36,6 +36,7 @@ import { FORMATTER_CONFIG_KEY, formatText } from '../../utils/formatter';
 import detect from '../../utils/lang_detect';
 import { languageList, normalizeLanguageKey } from '../../utils/language';
 import { streamTextToInput } from '../../utils/streamInput';
+import { appendTodoItems, openTodoNotebook } from '../../utils/todoNotebook';
 
 const FIX_SYSTEM_PROMPT = [
     'You are a conservative proofreading and correction assistant.',
@@ -55,6 +56,7 @@ const STYLE_LABELS_ZH = {
     strict: '正式',
     structured: '结构化',
     natural: '自然',
+    checklist: '清单化',
 };
 
 const LANGUAGE_LABELS_ZH = {
@@ -282,6 +284,25 @@ const styles = {
         border: 'none',
         opacity: disabled ? 0.42 : 1,
         transition: 'background 140ms ease, color 140ms ease, opacity 140ms ease',
+        flexShrink: 0,
+    }),
+    cardTextButton: (disabled) => ({
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '28px',
+        height: '28px',
+        padding: 0,
+        borderRadius: '8px',
+        border: 'none',
+        background: 'transparent',
+        color: '#475569',
+        fontSize: 0,
+        fontWeight: 600,
+        opacity: disabled ? 0.42 : 1,
+        transition: 'background 140ms ease, color 140ms ease, opacity 140ms ease',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
         flexShrink: 0,
     }),
     cardBody: cardBodyBase,
@@ -730,6 +751,28 @@ export default function LightAI() {
         }
     };
 
+    const handleAppendCurrentResultToTodo = async () => {
+        const text = String(currentResult || '').trim();
+        if (!text) return;
+
+        try {
+            const { count } = await appendTodoItems(text);
+            if (count > 0) {
+                toast.success(`已追加 ${count} 条待办`, { style: toastStyle });
+            }
+        } catch (nextError) {
+            toast.error(`追加失败：${nextError?.message || nextError}`, { style: toastStyle });
+        }
+    };
+
+    const handleOpenTodoNotebook = async () => {
+        try {
+            await openTodoNotebook();
+        } catch (nextError) {
+            toast.error(`打开失败：${nextError?.message || nextError}`, { style: toastStyle });
+        }
+    };
+
     const handleSourceTextChange = useCallback(
         (nextValue) => {
             autoRunRef.current = false;
@@ -969,6 +1012,33 @@ export default function LightAI() {
                             <div style={styles.cardHeader}>
                                 <span>{panelTitle}</span>
                                 <div style={styles.cardHeaderActions}>
+                                    <button
+                                        type='button'
+                                        title='追加到待办'
+                                        aria-label='追加到待办'
+                                        className='bg-transparent text-default-500 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
+                                        style={styles.cardTextButton(!currentResult)}
+                                        disabled={!currentResult}
+                                        onClick={() => {
+                                            void handleAppendCurrentResultToTodo();
+                                        }}
+                                    >
+                                        <MdPlaylistAddCheck className='text-[16px]' />
+                                        追加到待办
+                                    </button>
+                                    <button
+                                        type='button'
+                                        title='打开待办'
+                                        aria-label='打开待办'
+                                        className='bg-transparent text-default-500 hover:bg-default-100 hover:text-default-700'
+                                        style={styles.cardTextButton(false)}
+                                        onClick={() => {
+                                            void handleOpenTodoNotebook();
+                                        }}
+                                    >
+                                        <MdFolderOpen className='text-[15px]' />
+                                        打开待办
+                                    </button>
                                     <button
                                         type='button'
                                         title='复制结果'

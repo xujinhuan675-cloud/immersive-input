@@ -479,7 +479,8 @@
                 "btn_translate": "翻译",
                 "btn_explain": "解释",
                 "btn_format": "格式化",
-                "btn_lightai": "文本助手"
+                "btn_lightai": "文本助手",
+                "btn_todo": "记待办"
             },
             "text_selection": {
                 "label": "划词设置",
@@ -497,6 +498,7 @@
                 "btn_explain": "解释",
                 "btn_format": "格式化",
                 "btn_lightai": "文本助手",
+                "btn_todo": "记待办",
                 "smart_title": "智能按钮"
             },
             "about": {
@@ -1107,7 +1109,10 @@
             "apply_result_title": "应用结果",
             "apply_formula": "公式",
             "apply_formula_title": "应用公式",
-            "calc_error": "无法计算"
+            "calc_error": "无法计算",
+            "todo_empty": "未选中文本",
+            "todo_saved": "已记入 {{count}} 条待办",
+            "todo_failed": "记入待办失败"
         }
     }
 }

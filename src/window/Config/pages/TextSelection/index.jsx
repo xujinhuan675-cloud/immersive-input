@@ -33,11 +33,19 @@ import {
 } from '../../../../utils/textSelectionToolbar';
 import { ConfigServiceIconButton, ConfigServiceListRow } from '../Service/AIConfig/ServiceItem/ServiceRow';
 
-const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai'];
+const DEFAULT_BTN_ORDER = ['translate', 'explain', 'format', 'lightai', 'todo'];
 const FORMATTER_PREVIEW_INPUT = 'Hello   world\n这是 一段  文字 , with odd spacing .\n\nCopied line\nbreaks';
 
 function getLocalizedDefaultValue(isChineseUI, zhText, enText) {
     return isChineseUI ? zhText : enText;
+}
+
+function mergeToolbarOrder(order) {
+    const storedOrder = Array.isArray(order) ? order : [];
+    return [
+        ...storedOrder.filter((id) => DEFAULT_BTN_ORDER.includes(id)),
+        ...DEFAULT_BTN_ORDER.filter((id) => !storedOrder.includes(id)),
+    ];
 }
 
 function getFormatterRuleOptions(isChineseUI) {
@@ -568,11 +576,48 @@ function ToolbarButtonItem(props) {
         return <FormatToolbarButtonRow {...props} />;
     }
 
+    if (button.id === 'todo') {
+        return <PlainToolbarButtonRow {...props} />;
+    }
+
     if (button.actionBehaviorKey) {
         return <ConfigurableToolbarButtonRow {...props} />;
     }
 
     return null;
+}
+
+function PlainToolbarButtonRow(props) {
+    const { button, label, dragHandleProps, isChineseUI } = props;
+    const [enabled, setEnabled] = useConfig(button.cfgKey, true);
+    const Icon = button.Icon;
+
+    return (
+        <ConfigServiceListRow
+            dragHandleProps={dragHandleProps}
+            variant='list'
+            icon={<Icon size={18} />}
+            title={label}
+            description={getLocalizedDefaultValue(
+                isChineseUI,
+                '把选中文本追加到今天的待办记事本。',
+                "Append selected text to today's todo notebook."
+            )}
+            actions={
+                <>
+                    <Switch
+                        size='sm'
+                        isSelected={enabled ?? true}
+                        onValueChange={setEnabled}
+                    />
+                    <div
+                        className='h-8 w-8 min-w-8 shrink-0'
+                        aria-hidden='true'
+                    />
+                </>
+            }
+        />
+    );
 }
 
 export default function TextSelection() {
@@ -593,7 +638,9 @@ export default function TextSelection() {
         matchLabel: getToolbarButtonMatchLabel(button, t),
     }));
 
-    const orderedButtons = (Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER)
+    const mergedBtnOrder = mergeToolbarOrder(btnOrder);
+
+    const orderedButtons = mergedBtnOrder
         .map((id) => allButtons.find((button) => button.id === id))
         .filter(Boolean);
 
@@ -607,7 +654,7 @@ export default function TextSelection() {
     const onDragEnd = (result) => {
         if (!result.destination) return;
 
-        const currentOrder = Array.isArray(btnOrder) ? btnOrder : DEFAULT_BTN_ORDER;
+        const currentOrder = mergeToolbarOrder(btnOrder);
         const newOrder = reorder(currentOrder, result.source.index, result.destination.index);
 
         setBtnOrder(newOrder);

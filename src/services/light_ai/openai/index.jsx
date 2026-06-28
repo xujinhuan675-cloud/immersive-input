@@ -17,6 +17,17 @@ export const DEFAULT_STYLE_PROMPTS = {
         system:
             'You rewrite text so it sounds natural, fluent, and easy to read while preserving the original meaning. Only return the rewritten text.',
     },
+    checklist: {
+        name: 'Checklist',
+        system: [
+            'Turn the user text into a clean Markdown todo checklist.',
+            'Extract only concrete tasks from the text.',
+            'Split combined tasks into separate checklist items when needed.',
+            'Remove duplicates, filler words, and explanations.',
+            'Do not plan next steps, do not prioritize, do not group, and do not add advice.',
+            'Only return checklist lines in this exact format: - [ ] task',
+        ].join('\n'),
+    },
 };
 
 export const STYLE_KEYS = Object.keys(DEFAULT_STYLE_PROMPTS);
