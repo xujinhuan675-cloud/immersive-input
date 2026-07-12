@@ -1113,7 +1113,9 @@
             "calc_error": "Unable to calculate",
             "todo_empty": "No text selected",
             "todo_saved": "Saved {{count}} todo item",
-            "todo_failed": "Failed to save todo"
+            "todo_failed": "Failed to save todo",
+            "open_todo_title": "Open todo",
+            "open_todo_failed": "Failed to open todo"
         }
     }
 }

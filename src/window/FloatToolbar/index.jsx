@@ -27,7 +27,7 @@ import detect from '../../utils/lang_detect';
 import { getServiceName, whetherPluginService } from '../../utils/service_instance';
 import { streamTextToInput } from '../../utils/streamInput';
 import { store } from '../../utils/store';
-import { appendTodoItems } from '../../utils/todoNotebook';
+import { appendTodoItems, openTodoNotebook } from '../../utils/todoNotebook';
 import {
     BASE_TOOLBAR_BUTTONS,
     DEFAULT_SMART_TOOLBAR_CONFIG,
@@ -39,6 +39,14 @@ import {
 } from '../../utils/textSelectionToolbar';
 import { calculateExpr, detectType } from '../../utils/textAnalyzer';
 import { TRANSLATE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
+import { FloatToolbarStatusPanel } from './StatusPanel';
+import {
+    applyStatusUpdate,
+    getOpenTodoFailedStatus,
+    getTodoEmptyStatus,
+    getTodoFailedStatus,
+    getTodoSavedStatus,
+} from './todoStatus';
 
 const DEFAULT_HIDE_MS = 5000;
 const BUTTON_SIZE = 34;
@@ -61,13 +69,6 @@ const RESULT_PANEL_STYLE = {
     background: 'rgba(248, 250, 252, 0.72)',
 };
 
-const STATUS_PANEL_STYLE = {
-    ...RESULT_PANEL_STYLE,
-    minHeight: '44px',
-    color: '#334155',
-    fontSize: '12px',
-    fontWeight: 600,
-};
 const EXPLAIN_SYSTEM_PROMPT =
     '你是一位知识渊博、表达清晰的解释助手。请围绕用户提供的文本或问题，解释核心含义、关键概念、上下文和实际用法。回答要准确、简洁、易懂。';
 const translatePluginInfoCache = new Map();
@@ -579,32 +580,19 @@ const BUTTON_ACTIONS = {
         }
     },
 
-    todo: async (text, { setStatusText, t }) => {
+    todo: async (text, { setStatusAction, setStatusText, t }) => {
         const sourceText = String(text || '').trim();
         if (!sourceText) {
-            setStatusText(
-                t('float_toolbar.todo_empty', {
-                    defaultValue: 'No text selected',
-                })
-            );
+            applyStatusUpdate(getTodoEmptyStatus(t), { setStatusAction, setStatusText });
             return;
         }
 
         try {
             const { count } = await appendTodoItems(sourceText);
-            setStatusText(
-                t('float_toolbar.todo_saved', {
-                    count,
-                    defaultValue: `Saved ${count} todo item`,
-                })
-            );
+            applyStatusUpdate(getTodoSavedStatus(count, t), { setStatusAction, setStatusText });
         } catch (error) {
             console.error('Save todo error:', error);
-            setStatusText(
-                t('float_toolbar.todo_failed', {
-                    defaultValue: 'Failed to save todo',
-                })
-            );
+            applyStatusUpdate(getTodoFailedStatus(t), { setStatusAction, setStatusText });
         }
     },
 
@@ -685,6 +673,7 @@ export default function FloatToolbar() {
     const [calcResult, setCalcResult] = useState(null);
     const [colorVal, setColorVal] = useState(null);
     const [statusText, setStatusText] = useState('');
+    const [statusAction, setStatusAction] = useState(null);
     const [pendingSelection, setPendingSelection] = useState(false);
     const hasStickyExtraPanel = calcResult != null || colorVal != null;
     const hasExtraPanel = calcResult != null || colorVal != null || Boolean(statusText);
@@ -705,6 +694,7 @@ export default function FloatToolbar() {
             setCalcResult(null);
             setColorVal(null);
             setStatusText('');
+            setStatusAction(null);
             setPendingSelection(!text);
 
             const detectedType = detectType(text);
@@ -715,6 +705,7 @@ export default function FloatToolbar() {
             setCalcResult(null);
             setColorVal(null);
             setStatusText('');
+            setStatusAction(null);
             setPendingSelection(true);
             setSmartBtns([]);
         }
@@ -725,6 +716,7 @@ export default function FloatToolbar() {
             const text = await invoke('get_auto_toolbar_text', { allowClipboardFallback: true });
             selectedText.current = text || '';
             setStatusText('');
+            setStatusAction(null);
             setPendingSelection(false);
 
             const detectedType = detectType(text);
@@ -806,6 +798,7 @@ export default function FloatToolbar() {
         setCalcResult(null);
         setColorVal(null);
         setStatusText('');
+        setStatusAction(null);
         setPendingSelection(false);
         invoke('clear_auto_toolbar_pending_selection').catch(() => {});
         appWindow.hide().catch(() => {});
@@ -835,6 +828,7 @@ export default function FloatToolbar() {
                 hide: isActionHost ? () => {} : hide,
                 setCalcResult,
                 setColorVal,
+                setStatusAction,
                 setStatusText,
                 calcResult,
                 colorVal,
@@ -863,6 +857,17 @@ export default function FloatToolbar() {
             t,
         ]
     );
+
+    const handleOpenTodoNotebook = useCallback(async () => {
+        resetTimer();
+
+        try {
+            await openTodoNotebook();
+        } catch (error) {
+            console.error('Open todo error:', error);
+            applyStatusUpdate(getOpenTodoFailedStatus(t), { setStatusAction, setStatusText });
+        }
+    }, [resetTimer, t]);
 
     useEffect(() => {
         if (isActionHost) {
@@ -1135,7 +1140,14 @@ export default function FloatToolbar() {
                 </div>
             )}
 
-            {statusText ? <div style={STATUS_PANEL_STYLE}>{statusText}</div> : null}
+            <FloatToolbarStatusPanel
+                statusAction={statusAction}
+                statusText={statusText}
+                t={t}
+                onOpenTodo={() => {
+                    void handleOpenTodoNotebook();
+                }}
+            />
         </div>
     );
 }

@@ -1112,7 +1112,9 @@
             "calc_error": "无法计算",
             "todo_empty": "未选中文本",
             "todo_saved": "已记入 {{count}} 条待办",
-            "todo_failed": "记入待办失败"
+            "todo_failed": "记入待办失败",
+            "open_todo_title": "打开待办",
+            "open_todo_failed": "打开待办失败"
         }
     }
 }
