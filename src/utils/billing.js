@@ -36,6 +36,11 @@ function getPlanAmount(plan) {
     return toNumber(pickFirst(plan?.price, plan?.amount), Number.POSITIVE_INFINITY);
 }
 
+function isFlowInputPlan(plan) {
+    const name = String(plan?.name || plan?.product_name || '').trim();
+    return /^Input[\s-]+/i.test(name);
+}
+
 function unwrapItems(payload) {
     if (Array.isArray(payload)) return payload;
     if (Array.isArray(payload?.items)) return payload.items;
@@ -54,6 +59,9 @@ function resolveAdminToken(options = {}) {
 
 function inferPlanTier(plan, index) {
     const raw = String(plan?.tier || plan?.name || plan?.product_name || '').trim().toLowerCase();
+    if (/^input\s+(free|trial)\b/.test(raw)) return 'free';
+    if (/^input\s+(pro|plus|premium|professional)\b/.test(raw)) return 'pro';
+    if (/^input\s+(basic|standard)\b/.test(raw)) return 'basic';
     if (raw.includes('free') || raw.includes('试用') || raw.includes('免费')) return 'free';
     if (raw.includes('enterprise') || raw.includes('team') || raw.includes('企业') || raw.includes('团队')) {
         return 'enterprise';
@@ -77,6 +85,9 @@ function inferPlanTier(plan, index) {
 function inferProfileTier(groupName) {
     const raw = String(groupName || '').trim().toLowerCase();
     if (!raw) return 'free';
+    if (/^input[-\s]+(free|trial)\b/.test(raw)) return 'free';
+    if (/^input[-\s]+(pro|plus|premium|professional)\b/.test(raw)) return 'pro';
+    if (/^input[-\s]+(basic|standard)\b/.test(raw)) return 'basic';
     if (raw.includes('free') || raw.includes('试用') || raw.includes('免费')) return 'free';
     if (raw.includes('enterprise') || raw.includes('team') || raw.includes('企业') || raw.includes('团队')) {
         return 'enterprise';
@@ -102,7 +113,7 @@ function inferBillingCycle(plan) {
     return 'month';
 }
 
-function normalizePlan(plan, index, currency = 'CNY') {
+function normalizePlan(plan, index, currency = 'USD') {
     const tier = inferPlanTier(plan, index);
     const durationDays = toNumber(plan?.validity_days, 0);
     const dailyQuota = pickFirst(plan?.daily_limit_usd, plan?.group?.daily_limit_usd, plan?.dailyQuota);
@@ -123,7 +134,7 @@ function normalizePlan(plan, index, currency = 'CNY') {
     };
 }
 
-function makeTopupPresets(currency, multiplier = 1, minAmount = 0) {
+function makeTopupPresets(currency, multiplier = 1, minAmount = 0, balanceCurrency = 'USD') {
     const defaults = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
     return defaults
         .filter((amount) => amount >= Number(minAmount || 0))
@@ -132,6 +143,7 @@ function makeTopupPresets(currency, multiplier = 1, minAmount = 0) {
             amount,
             currency,
             balance: amount * multiplier,
+            balanceCurrency,
         }));
 }
 
@@ -248,21 +260,44 @@ export async function getBillingProfile(userId, options = {}) {
     };
 }
 
+export async function transferInviteRebateToBalance() {
+    const token = await requireAccessToken();
+    const result = await requestSub2Api('/user/aff/transfer', {
+        method: 'POST',
+        token,
+    });
+    if (result && Object.prototype.hasOwnProperty.call(result, 'balance')) {
+        updateCurrentUser({ balance: result.balance });
+    }
+    return result;
+}
+
 export async function getBillingCatalog() {
     const token = await requireAccessToken();
     const checkoutInfo = await requestSub2Api('/payment/checkout-info', { token });
-    const currency = 'CNY';
+    const subscriptionCurrency = 'USD';
+    const topupCurrency = 'CNY';
+    const balanceCurrency = String(
+        checkoutInfo?.balance_currency || checkoutInfo?.quota_currency || 'USD'
+    ).trim() || 'USD';
     const multiplier = toNumber(checkoutInfo?.balance_recharge_multiplier, 1) || 1;
     const plans = toArray(checkoutInfo?.plans)
-        .filter((plan) => plan?.for_sale !== false)
+        .filter((plan) => plan?.for_sale !== false && isFlowInputPlan(plan))
         .sort((left, right) => getPlanAmount(left) - getPlanAmount(right))
-        .map((plan, index) => normalizePlan(plan, index, currency));
+        .map((plan, index) => normalizePlan(plan, index, plan?.currency || subscriptionCurrency));
 
     return {
         catalog: {
-            currency,
+            currency: topupCurrency,
+            topupCurrency,
+            balanceCurrency,
             subscriptionPlans: plans,
-            topupPresets: makeTopupPresets(currency, multiplier, checkoutInfo?.global_min),
+            topupPresets: makeTopupPresets(
+                topupCurrency,
+                multiplier,
+                checkoutInfo?.global_min,
+                balanceCurrency
+            ),
             topupBalanceMultiplier: multiplier,
             balanceDisabled: Boolean(checkoutInfo?.balance_disabled),
             rechargeFeeRate: toNumber(checkoutInfo?.recharge_fee_rate, 0),

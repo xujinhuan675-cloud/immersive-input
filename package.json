@@ -11,7 +11,7 @@
         "preview": "vite preview",
         "test": "node --test",
         "test:watch": "node --test --watch",
-        "tauri": "tauri",
+        "tauri": "node scripts/tauri-cli.mjs",
         "version:sync": "node scripts/sync-version.mjs",
         "version:bump": "node scripts/bump-version.mjs",
         "version:bump:patch": "node scripts/bump-version.mjs patch",

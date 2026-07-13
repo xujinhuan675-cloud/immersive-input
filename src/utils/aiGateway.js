@@ -1,7 +1,15 @@
-import { getFlowGuideAudioSpeechUrl, getFlowGuideChatCompletionsUrl, isFlowGuideUrl } from './flowguide';
+import {
+    getFlowGuideAudioSpeechUrl,
+    getFlowGuideChatCompletionsUrl,
+    isFlowGuideUrl,
+} from './flowguide';
+import { DEFAULT_CHAT_MODEL } from './aiModels';
 import { getAiServiceEntitlement } from './aiEntitlements';
+import { clearSub2ApiGatewayKeyCache, getSub2ApiGatewayKey } from './sub2apiAiKey';
 
-const DEFAULT_AI_MODEL = 'gpt-4o-mini';
+const DEFAULT_AI_MODEL = DEFAULT_CHAT_MODEL;
+const DEFAULT_GATEWAY_CHAT_MODEL = DEFAULT_CHAT_MODEL;
+const SUB2API_USER_KEY_AUTH_SOURCE = 'sub2api_user_key';
 
 export async function resolveAiGatewayConfig(apiConfig = {}) {
     let apiUrl = String(apiConfig.apiUrl || '').trim();
@@ -10,6 +18,7 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
     }
 
     let apiKey = String(apiConfig.apiKey || '').trim();
+    let model = String(apiConfig.model || '').trim();
     const purpose = String(apiConfig.purpose || 'chat')
         .trim()
         .toLowerCase();
@@ -17,9 +26,12 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
         const entitlement = await getAiServiceEntitlement().catch(() => ({
             canUseCustomAiServices: false,
         }));
-        if (!entitlement.canUseCustomAiServices && (!apiUrl || !isFlowGuideUrl(apiUrl))) {
+        if (!entitlement.canUseCustomAiServices) {
             apiUrl = purpose === 'speech' ? getFlowGuideAudioSpeechUrl() : getFlowGuideChatCompletionsUrl();
             apiKey = '';
+            if (purpose === 'chat') {
+                model = DEFAULT_GATEWAY_CHAT_MODEL;
+            }
         }
     }
 
@@ -27,14 +39,25 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
         ...apiConfig,
         apiUrl,
         apiKey,
-        model: apiConfig.model || DEFAULT_AI_MODEL,
+        model: model || DEFAULT_AI_MODEL,
         temperature: Number(apiConfig.temperature ?? 0.7),
     };
 }
 
 export async function requireAiGatewayConfig(apiConfig = {}) {
     const resolved = await resolveAiGatewayConfig(apiConfig);
-    if (!resolved.apiUrl || !resolved.apiKey || !resolved.model) {
+    if (!resolved.apiUrl || !resolved.model) {
+        throw new Error('Please configure AI API URL, API Key, and model first.');
+    }
+    if (!resolved.apiKey && isFlowGuideUrl(resolved.apiUrl)) {
+        const gatewayKey = await getSub2ApiGatewayKey();
+        return {
+            ...resolved,
+            apiKey: gatewayKey,
+            authSource: SUB2API_USER_KEY_AUTH_SOURCE,
+        };
+    }
+    if (!resolved.apiKey) {
         throw new Error('Please configure AI API URL, API Key, and model first.');
     }
     return resolved;
@@ -71,6 +94,10 @@ async function closeResponseBody(response) {
     } catch {}
 }
 
+function isAuthFailureStatus(status) {
+    return status === 401 || status === 403;
+}
+
 export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retryOptions = {}) {
     const resolvedConfig = await requireAiGatewayConfig(apiConfig);
     const doFetch = getFetch();
@@ -89,8 +116,48 @@ export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retr
     let currentConfig = resolvedConfig;
     let response = await request(currentConfig);
 
-    if (response.status !== 401) {
+    if (!isAuthFailureStatus(response.status)) {
         return { response, config: currentConfig };
+    }
+
+    if (
+        currentConfig.authSource === SUB2API_USER_KEY_AUTH_SOURCE &&
+        isAuthFailureStatus(response.status)
+    ) {
+        clearSub2ApiGatewayKeyCache();
+        const refreshedGatewayKey = await getSub2ApiGatewayKey({ forceRefresh: true }).catch(() => null);
+        if (refreshedGatewayKey && refreshedGatewayKey !== currentConfig.apiKey) {
+            await closeResponseBody(response);
+            currentConfig = {
+                ...currentConfig,
+                apiKey: refreshedGatewayKey,
+            };
+            response = await request(currentConfig);
+            if (!isAuthFailureStatus(response.status)) {
+                return { response, config: currentConfig };
+            }
+        }
+    }
+
+    if (
+        isFlowGuideUrl(currentConfig.apiUrl) &&
+        currentConfig.authSource !== SUB2API_USER_KEY_AUTH_SOURCE &&
+        isAuthFailureStatus(response.status)
+    ) {
+        clearSub2ApiGatewayKeyCache();
+        const gatewayKey = await getSub2ApiGatewayKey({ forceRefresh: true }).catch(() => null);
+        if (gatewayKey && gatewayKey !== currentConfig.apiKey) {
+            await closeResponseBody(response);
+            currentConfig = {
+                ...currentConfig,
+                apiKey: gatewayKey,
+                authSource: SUB2API_USER_KEY_AUTH_SOURCE,
+            };
+            response = await request(currentConfig);
+            if (!isAuthFailureStatus(response.status)) {
+                return { response, config: currentConfig };
+            }
+        }
     }
 
     if (typeof retryOptions.refreshConfig === 'function') {

@@ -5,12 +5,13 @@ import {
     isFlowGuideUrl,
 } from './flowguide';
 import { getAiServiceEntitlement } from './aiEntitlements';
+import { DEFAULT_CHAT_MODEL } from './aiModels';
 import { store } from './store';
 
 export const AI_API_SERVICE_LIST_KEY = 'ai_api_service_list';
 export const AI_API_SERVICE_NAME = 'ai_api';
 export const AI_API_DEFAULT_URL = getFlowGuideChatCompletionsUrl();
-export const AI_API_DEFAULT_MODEL = 'gpt-4o-mini';
+export const AI_API_DEFAULT_MODEL = DEFAULT_CHAT_MODEL;
 export const AI_API_PROVIDER_TITLE = 'OpenAI Compatible API';
 export const AI_API_GATEWAY_INSTANCE_KEY = 'flowguide_gateway_ai';
 

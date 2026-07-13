@@ -22,6 +22,11 @@ dist-ssr
 latest.json
 .tmp-appdata/
 
+# Local analysis artifacts
+.graphify-out/
+graphify-out/
+src-tauri/graphify-out/
+
 # Editor directories and files
 .idea
 .DS_Store

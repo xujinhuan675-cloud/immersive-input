@@ -20,7 +20,12 @@ import QRCode from 'qrcode';
 
 import { getCurrentUser, logout } from '../../../../utils/auth';
 import { clearStoredAdminToken, getStoredAdminToken, saveStoredAdminToken } from '../../../../utils/admin';
-import { getBillingCatalog, getBillingProfile, updateAdminMembership } from '../../../../utils/billing';
+import {
+    getBillingCatalog,
+    getBillingProfile,
+    transferInviteRebateToBalance,
+    updateAdminMembership,
+} from '../../../../utils/billing';
 import { getSub2WebBase } from '../../../../utils/sub2api';
 import {
     cancelPaymentOrder,
@@ -149,6 +154,13 @@ function formatMoney(amount, currency = 'CNY') {
     return `${numeric.toFixed(2)} ${currency}`;
 }
 
+function getCurrencyPrefix(currency = 'CNY') {
+    const normalized = String(currency || '').trim().toUpperCase();
+    if (normalized === 'CNY') return '¥';
+    if (normalized === 'USD') return '$';
+    return normalized ? `${normalized} ` : '';
+}
+
 function formatOrderAmount(order) {
     if (!order) return '-';
     const amount = Number(order.amountCents || 0) / 100;
@@ -220,6 +232,15 @@ function resolveInviteStats(profile, user) {
             user?.inviteRewardCredits,
             user?.earnedInviteCredits
         ),
+        availableRebate: pickFirstFiniteNumber(
+            inviteStats?.availableRebate,
+            inviteStats?.affQuota,
+            inviteStats?.aff_quota,
+            profile?.availableRebate,
+            profile?.affQuota,
+            user?.availableRebate,
+            user?.affQuota
+        ),
         rebateRatePercent: pickFirstFiniteNumber(
             inviteStats?.rebateRatePercent,
             inviteStats?.effectiveRebateRatePercent,
@@ -264,19 +285,6 @@ function normalizeFeatureLabels(features) {
     return [];
 }
 
-const BILLING_REGION_CONFIG = Object.freeze({
-    global: {
-        key: 'global',
-        labelKey: 'billing_region_global',
-        providerNames: ['stripe'],
-    },
-    cn: {
-        key: 'cn',
-        labelKey: 'billing_region_cn',
-        providerNames: ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'easypay'],
-    },
-});
-const BILLING_REGION_ORDER = Object.freeze(['global', 'cn']);
 const PLAN_CARD_STYLES = Object.freeze({
     free: {
         border: 'border-default-200',
@@ -302,7 +310,8 @@ const PLAN_CTA_TONE_STYLES = Object.freeze({
     primary: 'bg-default-900 text-white hover:bg-default-800',
     secondary: 'bg-default-900 text-white hover:bg-default-800',
 });
-const ACCOUNT_VIEW_CACHE_STORAGE_KEY = 'immersive-input:account-view-cache:v1';
+const BILLING_CATALOG_CACHE_KEY = 'default';
+const ACCOUNT_VIEW_CACHE_STORAGE_KEY = 'immersive-input:account-view-cache:v2';
 
 function readPersistedAccountViewCache() {
     if (typeof window === 'undefined') return null;
@@ -366,50 +375,21 @@ function updateStateIfChanged(setter, nextValue) {
     setter((currentValue) => (areDataEqual(currentValue, nextValue) ? currentValue : nextValue));
 }
 
-function getBillingCatalogCacheKey(regionKey, paymentProvider) {
-    return `${String(regionKey || 'global').trim()}::${String(paymentProvider || '').trim()}`;
-}
-
-function getRegionProviderNames(regionKey) {
-    return BILLING_REGION_CONFIG[regionKey]?.providerNames || [];
-}
-
-function filterProvidersByRegion(providerOptions, regionKey) {
-    const allowedNames = getRegionProviderNames(regionKey);
-    const matched = (providerOptions || []).filter((item) =>
-        allowedNames.includes(String(item?.name || '').trim().toLowerCase())
-    );
-    return matched.length > 0 ? matched : providerOptions || [];
+function getBillingCatalogCacheKey() {
+    return BILLING_CATALOG_CACHE_KEY;
 }
 
 function isProviderReadyForPurchase(provider) {
     return (provider?.createReady ?? provider?.ready) !== false;
 }
 
-function getPreferredProviderForRegion(providerOptions, regionKey, { readyOnly = false } = {}) {
-    const regionProviders = filterProvidersByRegion(providerOptions, regionKey);
+function getPreferredPaymentProvider(providerOptions, { readyOnly = false } = {}) {
+    const providers = providerOptions || [];
     if (readyOnly) {
-        const readyProvider = regionProviders.find((item) => isProviderReadyForPurchase(item));
+        const readyProvider = providers.find((item) => isProviderReadyForPurchase(item));
         if (readyProvider?.name) return String(readyProvider.name).trim();
     }
-    return regionProviders[0]?.name ? String(regionProviders[0].name).trim() : '';
-}
-
-function getCatalogProviderForRegion(providerOptions, regionKey, selectedProvider = '') {
-    const normalizedSelectedProvider = String(selectedProvider || '').trim().toLowerCase();
-    const regionProviders = filterProvidersByRegion(providerOptions, regionKey);
-    const hasSelectedProviderInRegion = regionProviders.some(
-        (item) => String(item?.name || '').trim().toLowerCase() === normalizedSelectedProvider
-    );
-    if (normalizedSelectedProvider && hasSelectedProviderInRegion) {
-        return String(selectedProvider).trim();
-    }
-    return (
-        getPreferredProviderForRegion(providerOptions, regionKey, { readyOnly: true }) ||
-        getPreferredProviderForRegion(providerOptions, regionKey) ||
-        getRegionProviderNames(regionKey)[0] ||
-        ''
-    );
+    return providers[0]?.name ? String(providers[0].name).trim() : '';
 }
 
 const SubtleRefreshingValue = React.memo(function SubtleRefreshingValue({
@@ -432,6 +412,7 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
     refreshing,
     onPrepareRechargeOrder,
     onCopyInviteLink,
+    onTransferInviteRebate,
 }) {
     const valueRefreshing = refreshing || (loading && !viewModel.ready);
 
@@ -512,7 +493,7 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                             {viewModel.inviteRebateDescription}
                         </p>
 
-                        <div className='mt-3 grid gap-2 sm:grid-cols-2'>
+                        <div className='mt-3 grid gap-2 sm:grid-cols-3'>
                             <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
                                 <p className='text-[11px] text-default-500'>
                                     {viewModel.invitedCountLabel}
@@ -523,6 +504,30 @@ const AccountBillingPanel = React.memo(function AccountBillingPanel({
                                 >
                                     <p className='text-sm font-semibold text-default-800'>
                                         {viewModel.invitedCount}
+                                    </p>
+                                </SubtleRefreshingValue>
+                            </div>
+                            <div className='rounded-lg border border-default-200 bg-white px-3 py-2.5'>
+                                <div className='flex items-center justify-between gap-2'>
+                                    <p className='min-w-0 text-[11px] text-default-500'>
+                                        {viewModel.availableRebateLabel}
+                                    </p>
+                                    <button
+                                        type='button'
+                                        disabled={viewModel.transferInviteRebateDisabled}
+                                        className='inline-flex h-6 shrink-0 items-center justify-center rounded-md bg-default-900 px-2 text-[11px] font-medium text-white transition hover:bg-default-700 disabled:bg-default-200 disabled:text-default-400'
+                                        title={viewModel.transferInviteRebateLabel}
+                                        onClick={onTransferInviteRebate}
+                                    >
+                                        {viewModel.transferInviteRebateButtonLabel}
+                                    </button>
+                                </div>
+                                <SubtleRefreshingValue
+                                    refreshing={valueRefreshing}
+                                    className='mt-1'
+                                >
+                                    <p className='text-sm font-semibold text-default-800'>
+                                        {viewModel.availableRebate}
                                     </p>
                                 </SubtleRefreshingValue>
                             </div>
@@ -715,11 +720,8 @@ const AccountSubscriptionPlansPanel = React.memo(function AccountSubscriptionPla
     emptyText,
     loading,
     refreshing,
-    pricingRegion,
-    regionOptions,
     planViewModels,
     currentBillingTierKey,
-    onRegionChange,
     onSelectCycle,
     onPrepareSubscription,
 }) {
@@ -729,31 +731,10 @@ const AccountSubscriptionPlansPanel = React.memo(function AccountSubscriptionPla
             className='border-1 border-default-200 bg-white'
         >
             <CardBody className='space-y-3 p-4'>
-                <div className='flex flex-wrap items-center justify-between gap-2'>
+                <div className='flex items-center justify-between gap-2'>
                     <div className='min-w-0'>
                         <p className='text-sm font-semibold text-default-800'>{title}</p>
                         {subtitle ? <p className='mt-1 text-xs text-default-500'>{subtitle}</p> : null}
-                    </div>
-                    <div className='flex shrink-0 items-center'>
-                        <div className='inline-flex rounded-md border border-default-200 bg-default-50 p-0.5'>
-                            {regionOptions.map((regionOption) => {
-                                const active = pricingRegion === regionOption.key;
-                                return (
-                                    <button
-                                        key={regionOption.key}
-                                        type='button'
-                                        className={`rounded-[6px] px-3 py-1 text-xs font-medium transition ${
-                                            active
-                                                ? 'bg-white text-default-900 shadow-sm'
-                                                : 'text-default-500 hover:text-default-800'
-                                        }`}
-                                        onClick={() => onRegionChange(regionOption.key)}
-                                    >
-                                        {regionOption.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
                     </div>
                 </div>
 
@@ -835,7 +816,6 @@ export default function Account() {
         return Boolean(initialUser?.id) && !cachedCatalog;
     });
     const [billingCatalogRefreshing, setBillingCatalogRefreshing] = useState(false);
-    const [pricingRegion, setPricingRegion] = useState('global');
     const [rechargeAmount, setRechargeAmount] = useState('29');
     const [activePurchaseKey, setActivePurchaseKey] = useState('');
     const [cancelingOrder, setCancelingOrder] = useState(false);
@@ -847,6 +827,7 @@ export default function Account() {
     const [qrModalOpen, setQrModalOpen] = useState(false);
     const [paymentModalOpen, setPaymentModalOpen] = useState(false);
     const [paymentIntent, setPaymentIntent] = useState(null);
+    const [inviteRebateTransferLoading, setInviteRebateTransferLoading] = useState(false);
     const [savedAdminToken, setSavedAdminToken] = useState('');
     const [adminTokenInput, setAdminTokenInput] = useState('');
     const [adminOrderId, setAdminOrderId] = useState('');
@@ -868,19 +849,12 @@ export default function Account() {
     const prepareRechargeOrderRef = useRef(() => {});
     const prepareSubscriptionRef = useRef(() => {});
     const copyInviteLinkRef = useRef(() => {});
+    const transferInviteRebateRef = useRef(() => {});
     const subscriptionPlans = useMemo(
         () => sortSubscriptionPlans(billingCatalog?.subscriptionPlans || []),
         [billingCatalog?.subscriptionPlans]
     );
-    const resolvedCatalogPaymentProvider = getCatalogProviderForRegion(
-        getProviderOptions(paymentConfig),
-        pricingRegion,
-        selectedPaymentProvider
-    );
-    const billingCatalogCacheKey = getBillingCatalogCacheKey(
-        pricingRegion,
-        resolvedCatalogPaymentProvider
-    );
+    const billingCatalogCacheKey = getBillingCatalogCacheKey();
 
     function refreshUser() {
         const { user } = getCurrentUser();
@@ -930,7 +904,6 @@ export default function Account() {
             tasks.push(
                 loadBillingCatalog({
                     silent: true,
-                    paymentProvider: resolvedCatalogPaymentProvider,
                     cacheKey: billingCatalogCacheKey,
                     force: true,
                 })
@@ -992,17 +965,18 @@ export default function Account() {
 
     useEffect(() => {
         const providerOptions = getProviderOptions(paymentConfig);
-        const regionProviders = filterProvidersByRegion(providerOptions, pricingRegion);
-        if (regionProviders.length === 0) {
+        if (providerOptions.length === 0) {
             updateSelectedPaymentProvider('');
             return;
         }
-        const availableValues = regionProviders.map((item) => String(item.name || '').trim());
-        const nextDefault = getCatalogProviderForRegion(providerOptions, pricingRegion);
+        const availableValues = providerOptions.map((item) => String(item.name || '').trim());
+        const nextDefault =
+            getPreferredPaymentProvider(providerOptions, { readyOnly: true }) ||
+            getPreferredPaymentProvider(providerOptions);
         if (!selectedPaymentProvider || !availableValues.includes(selectedPaymentProvider)) {
             updateSelectedPaymentProvider(nextDefault);
         }
-    }, [paymentConfig, pricingRegion, selectedPaymentProvider]);
+    }, [paymentConfig, selectedPaymentProvider]);
 
     useEffect(() => {
         if (!userInfo?.id) return;
@@ -1011,17 +985,17 @@ export default function Account() {
         if (cachedCatalog) {
             updateStateIfChanged(setBillingCatalog, cachedCatalog);
             setBillingCatalogLoading(false);
+            setBillingCatalogRefreshing(true);
+        } else {
+            setBillingCatalogLoading(true);
             setBillingCatalogRefreshing(false);
-            return;
         }
-        setBillingCatalogLoading(true);
-        setBillingCatalogRefreshing(false);
         loadBillingCatalog({
             silent: true,
-            paymentProvider: resolvedCatalogPaymentProvider,
             cacheKey: billingCatalogCacheKey,
+            force: Boolean(cachedCatalog),
         });
-    }, [billingCatalogCacheKey, paymentConfig, resolvedCatalogPaymentProvider, userInfo?.id]);
+    }, [billingCatalogCacheKey, paymentConfig, userInfo?.id]);
 
     useEffect(() => {
         if (!userInfo?.id) return undefined;
@@ -1043,7 +1017,7 @@ export default function Account() {
             window.removeEventListener('focus', handleWindowFocus);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [paymentConfig, pricingRegion, selectedPaymentProvider, userInfo?.id]);
+    }, [paymentConfig, selectedPaymentProvider, userInfo?.id]);
 
     useEffect(() => {
         const qrPayload = getOrderQrPayload(latestOrder);
@@ -1216,7 +1190,6 @@ export default function Account() {
 
     async function loadBillingCatalog({
         silent = false,
-        paymentProvider,
         cacheKey,
         force = false,
     } = {}) {
@@ -1226,15 +1199,7 @@ export default function Account() {
             return null;
         }
         try {
-            const resolvedPaymentProvider =
-                paymentProvider ??
-                getCatalogProviderForRegion(
-                    getProviderOptions(paymentConfig),
-                    pricingRegion,
-                    selectedPaymentProvider
-                );
-            const resolvedCacheKey =
-                cacheKey || getBillingCatalogCacheKey(pricingRegion, resolvedPaymentProvider);
+            const resolvedCacheKey = cacheKey || getBillingCatalogCacheKey();
             const cachedCatalog =
                 ACCOUNT_VIEW_CACHE.billingCatalogsByKey.get(resolvedCacheKey) || null;
             const hasExistingCatalog =
@@ -1253,7 +1218,7 @@ export default function Account() {
                     return cachedCatalog;
                 }
             }
-            const data = await getBillingCatalog({ paymentProvider: resolvedPaymentProvider });
+            const data = await getBillingCatalog();
             const nextCatalog = data?.catalog || null;
             ACCOUNT_VIEW_CACHE.billingCatalogsByKey.set(resolvedCacheKey, nextCatalog);
             ACCOUNT_VIEW_CACHE.lastBillingCatalogKey = resolvedCacheKey;
@@ -1323,6 +1288,36 @@ export default function Account() {
             toast.success(t('config.account.invite_share_copied'));
         } catch {
             toast.error(t('config.account.invite_share_failed'));
+        }
+    }
+
+    async function handleTransferInviteRebate() {
+        const availableRebate = Number(inviteStats.availableRebate) || 0;
+        if (!billingProfile || availableRebate <= 0) {
+            toast.error(t('config.account.invite_rebate_transfer_empty'));
+            return;
+        }
+
+        setInviteRebateTransferLoading(true);
+        try {
+            const result = await transferInviteRebateToBalance();
+            const transferredAmount = Number(result?.transferred_quota ?? availableRebate) || availableRebate;
+            toast.success(
+                t('config.account.invite_rebate_transfer_success', {
+                    amount: formatBillingValue(transferredAmount),
+                })
+            );
+            await triggerAccountRefresh({
+                includeUser: true,
+                includePaymentConfig: false,
+                includeProfile: true,
+                includeCatalog: false,
+                dedupeMs: 0,
+            });
+        } catch (error) {
+            toast.error(error.message || t('config.account.invite_rebate_transfer_failed'));
+        } finally {
+            setInviteRebateTransferLoading(false);
         }
     }
 
@@ -1435,6 +1430,7 @@ export default function Account() {
     prepareRechargeOrderRef.current = handlePrepareRechargeOrder;
     prepareSubscriptionRef.current = handlePrepareSubscription;
     copyInviteLinkRef.current = handleCopyInviteLink;
+    transferInviteRebateRef.current = handleTransferInviteRebate;
 
     const handlePrepareRechargeOrderStable = useCallback(() => {
         prepareRechargeOrderRef.current();
@@ -1446,6 +1442,10 @@ export default function Account() {
 
     const handleCopyInviteLinkStable = useCallback(() => {
         void copyInviteLinkRef.current();
+    }, []);
+
+    const handleTransferInviteRebateStable = useCallback(() => {
+        void transferInviteRebateRef.current();
     }, []);
 
     const handleSelectPlanCycle = useCallback(() => {}, []);
@@ -1731,9 +1731,7 @@ export default function Account() {
     const displayTier = billingProfile?.tier || userInfo?.membership_tier || 'free';
     const tierConfig = userInfo ? TIER_KEYS[displayTier] ?? TIER_KEYS.free : null;
     const paymentProviderOptions = getProviderOptions(paymentConfig);
-    const regionPaymentProviderOptions = filterProvidersByRegion(paymentProviderOptions, pricingRegion);
     const selectedProviderDetail =
-        regionPaymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         paymentProviderOptions.find((item) => item.name === selectedPaymentProvider) ||
         null;
     const normalizedSelectedPaymentProvider = String(selectedPaymentProvider || '')
@@ -1741,12 +1739,14 @@ export default function Account() {
         .toLowerCase();
     const selectedProviderMissingFields =
         selectedProviderDetail?.createMissingFields || selectedProviderDetail?.missingFields || [];
-    const hasReadyPaymentProvider = regionPaymentProviderOptions.some((item) =>
+    const hasReadyPaymentProvider = paymentProviderOptions.some((item) =>
         isProviderReadyForPurchase(item)
     );
     const topupBalanceMultiplier = Number(
         billingCatalog?.topupBalanceMultiplier
     );
+    const topupCurrency = billingCatalog?.topupCurrency || billingCatalog?.currency || 'CNY';
+    const balanceCurrency = billingCatalog?.balanceCurrency || 'USD';
     const latestOrderQrPayload = getOrderQrPayload(latestOrder);
     const topupPresets = billingCatalog?.topupPresets || [];
     const activeAdminToken = String(adminTokenInput || '').trim();
@@ -1792,7 +1792,7 @@ export default function Account() {
     const paymentIntentAmountLabel =
         paymentIntentType === 'subscription' && paymentIntentResolvedPlan
             ? formatMoney(paymentIntentResolvedPlan.amount, paymentIntentResolvedPlan.currency)
-            : formatMoney(paymentIntentTopupAmount, billingCatalog?.currency || 'CNY');
+            : formatMoney(paymentIntentTopupAmount, topupCurrency);
     const paymentIntentBaseAmount =
         paymentIntentType === 'subscription' && paymentIntentResolvedPlan
             ? Number(paymentIntentResolvedPlan.amount) || 0
@@ -1810,8 +1810,16 @@ export default function Account() {
             : paymentIntentBaseAmount;
     const paymentIntentPayAmountLabel = formatMoney(
         paymentIntentPayAmount,
-        paymentIntentResolvedPlan?.currency || billingCatalog?.currency || 'CNY'
+        paymentIntentResolvedPlan?.currency || topupCurrency
     );
+    const paymentIntentEstimatedBalanceLabel =
+        paymentIntentEstimatedBalance !== null
+            ? formatMoney(paymentIntentEstimatedBalance, balanceCurrency)
+            : '';
+    const topupExchangeRateLabel =
+        paymentIntentType === 'topup' && Number.isFinite(topupBalanceMultiplier)
+            ? `1 ${topupCurrency} = ${topupBalanceMultiplier} ${balanceCurrency}`
+            : '';
     const selectedProviderCanHandlePaymentAmount = canProviderHandleAmount(
         selectedProviderDetail,
         paymentIntentBaseAmount
@@ -1821,7 +1829,7 @@ export default function Account() {
         (Number.isFinite(paymentIntentTopupAmount) && paymentIntentTopupAmount > 0);
     const paymentIntentHasRequiredSelection =
         paymentIntentType !== 'subscription' || Boolean(paymentIntentResolvedPlan);
-    const paymentMethodOptions = sortPaymentProviders(regionPaymentProviderOptions).map((provider) => ({
+    const paymentMethodOptions = sortPaymentProviders(paymentProviderOptions).map((provider) => ({
         provider,
         name: provider?.name || '',
         feeRate: getProviderFeeRate(provider),
@@ -1833,8 +1841,9 @@ export default function Account() {
             : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000].map((amount) => ({
                   productCode: `balance_topup_${amount}`,
                   amount,
-                  currency: billingCatalog?.currency || 'CNY',
+                  currency: topupCurrency,
                   balance: amount,
+                  balanceCurrency,
               }));
     const topupMinAmount = Number(billingCatalog?.globalMin) || 0;
     const topupMaxAmount = Number(billingCatalog?.globalMax) || 0;
@@ -1908,6 +1917,7 @@ export default function Account() {
     const inviteCode = getInviteCode(billingProfile, userInfo);
     const inviteLink = buildInviteLink(inviteCode);
     const inviteStats = resolveInviteStats(billingProfile, userInfo);
+    const availableInviteRebateAmount = Math.max(0, Number(inviteStats.availableRebate) || 0);
     const subscriptionPlanCards = useMemo(() => {
         if (subscriptionPlans.length > 0) {
             return subscriptionPlans.map((plan, index) => ({
@@ -1946,6 +1956,16 @@ export default function Account() {
             }),
             invitedCountLabel: t('config.account.invite_invited_count'),
             invitedCount: billingProfile ? inviteStats.invitedCount : t('config.account.billing_none'),
+            availableRebateLabel: t('config.account.invite_available_rebate'),
+            availableRebate: billingProfile
+                ? formatBillingValue(availableInviteRebateAmount)
+                : t('config.account.billing_none'),
+            transferInviteRebateLabel: t('config.account.invite_rebate_transfer'),
+            transferInviteRebateButtonLabel: inviteRebateTransferLoading
+                ? t('config.account.invite_rebate_transferring')
+                : t('config.account.invite_rebate_transfer'),
+            transferInviteRebateDisabled:
+                !billingProfile || availableInviteRebateAmount <= 0 || inviteRebateTransferLoading,
             rewardedCreditsLabel: t('config.account.invite_rewarded_credits'),
             rewardedCredits: billingProfile
                 ? inviteStats.rewardedCredits
@@ -1959,21 +1979,15 @@ export default function Account() {
             billingProfile,
             billingRemainingPercent,
             hasReadyPaymentProvider,
+            availableInviteRebateAmount,
             inviteCode,
+            inviteRebateTransferLoading,
             inviteLink,
             inviteStats.invitedCount,
             inviteStats.rebateRatePercent,
             inviteStats.rewardedCredits,
             t,
         ]
-    );
-    const billingRegionOptions = useMemo(
-        () =>
-            BILLING_REGION_ORDER.map((regionKey) => ({
-                key: regionKey,
-                label: t(`config.account.${BILLING_REGION_CONFIG[regionKey].labelKey}`),
-            })),
-        [t]
     );
     const subscriptionPlanViewModels = useMemo(
         () =>
@@ -2136,6 +2150,7 @@ export default function Account() {
                         refreshing={billingProfileRefreshing}
                         onPrepareRechargeOrder={handlePrepareRechargeOrderStable}
                         onCopyInviteLink={handleCopyInviteLinkStable}
+                        onTransferInviteRebate={handleTransferInviteRebateStable}
                     />
                 </div>
             )}
@@ -2148,11 +2163,8 @@ export default function Account() {
                         emptyText={t('config.account.subscription_not_ready')}
                         loading={billingCatalogLoading}
                         refreshing={billingCatalogRefreshing}
-                        pricingRegion={pricingRegion}
-                        regionOptions={billingRegionOptions}
                         planViewModels={subscriptionPlanViewModels}
                         currentBillingTierKey={currentBillingTierKey}
-                        onRegionChange={setPricingRegion}
                         onSelectCycle={handleSelectPlanCycle}
                         onPrepareSubscription={handlePrepareSubscriptionStable}
                     />
@@ -2217,7 +2229,7 @@ export default function Account() {
                                         </label>
                                         <div className='relative'>
                                             <span className='absolute left-3 top-1/2 -translate-y-1/2 text-default-400'>
-                                                $
+                                                {getCurrencyPrefix(topupCurrency)}
                                             </span>
                                             <Input
                                                 type='number'
@@ -2301,7 +2313,7 @@ export default function Account() {
                                                 {t('config.account.payment_fee')} ({selectedProviderFeeRate}%)
                                             </span>
                                             <span className='font-medium text-default-900'>
-                                                {formatMoney(paymentIntentFeeAmount, billingCatalog?.currency || 'CNY')}
+                                                {formatMoney(paymentIntentFeeAmount, topupCurrency)}
                                             </span>
                                         </div>
                                     ) : null}
@@ -2311,12 +2323,16 @@ export default function Account() {
                                                 {t('config.account.topup_credit_estimate')}
                                             </span>
                                             <span className='font-medium text-default-900'>
-                                                {formatMoney(
-                                                    paymentIntentEstimatedBalance,
-                                                    billingCatalog?.currency || 'CNY'
-                                                )}
+                                                {paymentIntentEstimatedBalanceLabel}
                                             </span>
                                         </div>
+                                    ) : null}
+                                    {paymentIntentType === 'topup' && topupExchangeRateLabel ? (
+                                        <p className='border-t border-default-200 pt-2 text-xs text-default-400'>
+                                            {t('config.account.topup_exchange_rate', {
+                                                rate: topupExchangeRateLabel,
+                                            })}
+                                        </p>
                                     ) : null}
                                 </div>
                             </div>

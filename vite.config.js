@@ -13,6 +13,14 @@ export default defineConfig(async () => ({
     server: {
         port: 1420,
         strictPort: true,
+        watch: {
+            ignored: [
+                '**/.code-review-graph/**',
+                '**/.graphify-out/**',
+                '**/graphify-out/**',
+                '**/src-tauri/target/**',
+            ],
+        },
         headers: {
             'Cache-Control': 'no-store, max-age=0',
             Pragma: 'no-cache',
