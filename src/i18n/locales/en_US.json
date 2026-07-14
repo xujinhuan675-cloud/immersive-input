@@ -575,7 +575,7 @@
             "error_password_mismatch": "Passwords do not match",
             "error_code": "Please enter verification code",
             "error_sending": "Send failed, please try again",
-            "send_success": "Code sent, please check your email",
+            "send_success": "Code sent. Please check your inbox; if it doesn't arrive, try Spam or Promotions",
             "error_register_default": "Registration failed, please try again"
         },
         "reset": {
