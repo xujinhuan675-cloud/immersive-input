@@ -467,6 +467,7 @@
                 "prompt_strict": "Rigorous",
                 "prompt_structured": "Structured",
                 "prompt_natural": "Natural",
+                "prompt_checklist": "Checklist",
                 "incremental_explain": "Excerpt Explain",
                 "incremental_explain_desc": "Keep adding new text selections into the explain window draft so you can decide when to send.",
                 "prompt_empty": "Leave empty to use default prompt",

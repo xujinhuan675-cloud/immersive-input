@@ -36,3 +36,5 @@ src-tauri/graphify-out/
 *.sln
 *.sw?
 .vercel
+
+.vercel

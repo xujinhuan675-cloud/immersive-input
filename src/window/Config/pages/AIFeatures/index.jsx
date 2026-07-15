@@ -39,6 +39,7 @@ export default function AIFeatures() {
     const [promptStrict, setPromptStrict] = useConfig('ai_prompt_strict', '');
     const [promptStructured, setPromptStructured] = useConfig('ai_prompt_structured', '');
     const [promptNatural, setPromptNatural] = useConfig('ai_prompt_natural', '');
+    const [promptChecklist, setPromptChecklist] = useConfig('ai_prompt_checklist', '');
     const [extraPromptRules, setExtraPromptRules] = useConfig('ai_extra_prompt_rules', []);
     const [showPromptEditor, setShowPromptEditor] = useState(false);
 
@@ -76,6 +77,12 @@ export default function AIFeatures() {
             label: t('config.ai.prompt_natural'),
             value: promptNatural,
             setValue: setPromptNatural,
+        },
+        {
+            key: 'checklist',
+            label: t('config.ai.prompt_checklist'),
+            value: promptChecklist,
+            setValue: setPromptChecklist,
         },
     ];
     const normalizedExtraPromptRules = Array.isArray(extraPromptRules) ? extraPromptRules : [];

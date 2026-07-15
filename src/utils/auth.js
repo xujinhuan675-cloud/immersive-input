@@ -1,5 +1,6 @@
 import { getFlowGuideAuthPath } from './flowguide';
 import { requestFlowGuide } from './flowguideApi';
+import { ensureInputFreeSubscriptionBestEffort } from './subscriptionProvisioning';
 
 const STORAGE_KEYS = {
     USER: 'auth_user',
@@ -173,6 +174,14 @@ async function postAuth(pathName, payload, options = {}) {
     });
 }
 
+async function attachInputFreeProvisioning(result) {
+    const provisioning = await ensureInputFreeSubscriptionBestEffort({ token: result?.token });
+    return {
+        ...result,
+        provisioning,
+    };
+}
+
 export async function loginWithPassword({ email, password, rememberMe = false }) {
     const normalizedEmail = String(email || '').trim();
     const payload = await postAuth('login', {
@@ -193,7 +202,7 @@ export async function loginWithPassword({ email, password, rememberMe = false })
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_PASSWORD);
     }
 
-    return result;
+    return attachInputFreeProvisioning(result);
 }
 
 export async function registerWithEmail({ username, email, password, code, inviteCode = '' }) {
@@ -215,7 +224,7 @@ export async function registerWithEmail({ username, email, password, code, invit
             refreshToken: result.refreshToken,
             expiresAt: result.expiresAt,
         });
-        return result;
+        return attachInputFreeProvisioning(result);
     } catch {
         return loginWithPassword({
             email: normalizedEmail,

@@ -466,6 +466,7 @@
                 "prompt_strict": "严谨审慎",
                 "prompt_structured": "结构清晰",
                 "prompt_natural": "口语自然",
+                "prompt_checklist": "清单化",
                 "incremental_explain": "连续解释",
                 "incremental_explain_desc": "开启后，解释窗口可持续接收新的划词内容，并先追加到输入框中等待你决定是否发送。",
                 "prompt_empty": "留空则使用默认 prompt",

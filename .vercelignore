@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+dist
+.git
+.vercel
+.code-review-graph
+.graphify-out
+graphify-out
+src-tauri/target
+coverage
+tmp
+temp
+*.log

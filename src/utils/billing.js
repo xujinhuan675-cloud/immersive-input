@@ -79,7 +79,7 @@ function inferPlanTier(plan, index) {
     if (raw.includes('basic') || raw.includes('standard') || raw.includes('基础') || raw.includes('标准')) return 'basic';
     if (index === 1) return 'pro';
     if (index >= 2) return 'enterprise';
-    return 'basic';
+    return 'free';
 }
 
 function inferProfileTier(groupName) {
@@ -103,7 +103,7 @@ function inferProfileTier(groupName) {
         return 'pro';
     }
     if (raw.includes('basic') || raw.includes('standard') || raw.includes('基础') || raw.includes('标准')) return 'basic';
-    return 'basic';
+    return 'free';
 }
 
 function inferBillingCycle(plan) {

@@ -172,7 +172,7 @@ fn handle_event(event: Event) {
                     Some(v) => v.as_str().unwrap_or("toolbar").to_string(),
                     None => "toolbar".to_string(),
                 };
-                if behavior == "disabled" {
+                if behavior == "disabled" && !crate::vault::quick_add_capture_active() {
                     crate::selection_capture::clear_auto_toolbar_pending_selection();
                     return;
                 }
