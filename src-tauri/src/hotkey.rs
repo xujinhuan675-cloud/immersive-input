@@ -7,6 +7,7 @@ use crate::window::{
 };
 use crate::APP;
 use log::{debug, warn};
+use tauri::api::notification::Notification;
 use tauri::{AppHandle, GlobalShortcutManager, Manager};
 
 const TEXT_SELECT_BEHAVIOR_KEY: &str = "text_select_behavior";
@@ -24,6 +25,22 @@ fn hide_float_toolbar(app_handle: &AppHandle) {
     if let Some(window) = app_handle.get_window("float_toolbar") {
         let _ = window.hide();
     }
+}
+
+fn notify_text_select_behavior(app_handle: &AppHandle, mode: &str) {
+    let body = match mode {
+        "disabled" => "划词行为已关闭",
+        "toolbar" => "划词行为已开启：工具栏",
+        "direct_translate" => "划词行为已开启：自动翻译",
+        "direct_explain" => "划词行为已开启：自动解释",
+        "direct_light_ai" => "划词行为已开启：自动文本助手",
+        _ => "划词行为已更新",
+    };
+
+    let _ = Notification::new(&app_handle.config().tauri.bundle.identifier)
+        .title("划词行为")
+        .body(body)
+        .show();
 }
 
 pub fn toggle_text_select_behavior() {
@@ -53,6 +70,7 @@ pub fn toggle_text_select_behavior() {
         .emit_all("text_select_behavior_changed", next.as_str())
         .unwrap_or_default();
     update_tray(app_handle.clone(), "".to_string(), "".to_string());
+    notify_text_select_behavior(app_handle, next.as_str());
 }
 
 pub fn set_text_select_behavior(mode: &str) {

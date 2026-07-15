@@ -57,8 +57,45 @@ const ROW_HEIGHT = BUTTON_SIZE + CARD_PADDING_Y * 2;
 const EXTRA_PANEL_HEIGHT = 44;
 const MIN_WIDTH = 92;
 const RESULT_MIN_WIDTH = 260;
+const WAITING_CHIP_MIN_WIDTH = 78;
+const WAITING_CHIP_DOT_SIZE = 7;
+const WAITING_CHIP_GAP = 7;
+const WAITING_CHIP_PADDING_X = 9;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function estimateWaitingTextWidth(text) {
+    return Array.from(String(text || '')).reduce((width, char) => {
+        if (/\s/.test(char)) {
+            return width + 4;
+        }
+        if (/[\u0000-\u007f]/.test(char)) {
+            return width + 7;
+        }
+        return width + 12;
+    }, 0);
+}
+
+function getWaitingChipWidth(text) {
+    const contentWidth =
+        WAITING_CHIP_DOT_SIZE +
+        WAITING_CHIP_GAP +
+        estimateWaitingTextWidth(text) +
+        WAITING_CHIP_PADDING_X * 2;
+
+    return Math.max(WAITING_CHIP_MIN_WIDTH, Math.ceil(contentWidth));
+}
+
+async function notifyResultReady(options, resultText) {
+    const onResultReady = options?.onResultReady;
+    if (typeof onResultReady !== 'function') {
+        return;
+    }
+
+    try {
+        await onResultReady(resultText);
+    } catch {}
+}
 
 const RESULT_PANEL_STYLE = {
     display: 'flex',
@@ -67,6 +104,48 @@ const RESULT_PANEL_STYLE = {
     padding: '8px 10px',
     borderTop: '1px solid rgba(148, 163, 184, 0.18)',
     background: 'rgba(248, 250, 252, 0.72)',
+};
+
+const WAITING_CHIP_ANIMATION_STYLE = `
+@keyframes float-toolbar-waiting-pulse {
+    0%, 100% {
+        opacity: 0.42;
+        transform: scale(0.86);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .float-toolbar-waiting-dot {
+        animation: none !important;
+    }
+}
+`;
+
+const WAITING_CHIP_STYLE = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: `${WAITING_CHIP_GAP}px`,
+    minHeight: '34px',
+    padding: `0 ${WAITING_CHIP_PADDING_X}px`,
+    color: '#334155',
+    fontSize: '12px',
+    fontWeight: 600,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+};
+
+const WAITING_DOT_STYLE = {
+    width: `${WAITING_CHIP_DOT_SIZE}px`,
+    height: `${WAITING_CHIP_DOT_SIZE}px`,
+    borderRadius: '999px',
+    background: '#2563eb',
+    animation: 'float-toolbar-waiting-pulse 1.1s ease-in-out infinite',
+    flexShrink: 0,
 };
 
 const EXPLAIN_SYSTEM_PROMPT =
@@ -165,7 +244,7 @@ async function getTranslatePluginInfo(serviceName) {
     return info;
 }
 
-async function streamLightAiQuickResult(text, styleKey) {
+async function streamLightAiQuickResult(text, styleKey, options = {}) {
     const sourceText = String(text || '').trim();
     if (!sourceText) {
         return '';
@@ -204,6 +283,7 @@ async function streamLightAiQuickResult(text, styleKey) {
     }
 
     const resultText = normalizeQuickTextResult(finalText || returnedText || streamedText, 'Empty AI polish result');
+    await notifyResultReady(options, resultText);
     await streamTextToInput(resultText);
 
     await saveHistory('lightai', sourceText, resultText, {
@@ -216,7 +296,7 @@ async function streamLightAiQuickResult(text, styleKey) {
     return resultText;
 }
 
-async function streamExplainQuickResult(text) {
+async function streamExplainQuickResult(text, options = {}) {
     const sourceText = String(text || '').trim();
     if (!sourceText) {
         return '';
@@ -255,6 +335,7 @@ async function streamExplainQuickResult(text) {
     }
 
     const resultText = normalizeQuickTextResult(finalText || streamedText, 'Empty explain result');
+    await notifyResultReady(options, resultText);
     await streamTextToInput(resultText);
 
     await saveHistory('explain', sourceText, resultText, {
@@ -415,7 +496,7 @@ async function resolveTranslateQuickResult(text, options = {}) {
     throw lastError ?? new Error('No available translate service');
 }
 
-async function streamTranslateQuickResult(text) {
+async function streamTranslateQuickResult(text, options = {}) {
     let latestResultText = '';
     const rememberCumulativeResult = (value) => {
         if (typeof value !== 'string') {
@@ -427,6 +508,7 @@ async function streamTranslateQuickResult(text) {
     const resultText = await resolveTranslateQuickResult(text, { onCumulativeResult: rememberCumulativeResult });
     const finalText = resultText || latestResultText;
     if (finalText) {
+        await notifyResultReady(options, finalText);
         await streamTextToInput(finalText);
     }
 
@@ -434,16 +516,16 @@ async function streamTranslateQuickResult(text) {
 }
 
 const BUTTON_ACTIONS = {
-    translate: async (text, { hide, translateActionBehavior, launchSource }) => {
+    translate: async (text, { hide, showWaiting, translateActionBehavior, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(translateActionBehavior);
         const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
-            hide();
+            showWaiting();
             await delay(80);
 
             try {
-                await streamTranslateQuickResult(text);
+                await streamTranslateQuickResult(text, { onResultReady: hide });
             } catch (error) {
                 console.error('Stream translate failed:', error);
                 if (isAutoSelectionLaunch) {
@@ -451,6 +533,8 @@ const BUTTON_ACTIONS = {
                 } else if (!error?.partialApplied) {
                     invoke('open_translate_from_toolbar').catch(() => {});
                 }
+            } finally {
+                hide();
             }
             return;
         }
@@ -466,28 +550,30 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    translate_stream_apply: async (text, { hide }) => {
-        hide();
+    translate_stream_apply: async (text, { hide, showWaiting }) => {
+        showWaiting();
         await delay(80);
 
         try {
-            await streamTranslateQuickResult(text);
+            await streamTranslateQuickResult(text, { onResultReady: hide });
         } catch (error) {
             console.error('Stream translate failed:', error);
             logError(`Stream translate failed: ${error?.message || error}`).catch(() => {});
+        } finally {
+            hide();
         }
     },
 
-    explain: async (text, { hide, explainActionBehavior, launchSource }) => {
+    explain: async (text, { hide, showWaiting, explainActionBehavior, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(explainActionBehavior);
         const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
-            hide();
+            showWaiting();
             await delay(80);
 
             try {
-                await streamExplainQuickResult(text);
+                await streamExplainQuickResult(text, { onResultReady: hide });
             } catch (error) {
                 console.error('Stream explain failed:', error);
                 if (isAutoSelectionLaunch) {
@@ -495,6 +581,8 @@ const BUTTON_ACTIONS = {
                 } else if (!error?.partialApplied) {
                     invoke('open_chat_explain_from_toolbar').catch(() => {});
                 }
+            } finally {
+                hide();
             }
             return;
         }
@@ -510,28 +598,30 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    explain_stream_apply: async (text, { hide }) => {
-        hide();
+    explain_stream_apply: async (text, { hide, showWaiting }) => {
+        showWaiting();
         await delay(80);
 
         try {
-            await streamExplainQuickResult(text);
+            await streamExplainQuickResult(text, { onResultReady: hide });
         } catch (error) {
             console.error('Stream explain failed:', error);
             logError(`Stream explain failed: ${error?.message || error}`).catch(() => {});
+        } finally {
+            hide();
         }
     },
 
-    lightai: async (text, { hide, lightAiActionBehavior, selectedStyle, launchSource }) => {
+    lightai: async (text, { hide, showWaiting, lightAiActionBehavior, selectedStyle, launchSource }) => {
         const normalizedBehavior = normalizeToolbarButtonActionBehavior(lightAiActionBehavior);
         const isAutoSelectionLaunch = launchSource === 'auto_selection';
 
         if (normalizedBehavior === TOOLBAR_BUTTON_ACTION_BEHAVIORS.STREAM_APPLY) {
-            hide();
+            showWaiting();
             await delay(80);
 
             try {
-                await streamLightAiQuickResult(text, selectedStyle);
+                await streamLightAiQuickResult(text, selectedStyle, { onResultReady: hide });
             } catch (error) {
                 console.error('Stream AI polish failed:', error);
                 if (isAutoSelectionLaunch) {
@@ -539,6 +629,8 @@ const BUTTON_ACTIONS = {
                 } else if (!error?.partialApplied) {
                     invoke('open_light_ai_window').catch(() => {});
                 }
+            } finally {
+                hide();
             }
             return;
         }
@@ -554,15 +646,17 @@ const BUTTON_ACTIONS = {
         hide();
     },
 
-    lightai_stream_apply: async (text, { hide, selectedStyle }) => {
-        hide();
+    lightai_stream_apply: async (text, { hide, showWaiting, selectedStyle }) => {
+        showWaiting();
         await delay(80);
 
         try {
-            await streamLightAiQuickResult(text, selectedStyle);
+            await streamLightAiQuickResult(text, selectedStyle, { onResultReady: hide });
         } catch (error) {
             console.error('Stream AI polish failed:', error);
             logError(`Stream AI polish failed: ${error?.message || error}`).catch(() => {});
+        } finally {
+            hide();
         }
     },
 
@@ -675,8 +769,14 @@ export default function FloatToolbar() {
     const [statusText, setStatusText] = useState('');
     const [statusAction, setStatusAction] = useState(null);
     const [pendingSelection, setPendingSelection] = useState(false);
+    const [waitingText, setWaitingText] = useState('');
+    const waitingLabel = t('float_toolbar.generating', {
+        defaultValue: t('history.generating_btn', { defaultValue: 'Generating...' }),
+    });
     const hasStickyExtraPanel = calcResult != null || colorVal != null;
     const hasExtraPanel = calcResult != null || colorVal != null || Boolean(statusText);
+    const hasWaitingChip = Boolean(waitingText);
+    const waitingChipWidth = hasWaitingChip ? getWaitingChipWidth(waitingText) : WAITING_CHIP_MIN_WIDTH;
 
     const resizeWindow = useCallback((buttons, hasExtra) => {
         const buttonCount = Math.max(buttons.length, 2);
@@ -696,6 +796,7 @@ export default function FloatToolbar() {
             setStatusText('');
             setStatusAction(null);
             setPendingSelection(!text);
+            setWaitingText('');
 
             const detectedType = detectType(text);
             const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
@@ -707,6 +808,7 @@ export default function FloatToolbar() {
             setStatusText('');
             setStatusAction(null);
             setPendingSelection(true);
+            setWaitingText('');
             setSmartBtns([]);
         }
     }, [smartToolbarConfig]);
@@ -718,6 +820,7 @@ export default function FloatToolbar() {
             setStatusText('');
             setStatusAction(null);
             setPendingSelection(false);
+            setWaitingText('');
 
             const detectedType = detectType(text);
             const smartButton = SMART_TOOLBAR_BUTTON_MAP[detectedType];
@@ -766,8 +869,13 @@ export default function FloatToolbar() {
             return;
         }
 
+        if (hasWaitingChip) {
+            appWindow.setSize(new LogicalSize(waitingChipWidth, ROW_HEIGHT)).catch(() => {});
+            return;
+        }
+
         resizeWindow([...smartBtns, ...baseVisible], hasExtraPanel);
-    }, [isActionHost, smartBtns, baseVisible, hasExtraPanel, resizeWindow]);
+    }, [isActionHost, smartBtns, baseVisible, hasExtraPanel, hasWaitingChip, waitingChipWidth, resizeWindow]);
 
     useEffect(() => {
         if (isActionHost) {
@@ -800,9 +908,19 @@ export default function FloatToolbar() {
         setStatusText('');
         setStatusAction(null);
         setPendingSelection(false);
+        setWaitingText('');
         invoke('clear_auto_toolbar_pending_selection').catch(() => {});
         appWindow.hide().catch(() => {});
     }, []);
+
+    const showWaiting = useCallback(() => {
+        setCalcResult(null);
+        setColorVal(null);
+        setStatusText('');
+        setStatusAction(null);
+        setPendingSelection(false);
+        setWaitingText(waitingLabel);
+    }, [waitingLabel]);
 
     const resetTimer = useCallback(() => {
         if (timerRef.current) {
@@ -810,12 +928,12 @@ export default function FloatToolbar() {
             timerRef.current = null;
         }
 
-        if (hasStickyExtraPanel || pendingSelection) {
+        if (hasStickyExtraPanel || pendingSelection || hasWaitingChip) {
             return;
         }
 
         timerRef.current = setTimeout(hide, autoHideMs);
-    }, [hide, autoHideMs, hasStickyExtraPanel, pendingSelection]);
+    }, [hide, autoHideMs, hasStickyExtraPanel, pendingSelection, hasWaitingChip]);
 
     const handleClick = useCallback(
         async (id, overrideText, options = {}) => {
@@ -826,6 +944,7 @@ export default function FloatToolbar() {
 
             const ctx = {
                 hide: isActionHost ? () => {} : hide,
+                showWaiting: isActionHost ? () => {} : showWaiting,
                 setCalcResult,
                 setColorVal,
                 setStatusAction,
@@ -845,6 +964,7 @@ export default function FloatToolbar() {
         },
         [
             hide,
+            showWaiting,
             resetTimer,
             ensureSelectionText,
             calcResult,
@@ -892,6 +1012,9 @@ export default function FloatToolbar() {
             if (pendingSelection) {
                 return;
             }
+            if (hasWaitingChip) {
+                return;
+            }
             blurTimer = setTimeout(hide, 150);
         });
         const unlistenFocus = listen('tauri://focus', () => {
@@ -918,7 +1041,7 @@ export default function FloatToolbar() {
             unlistenFocus.then((fn) => fn());
             unlistenSelectionUpdate.then((fn) => fn());
         };
-    }, [hasStickyExtraPanel, hide, isActionHost, pendingSelection, refreshSelectionState, resetTimer]);
+    }, [hasStickyExtraPanel, hasWaitingChip, hide, isActionHost, pendingSelection, refreshSelectionState, resetTimer]);
 
     const renderToolbarButton = useCallback(
         (button) => {
@@ -1009,7 +1132,7 @@ export default function FloatToolbar() {
                 flexDirection: 'column',
                 width: '100%',
                 height: '100%',
-                borderRadius: '14px',
+                borderRadius: hasWaitingChip ? '999px' : '14px',
                 border: 'none',
                 background: '#fff',
                 boxShadow: 'inset 0 0 0 1px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88)',
@@ -1018,136 +1141,157 @@ export default function FloatToolbar() {
                 boxSizing: 'border-box',
                 overflow: 'hidden',
                 userSelect: 'none',
+                alignItems: hasWaitingChip ? 'center' : 'stretch',
+                justifyContent: hasWaitingChip ? 'center' : 'flex-start',
             }}
             onMouseEnter={resetTimer}
             onMouseMove={resetTimer}
         >
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${BUTTON_GAP}px`,
-                    padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
-                }}
-            >
-                {smartButtons}
-                {smartButtons.length > 0 && baseButtons.length > 0 && (
+            {hasWaitingChip ? (
+                <>
+                    <style>{WAITING_CHIP_ANIMATION_STYLE}</style>
+                    <div
+                        style={WAITING_CHIP_STYLE}
+                        role='status'
+                        aria-live='polite'
+                    >
+                        <span
+                            className='float-toolbar-waiting-dot'
+                            style={WAITING_DOT_STYLE}
+                        />
+                        <span>{waitingText}</span>
+                    </div>
+                </>
+            ) : (
+                <>
                     <div
                         style={{
-                            width: '1px',
-                            height: '14px',
-                            background: 'rgba(148, 163, 184, 0.28)',
-                            margin: '0 2px',
-                            flexShrink: 0,
-                        }}
-                    />
-                )}
-                {baseButtons}
-            </div>
-
-            {calcResult != null && (
-                <div style={RESULT_PANEL_STYLE}>
-                    <span
-                        style={{
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            color: '#334155',
-                            fontFamily: 'monospace',
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}
-                    >
-                        = {calcResult}
-                    </span>
-                    {renderPanelActionButton(
-                        t('float_toolbar.apply_result', {
-                            defaultValue: 'Result',
-                        }),
-                        t('float_toolbar.apply_result_title', {
-                            defaultValue: 'Apply result',
-                        }),
-                        'apply_calc_result'
-                    )}
-                    {renderPanelActionButton(
-                        t('float_toolbar.apply_formula', {
-                            defaultValue: 'Formula',
-                        }),
-                        t('float_toolbar.apply_formula_title', {
-                            defaultValue: 'Apply formula',
-                        }),
-                        'apply_calc_formula'
-                    )}
-                </div>
-            )}
-
-            {colorVal != null && (
-                <div style={RESULT_PANEL_STYLE}>
-                    <div
-                        style={{
-                            width: '14px',
-                            height: '14px',
-                            borderRadius: '999px',
-                            background: colorVal,
-                            border: '1px solid rgba(15, 23, 42, 0.12)',
-                            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.28)',
-                            flexShrink: 0,
-                        }}
-                    />
-                    <span
-                        style={{
-                            fontSize: '12px',
-                            color: '#334155',
-                            fontFamily: 'monospace',
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                        }}
-                    >
-                        {colorVal}
-                    </span>
-                    <button
-                        type='button'
-                        title={t('common.copy', { defaultValue: 'Copy' })}
-                        aria-label={t('common.copy', { defaultValue: 'Copy' })}
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            border: 'none',
-                            borderRadius: '9px',
-                            background: 'rgba(15, 23, 42, 0.06)',
-                            color: '#475569',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 120ms ease, color 120ms ease',
-                            flexShrink: 0,
-                        }}
-                        onClick={() => handleClick('copy_color')}
-                        onMouseEnter={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
-                            event.currentTarget.style.color = '#1f2937';
-                        }}
-                        onMouseLeave={(event) => {
-                            event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
-                            event.currentTarget.style.color = '#475569';
+                            gap: `${BUTTON_GAP}px`,
+                            padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
                         }}
                     >
-                        <LuClipboardCopy size={14} />
-                    </button>
-                </div>
-            )}
+                        {smartButtons}
+                        {smartButtons.length > 0 && baseButtons.length > 0 && (
+                            <div
+                                style={{
+                                    width: '1px',
+                                    height: '14px',
+                                    background: 'rgba(148, 163, 184, 0.28)',
+                                    margin: '0 2px',
+                                    flexShrink: 0,
+                                }}
+                            />
+                        )}
+                        {baseButtons}
+                    </div>
 
-            <FloatToolbarStatusPanel
-                statusAction={statusAction}
-                statusText={statusText}
-                t={t}
-                onOpenTodo={() => {
-                    void handleOpenTodoNotebook();
-                }}
-            />
+                    {calcResult != null && (
+                        <div style={RESULT_PANEL_STYLE}>
+                            <span
+                                style={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: '#334155',
+                                    fontFamily: 'monospace',
+                                    flex: 1,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                }}
+                            >
+                                = {calcResult}
+                            </span>
+                            {renderPanelActionButton(
+                                t('float_toolbar.apply_result', {
+                                    defaultValue: 'Result',
+                                }),
+                                t('float_toolbar.apply_result_title', {
+                                    defaultValue: 'Apply result',
+                                }),
+                                'apply_calc_result'
+                            )}
+                            {renderPanelActionButton(
+                                t('float_toolbar.apply_formula', {
+                                    defaultValue: 'Formula',
+                                }),
+                                t('float_toolbar.apply_formula_title', {
+                                    defaultValue: 'Apply formula',
+                                }),
+                                'apply_calc_formula'
+                            )}
+                        </div>
+                    )}
+
+                    {colorVal != null && (
+                        <div style={RESULT_PANEL_STYLE}>
+                            <div
+                                style={{
+                                    width: '14px',
+                                    height: '14px',
+                                    borderRadius: '999px',
+                                    background: colorVal,
+                                    border: '1px solid rgba(15, 23, 42, 0.12)',
+                                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.28)',
+                                    flexShrink: 0,
+                                }}
+                            />
+                            <span
+                                style={{
+                                    fontSize: '12px',
+                                    color: '#334155',
+                                    fontFamily: 'monospace',
+                                    flex: 1,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                }}
+                            >
+                                {colorVal}
+                            </span>
+                            <button
+                                type='button'
+                                title={t('common.copy', { defaultValue: 'Copy' })}
+                                aria-label={t('common.copy', { defaultValue: 'Copy' })}
+                                style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    border: 'none',
+                                    borderRadius: '9px',
+                                    background: 'rgba(15, 23, 42, 0.06)',
+                                    color: '#475569',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'background 120ms ease, color 120ms ease',
+                                    flexShrink: 0,
+                                }}
+                                onClick={() => handleClick('copy_color')}
+                                onMouseEnter={(event) => {
+                                    event.currentTarget.style.background = 'rgba(15, 23, 42, 0.10)';
+                                    event.currentTarget.style.color = '#1f2937';
+                                }}
+                                onMouseLeave={(event) => {
+                                    event.currentTarget.style.background = 'rgba(15, 23, 42, 0.06)';
+                                    event.currentTarget.style.color = '#475569';
+                                }}
+                            >
+                                <LuClipboardCopy size={14} />
+                            </button>
+                        </div>
+                    )}
+
+                    <FloatToolbarStatusPanel
+                        statusAction={statusAction}
+                        statusText={statusText}
+                        t={t}
+                        onOpenTodo={() => {
+                            void handleOpenTodoNotebook();
+                        }}
+                    />
+                </>
+            )}
         </div>
     );
 }
