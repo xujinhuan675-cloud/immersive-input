@@ -10,15 +10,22 @@ import {
     macDmgName,
     windowsInstallerName,
 } from './release-assets.mjs';
+import { resolveReleaseNotes } from '../updater/release-notes.mjs';
 
 const version = process.env.APP_VERSION || getPackageVersion();
 const repository = getRepository();
 const releaseTag = getReleaseTag(version);
+const notes = await resolveReleaseNotes({
+    version,
+    repository,
+    releaseTag,
+    fallback: `Flow Input ${version}`,
+});
 
 const manifest = {
     version,
-    notes: `Flow Input ${version}`,
-    body: `Flow Input ${version}`,
+    notes,
+    body: notes,
     pub_date: new Date().toISOString(),
     release_tag: releaseTag,
     repository,

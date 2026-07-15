@@ -8,6 +8,7 @@ import {
     releaseDownloadUrl,
     windowsUpdaterBundleName,
 } from '../scripts/release-assets.mjs';
+import { resolveReleaseNotes } from './release-notes.mjs';
 
 async function getSignature(url) {
     const response = await fetch(url, {
@@ -73,7 +74,12 @@ async function buildManifest() {
         );
     }
 
-    const notes = `Flow Input ${version}`;
+    const notes = await resolveReleaseNotes({
+        version,
+        repository,
+        releaseTag,
+        fallback: `Flow Input ${version}`,
+    });
     const manifest = {
         version,
         notes,

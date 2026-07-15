@@ -126,6 +126,7 @@ jobs:
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   name: ${{ github.ref_name }}
+                  body_path: RELEASE_NOTES.md
                   overwrite_files: true
                   files: |
                       src-tauri/target/${{ matrix.target }}/release/bundle/dmg/flow-input_*_${{ matrix.asset_arch }}.dmg
@@ -204,6 +205,7 @@ jobs:
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   name: ${{ github.ref_name }}
+                  body_path: RELEASE_NOTES.md
                   overwrite_files: true
                   files: |
                       src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/flow-input_*_x64.msi
@@ -234,6 +236,8 @@ jobs:
               env:
                   RELEASE_TAG: ${{ github.ref_name }}
                   GITHUB_REPOSITORY: ${{ github.repository }}
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  RELEASE_NOTES_PATH: RELEASE_NOTES.md
               run: node updater/updater.mjs
 
             - name: Upload updater manifest

@@ -7,6 +7,7 @@ import {
     releaseDownloadUrl,
     windowsFixRuntimeUpdaterBundleName,
 } from '../scripts/release-assets.mjs';
+import { resolveReleaseNotes } from './release-notes.mjs';
 
 async function getSignature(url) {
     const response = await fetch(url, {
@@ -63,7 +64,12 @@ async function buildManifest() {
         throw new Error(`Missing updater signatures for: ${missingPlatforms.join(', ')}`);
     }
 
-    const notes = `Flow Input ${version} (fixed WebView2 runtime)`;
+    const notes = await resolveReleaseNotes({
+        version,
+        repository,
+        releaseTag,
+        fallback: `Flow Input ${version} (fixed WebView2 runtime)`,
+    });
     const manifest = {
         version,
         notes,
