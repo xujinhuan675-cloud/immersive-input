@@ -50,8 +50,6 @@ const QUICK_EMPTY_HEIGHT = 72;
 const QUICK_WINDOW_WIDTH = 372;
 const PANEL_WINDOW_WIDTH = 408;
 const PANEL_WINDOW_HEIGHT = 480;
-const QUICK_MANAGE_TOOLTIP = '\u7ba1\u7406\u5e38\u7528\u8bed';
-const QUICK_CLOSE_LABEL = '\u5173\u95ed';
 const styles = {
     view: {
         display: 'flex',
@@ -606,7 +604,7 @@ function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }
                 {false ? (
                     <div style={styles.quickItemMeta}>
                         <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
-                        <span>{`已用 ${phrase.use_count || 0}`}</span>
+                        <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                     </div>
                 ) : null}
             </div>
@@ -639,7 +637,7 @@ function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrima
                 </div>
                 <div style={styles.itemMeta}>
                     <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
-                    <span>{`已用 ${phrase.use_count || 0}`}</span>
+                    <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                 </div>
             </div>
 
@@ -817,8 +815,8 @@ function TagsView({ onBack, onChanged, onClose, onSelectTag, pined, onTogglePin 
                             <button
                                 type='button'
                                 style={styles.tagOpenButton}
-                                title={`查看「${tag.name}」下的常用语`}
-                                aria-label={`查看「${tag.name}」下的常用语`}
+                                title={t('phrases.view_tag', { name: tag.name })}
+                                aria-label={t('phrases.view_tag', { name: tag.name })}
                                 onClick={() => onSelectTag(tag.id)}
                             >
                                 <span style={styles.tagDot(tag.color)} />
@@ -1230,7 +1228,7 @@ export default function PhrasesInline() {
         });
 
         return [
-            { id: null, name: '全部', count: allPhrases.length },
+            { id: null, name: t('phrases.all'), count: allPhrases.length },
             ...sortedTags.map((tag) => ({
                 id: tag.id,
                 name: tag.name,
@@ -1466,7 +1464,7 @@ export default function PhrasesInline() {
                             style={TRAY_WINDOW_TITLE_STYLE}
                             textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                         >
-                            管理常用语
+                            {t('phrases.manage_title')}
                         </WindowHeaderTitle>
                     }
                     right={
@@ -1558,7 +1556,9 @@ export default function PhrasesInline() {
                 <div style={styles.statusBar}>
                     <span>
                         {activeTag ? `${activeTag.name} · ` : ''}
-                        {search ? `找到 ${managePhrases.length} 条` : `共 ${managePhrases.length} 条`}
+                        {search
+                            ? t('phrases.search_count', { count: managePhrases.length })
+                            : t('phrases.total_count', { count: managePhrases.length })}
                     </span>
                     <div style={styles.statusActions}>
                         <button
@@ -1648,7 +1648,7 @@ export default function PhrasesInline() {
                     </div>
                     <button
                         type='button'
-                        title={QUICK_CLOSE_LABEL}
+                        title={t('common.close')}
                         style={styles.quickCloseButton(quickCloseHovered)}
                         onMouseEnter={() => setQuickCloseHovered(true)}
                         onMouseLeave={() => setQuickCloseHovered(false)}
@@ -1673,8 +1673,8 @@ export default function PhrasesInline() {
                     </div>
                     <button
                         type='button'
-                        title={QUICK_MANAGE_TOOLTIP}
-                        aria-label={QUICK_MANAGE_TOOLTIP}
+                        title={t('phrases.manage_title')}
+                        aria-label={t('phrases.manage_title')}
                         style={styles.quickManageButton}
                         onClick={() => {
                             setView('manage');

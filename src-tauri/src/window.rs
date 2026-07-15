@@ -558,7 +558,7 @@ fn translate_window() -> Window {
             Position { x: 0, y: 0 }
         }
     };
-    let (window, _) = build_window("translate", "翻译");
+    let (window, _) = build_window("translate", "Translate");
     window.set_skip_taskbar(true).unwrap();
     let (width, height) = get_saved_window_size("translate", 350, 420);
 
@@ -1091,7 +1091,7 @@ pub fn light_ai_window() {
         drop(guard);
         s
     };
-    let (window, exists) = build_window("light_ai", "文本助手");
+    let (window, exists) = build_window("light_ai", "Text Assistant");
     window.set_skip_taskbar(true).unwrap_or_default();
     if exists {
         show_app_window(&window);
@@ -1202,7 +1202,7 @@ pub fn chat_window() {
         w.set_focus().unwrap_or_default();
         return;
     }
-    let (window, _) = build_window("chat", "\u{89E3}\u{91CA}");
+    let (window, _) = build_window("chat", "Explain");
     window
         .set_min_size(Some(tauri::LogicalSize::new(400, 300)))
         .unwrap_or_default();
@@ -1545,7 +1545,7 @@ pub fn phrases_inline_window() {
         return;
     }
 
-    let (window, _) = build_window("phrases_inline", "常用语");
+    let (window, _) = build_window("phrases_inline", "Phrases");
     window.set_skip_taskbar(true).unwrap_or_default();
     window.set_always_on_top(true).unwrap_or_default();
     window.set_resizable(false).unwrap_or_default();

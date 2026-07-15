@@ -2,6 +2,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/tauri';
 import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import { HiOutlineVolumeUp, HiSparkles } from 'react-icons/hi';
 import { MdContentCopy, MdFolderOpen, MdPlaylistAddCheck } from 'react-icons/md';
@@ -47,51 +48,10 @@ const FIX_SYSTEM_PROMPT = [
 ].join('\n');
 
 const TAB_OPTIONS = [
-    { key: 'translate', label: '翻译' },
-    { key: 'style', label: '润色' },
-    { key: 'fix', label: '校对' },
+    { key: 'translate' },
+    { key: 'style' },
+    { key: 'fix' },
 ];
-
-const STYLE_LABELS_ZH = {
-    strict: '正式',
-    structured: '结构化',
-    natural: '自然',
-    checklist: '清单化',
-};
-
-const LANGUAGE_LABELS_ZH = {
-    auto: '自动检测',
-    zh_cn: '简体中文',
-    zh_tw: '繁体中文',
-    mn_mo: '蒙古文',
-    en: '英语',
-    ja: '日语',
-    ko: '韩语',
-    fr: '法语',
-    es: '西班牙语',
-    ru: '俄语',
-    de: '德语',
-    it: '意大利语',
-    tr: '土耳其语',
-    pt_pt: '葡萄牙语',
-    pt_br: '巴西葡萄牙语',
-    vi: '越南语',
-    id: '印尼语',
-    th: '泰语',
-    ms: '马来语',
-    ar: '阿拉伯语',
-    hi: '印地语',
-    km: '高棉语',
-    mn_cy: '西里尔蒙古语',
-    nb_no: '挪威语',
-    nn_no: '新挪威语',
-    fa: '波斯语',
-    sv: '瑞典语',
-    pl: '波兰语',
-    nl: '荷兰语',
-    uk: '乌克兰语',
-    he: '希伯来语',
-};
 
 const NON_DRAG_SELECTOR =
     'button, input, textarea, select, option, a, [role="button"], [role="switch"], [role="checkbox"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"], [data-no-window-drag="true"], [data-clickable="true"]';
@@ -109,12 +69,12 @@ function handlePanelDragStart(event) {
     void appWindow.startDragging().catch(() => {});
 }
 
-function getSourceModeLabel(targetMode, sourceText) {
-    if (targetMode === 'focused_input') return '整个输入框';
-    if (targetMode === 'clipboard') return '剪贴板文本';
-    if (targetMode === 'http') return '传入文本';
-    if (!String(sourceText || '').trim()) return '手动输入';
-    return '选中文本';
+function getSourceModeLabel(targetMode, sourceText, t) {
+    if (targetMode === 'focused_input') return t('light_ai.source_modes.focused_input');
+    if (targetMode === 'clipboard') return t('light_ai.source_modes.clipboard');
+    if (targetMode === 'http') return t('light_ai.source_modes.http');
+    if (!String(sourceText || '').trim()) return t('light_ai.source_modes.manual');
+    return t('light_ai.source_modes.selection');
 }
 
 const cardBodyBase = {
@@ -446,12 +406,13 @@ function useApiConfig() {
     return [config, refreshConfig];
 }
 
-function getLanguageLabelZh(key) {
+function getLanguageLabel(key, t) {
     const normalizedKey = normalizeLanguageKey(key || 'auto') || 'auto';
-    return LANGUAGE_LABELS_ZH[normalizedKey] ?? normalizedKey;
+    return t(`languages.${normalizedKey}`, { defaultValue: normalizedKey });
 }
 
 export default function LightAI() {
+    const { t } = useTranslation();
     useStopVoiceOnUnmount();
     const [apiConfig, refreshApiConfig] = useApiConfig();
     const toastStyle = useToastStyle();
@@ -483,8 +444,8 @@ export default function LightAI() {
         return styleResult;
     }, [activeTab, fixResult, styleResult, translateResult]);
 
-    const currentLanguageLabel = useMemo(() => getLanguageLabelZh(sourceLanguage), [sourceLanguage]);
-    const targetLanguageLabel = useMemo(() => getLanguageLabelZh(resolvedTargetLanguage), [resolvedTargetLanguage]);
+    const currentLanguageLabel = useMemo(() => getLanguageLabel(sourceLanguage, t), [sourceLanguage, t]);
+    const targetLanguageLabel = useMemo(() => getLanguageLabel(resolvedTargetLanguage, t), [resolvedTargetLanguage, t]);
     const currentResultLanguage = useMemo(() => {
         if (activeTab === 'translate') {
             return normalizeLanguageKey(resolvedTargetLanguage) || 'auto';
@@ -632,7 +593,7 @@ export default function LightAI() {
             }
 
             if (!requestApiConfig) {
-                setError('请先在配置里填写可用的 AI 接口。');
+                setError(t('light_ai.api_missing'));
                 return;
             }
 
@@ -699,6 +660,7 @@ export default function LightAI() {
             sourceText,
             stop,
             targetLanguageLabel,
+            t,
         ]
     );
 
@@ -741,13 +703,13 @@ export default function LightAI() {
         };
     }, []);
 
-    const handleCopyText = async (text, successMessage = '已复制') => {
+    const handleCopyText = async (text, successMessage = t('light_ai.copied')) => {
         if (!text) return;
         try {
             await invoke('write_clipboard', { text });
             toast.success(successMessage, { style: toastStyle });
         } catch {
-            toast.error('复制失败', { style: toastStyle });
+            toast.error(t('light_ai.copy_failed'), { style: toastStyle });
         }
     };
 
@@ -758,10 +720,10 @@ export default function LightAI() {
         try {
             const { count } = await appendTodoItems(text);
             if (count > 0) {
-                toast.success(`已追加 ${count} 条待办`, { style: toastStyle });
+                toast.success(t('light_ai.todo_append_success', { count }), { style: toastStyle });
             }
         } catch (nextError) {
-            toast.error(`追加失败：${nextError?.message || nextError}`, { style: toastStyle });
+            toast.error(t('light_ai.todo_append_failed', { error: nextError?.message || nextError }), { style: toastStyle });
         }
     };
 
@@ -769,7 +731,7 @@ export default function LightAI() {
         try {
             await openTodoNotebook();
         } catch (nextError) {
-            toast.error(`打开失败：${nextError?.message || nextError}`, { style: toastStyle });
+            toast.error(t('light_ai.todo_open_failed', { error: nextError?.message || nextError }), { style: toastStyle });
         }
     };
 
@@ -841,7 +803,7 @@ export default function LightAI() {
         }
     };
 
-    const panelTitle = activeTab === 'translate' ? '翻译结果' : activeTab === 'fix' ? '校对结果' : '润色结果';
+    const panelTitle = t(`light_ai.result_titles.${activeTab}`);
 
     const canRun = Boolean(sourceText.trim());
     const canCopy = Boolean(currentResult);
@@ -858,7 +820,7 @@ export default function LightAI() {
                         style={headerTitleStyle}
                         textStyle={headerTitleTextStyle}
                     >
-                        文本助手
+                        {t('light_ai.title')}
                     </WindowHeaderTitle>
                 }
                 right={
@@ -889,7 +851,7 @@ export default function LightAI() {
                                         setError('');
                                     }}
                                 >
-                                    {tab.label}
+                                    {t(`light_ai.tabs.${tab.key}`)}
                                 </button>
                             ))}
                         </div>
@@ -897,7 +859,7 @@ export default function LightAI() {
                         {activeTab === 'translate' ? (
                             <div style={styles.topMetaRow}>
                                 <div style={styles.selectWrap}>
-                                    <span style={styles.selectLabel}>源语言</span>
+                                    <span style={styles.selectLabel}>{t('light_ai.source_language')}</span>
                                     <span
                                         style={{
                                             color: '#0f172a',
@@ -909,7 +871,7 @@ export default function LightAI() {
                                     </span>
                                 </div>
                                 <div style={styles.selectWrap}>
-                                    <span style={styles.selectLabel}>目标语言</span>
+                                    <span style={styles.selectLabel}>{t('light_ai.target_language')}</span>
                                     <select
                                         style={styles.nativeSelect}
                                         value={resolvedTargetLanguage}
@@ -922,7 +884,7 @@ export default function LightAI() {
                                                 key={languageKey}
                                                 value={languageKey}
                                             >
-                                                {getLanguageLabelZh(languageKey)}
+                                                {getLanguageLabel(languageKey, t)}
                                             </option>
                                         ))}
                                     </select>
@@ -941,7 +903,9 @@ export default function LightAI() {
                                             setSelectedStyle(styleKey);
                                         }}
                                     >
-                                        {STYLE_LABELS_ZH[styleKey] ?? STYLE_NAMES[styleKey] ?? styleKey}
+                                        {t(`light_ai.styles.${styleKey}`, {
+                                            defaultValue: STYLE_NAMES[styleKey] ?? styleKey,
+                                        })}
                                     </button>
                                 ))}
                             </div>
@@ -951,24 +915,24 @@ export default function LightAI() {
                     <div style={styles.pane}>
                         <div style={{ ...styles.card, ...styles.sourceCard }}>
                             <div style={styles.cardHeader}>
-                                <span>原文</span>
+                                <span>{t('light_ai.source')}</span>
                                 <div style={styles.cardHeaderActions}>
                                     <button
                                         type='button'
-                                        title='复制原文'
-                                        aria-label='复制原文'
+                                        title={t('light_ai.copy_source')}
+                                        aria-label={t('light_ai.copy_source')}
                                         className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!sourceText.trim())}
                                         disabled={!sourceText.trim()}
                                         onClick={() => {
-                                            void handleCopyText(sourceText, '已复制原文');
+                                            void handleCopyText(sourceText, t('light_ai.copied_source'));
                                         }}
                                     >
                                         <MdContentCopy className='text-[15px]' />
                                     </button>
                                     <button
                                         type='button'
-                                        title='朗读'
+                                        title={t('light_ai.read_aloud')}
                                         className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!sourceText.trim())}
                                         disabled={!sourceText.trim()}
@@ -989,7 +953,7 @@ export default function LightAI() {
                                     autoFocus
                                     spellCheck={false}
                                     style={styles.sourceInput}
-                                    placeholder='输入、粘贴或划词后,内容会显示在这里'
+                                    placeholder={t('light_ai.source_placeholder')}
                                     value={sourceText}
                                     onChange={(event) => {
                                         handleSourceTextChange(event.target.value);
@@ -1014,8 +978,8 @@ export default function LightAI() {
                                 <div style={styles.cardHeaderActions}>
                                     <button
                                         type='button'
-                                        title='追加到待办'
-                                        aria-label='追加到待办'
+                                        title={t('light_ai.append_todo')}
+                                        aria-label={t('light_ai.append_todo')}
                                         className='bg-transparent text-default-500 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardTextButton(!currentResult)}
                                         disabled={!currentResult}
@@ -1024,12 +988,12 @@ export default function LightAI() {
                                         }}
                                     >
                                         <MdPlaylistAddCheck className='text-[16px]' />
-                                        追加到待办
+                                        {t('light_ai.append_todo')}
                                     </button>
                                     <button
                                         type='button'
-                                        title='打开待办'
-                                        aria-label='打开待办'
+                                        title={t('light_ai.open_todo')}
+                                        aria-label={t('light_ai.open_todo')}
                                         className='bg-transparent text-default-500 hover:bg-default-100 hover:text-default-700'
                                         style={styles.cardTextButton(false)}
                                         onClick={() => {
@@ -1037,24 +1001,24 @@ export default function LightAI() {
                                         }}
                                     >
                                         <MdFolderOpen className='text-[15px]' />
-                                        打开待办
+                                        {t('light_ai.open_todo')}
                                     </button>
                                     <button
                                         type='button'
-                                        title='复制结果'
-                                        aria-label='复制结果'
+                                        title={t('light_ai.copy_result')}
+                                        aria-label={t('light_ai.copy_result')}
                                         className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!currentResult)}
                                         disabled={!currentResult}
                                         onClick={() => {
-                                            void handleCopyText(currentResult, '已复制结果');
+                                            void handleCopyText(currentResult, t('light_ai.copied_result'));
                                         }}
                                     >
                                         <MdContentCopy className='text-[15px]' />
                                     </button>
                                     <button
                                         type='button'
-                                        title='朗读'
+                                        title={t('light_ai.read_aloud')}
                                         className='bg-transparent text-default-400 hover:bg-default-100 hover:text-default-700 disabled:hover:bg-transparent'
                                         style={styles.cardIconButton(!currentResult)}
                                         disabled={!currentResult}
@@ -1079,9 +1043,9 @@ export default function LightAI() {
                                 ) : currentResult ? (
                                     currentResult
                                 ) : loading ? (
-                                    <span style={styles.emptyText}>生成中...</span>
+                                    <span style={styles.emptyText}>{t('light_ai.loading')}</span>
                                 ) : (
-                                    <span style={styles.emptyText}>暂无结果。</span>
+                                    <span style={styles.emptyText}>{t('light_ai.empty_result')}</span>
                                 )}
                             </div>
                         </div>
@@ -1091,7 +1055,7 @@ export default function LightAI() {
                         {promptVisible ? (
                             <input
                                 style={styles.promptInput}
-                                placeholder='可选补充要求'
+                                placeholder={t('light_ai.extra_placeholder')}
                                 value={extraPrompt}
                                 onChange={(event) => setExtraPrompt(event.target.value)}
                                 onKeyDown={(event) => {
@@ -1123,7 +1087,7 @@ export default function LightAI() {
                                 }}
                                 disabled={!canRun}
                             >
-                                {loading ? '停止' : '生成'}
+                                {loading ? t('light_ai.stop') : t('light_ai.generate')}
                             </button>
 
                             <button
@@ -1134,7 +1098,7 @@ export default function LightAI() {
                                 }}
                                 disabled={!canCopy}
                             >
-                                应用
+                                {t('light_ai.apply')}
                             </button>
                         </div>
                     </div>

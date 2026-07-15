@@ -38,7 +38,7 @@ const UPDATER_WINDOW_PRESETS = {
     latest: { width: 520, height: 320 },
     checking: { width: 540, height: 360 },
     error: { width: 560, height: 360 },
-    update: { width: 640, height: 460 },
+    update: { width: 680, height: 520 },
 };
 
 function getLocalizedDefaultValue(isChineseUI, zhText, enText) {
@@ -51,12 +51,12 @@ function MarkdownContent({ body }) {
             className='markdown-body select-text'
             components={{
                 code: ({ children }) => <Code size='sm'>{children}</Code>,
-                h1: ({ ...props }) => <h1 className='text-[20px] font-semibold tracking-[-0.01em] text-foreground' {...props} />,
-                h2: ({ ...props }) => <h2 className='text-[18px] font-semibold tracking-[-0.01em] text-foreground' {...props} />,
-                h3: ({ ...props }) => <h3 className='text-[15px] font-semibold text-foreground' {...props} />,
-                p: ({ ...props }) => <p className='mb-3 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
-                ul: ({ ...props }) => <ul className='mb-3 space-y-2 pl-5 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
-                ol: ({ ...props }) => <ol className='mb-3 space-y-2 pl-5 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
+                h1: ({ ...props }) => <h1 className='mb-2 text-[19px] font-semibold tracking-normal text-foreground first:mt-0' {...props} />,
+                h2: ({ ...props }) => <h2 className='mb-2 mt-4 text-[16px] font-semibold tracking-normal text-foreground first:mt-0' {...props} />,
+                h3: ({ ...props }) => <h3 className='mb-2 mt-3 text-[14px] font-semibold text-foreground first:mt-0' {...props} />,
+                p: ({ ...props }) => <p className='mb-2 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
+                ul: ({ ...props }) => <ul className='mb-3 space-y-1.5 pl-5 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
+                ol: ({ ...props }) => <ol className='mb-3 space-y-1.5 pl-5 text-[13px] leading-6 text-default-600 last:mb-0' {...props} />,
                 li: ({ ...props }) => <li className='list-disc' {...props} />,
                 hr: () => <div className='my-4 border-t border-default-200/70' />,
                 strong: ({ ...props }) => <strong className='font-semibold text-foreground' {...props} />,
@@ -405,17 +405,21 @@ export default function Updater() {
                         </div>
                     ) : (
                         <div className='flex h-full min-h-0 flex-col overflow-hidden'>
-                            <div className='border-b border-default-200/70 px-6 py-6'>
-                                <div className='flex items-start justify-between gap-4'>
-                                    <div className='min-w-0 flex-1'>
-                                        <div className='inline-flex rounded-full border border-default-200/80 bg-default-50/80 px-3 py-1 text-[11px] font-medium text-default-500'>
+                            <div className='shrink-0 border-b border-default-200/70 px-6 py-3'>
+                                <div className='flex min-h-[40px] items-center justify-between gap-4'>
+                                    <div className='flex min-w-0 flex-1 items-center gap-3'>
+                                        <div className='shrink-0 rounded-full border border-default-200/80 bg-default-50/80 px-3 py-1 text-[11px] font-medium text-default-500'>
                                             {statusCopy.badge}
                                         </div>
-                                        <div className='mt-4 text-[26px] font-semibold tracking-[-0.02em] text-foreground'>
-                                            {statusCopy.headline}
-                                        </div>
-                                        <div className='mt-2 max-w-[620px] text-[13px] leading-6 text-default-500'>
-                                            {statusCopy.description}
+                                        <div className='min-w-0 flex flex-1 items-baseline gap-3'>
+                                            <div className='truncate text-[15px] font-semibold tracking-normal text-foreground'>
+                                                {statusCopy.headline}
+                                            </div>
+                                            {hasUpdate ? (
+                                                <div className='hidden min-w-0 flex-1 truncate text-[12px] text-default-500 sm:block'>
+                                                    {statusCopy.description}
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
 
@@ -427,14 +431,14 @@ export default function Updater() {
                                 </div>
                             </div>
 
-                            <div className='flex-1 min-h-0 px-6 py-5'>
+                            <div className='min-h-0 flex-1 px-6 py-4'>
                                 <div className='flex h-full min-h-0 flex-col overflow-hidden'>
                                     {panelTitle ? (
-                                        <div className='mb-3 text-[12px] font-medium text-default-500'>
+                                        <div className='mb-2 text-[12px] font-medium text-default-500'>
                                             {panelTitle}
                                         </div>
                                     ) : null}
-                                    <div className='phrases-inline-scroll min-h-0 flex-1 overflow-y-auto'>
+                                    <div className='phrases-inline-scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1'>
                                         {panelContent}
                                     </div>
                                 </div>

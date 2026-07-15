@@ -2,6 +2,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/tauri';
 import { appWindow } from '@tauri-apps/api/window';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast, { Toaster } from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { HiOutlineDocumentSearch, HiOutlineVolumeUp } from 'react-icons/hi';
@@ -30,16 +31,14 @@ import { saveHistory } from '../../utils/aiHistory';
 
 const DEFAULT_TEXTAREA_HEIGHT = 40;
 const MAX_TEXTAREA_HEIGHT = 40;
-const SYSTEM_PROMPT =
-    '\u4F60\u662F\u4E00\u4F4D\u77E5\u8BC6\u6E0A\u535A\u3001\u8868\u8FBE\u6E05\u6670\u7684\u89E3\u91CA\u52A9\u624B\u3002\u8BF7\u56F4\u7ED5\u7528\u6237\u63D0\u4F9B\u7684\u6587\u672C\u6216\u95EE\u9898\uFF0C\u89E3\u91CA\u6838\u5FC3\u542B\u4E49\u3001\u5173\u952E\u6982\u5FF5\u3001\u4E0A\u4E0B\u6587\u548C\u5B9E\u9645\u7528\u6CD5\u3002\u56DE\u7B54\u8981\u51C6\u786E\u3001\u7B80\u6D01\u3001\u6613\u61C2\u3002';
 
-async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions) {
+async function streamChat(messages, apiConfig, onChunk, onComplete, onError, signal, retryOptions, errorLabel) {
     return streamAiChatCompletions(
         messages,
         apiConfig,
         onChunk,
         onComplete,
-        (error) => onError(error ? `[\u9519\u8BEF] ${error}` : null),
+        (error) => onError(error ? `[${errorLabel}] ${error}` : null),
         signal,
         retryOptions
     );
@@ -309,6 +308,7 @@ const styles = {
 };
 
 export default function Chat() {
+    const { t } = useTranslation();
     useStopVoiceOnUnmount();
     const toastStyle = useToastStyle();
     const readAloud = useReadAloud();
@@ -328,6 +328,7 @@ export default function Chat() {
     const pendingHttpTextRef = useRef('');
     const hasContentToClear = messages.length > 0 || input.trim().length > 0;
     const [pendingHttpVersion, setPendingHttpVersion] = useState(0);
+    const systemPrompt = t('chat.system_prompt');
 
     useEffect(() => {
         messagesRef.current = messages;
@@ -413,12 +414,12 @@ export default function Chat() {
 
             try {
                 await invoke('write_clipboard', { text });
-                toast.success('已复制', { style: toastStyle });
+                toast.success(t('chat.copied'), { style: toastStyle });
             } catch {
-                toast.error('复制失败', { style: toastStyle });
+                toast.error(t('chat.copy_failed'), { style: toastStyle });
             }
         },
-        [toastStyle]
+        [t, toastStyle]
     );
 
     const appendDraftText = useCallback((rawText) => {
@@ -473,7 +474,7 @@ export default function Chat() {
                 role,
                 content,
             }));
-            const apiMessages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
+            const apiMessages = [{ role: 'system', content: systemPrompt }, ...history];
             const controller = new AbortController();
             abortRef.current = controller;
 
@@ -537,10 +538,11 @@ export default function Chat() {
                     setLoading(false);
                 },
                 controller.signal,
-                { refreshConfig: refreshApiConfig }
+                { refreshConfig: refreshApiConfig },
+                t('chat.error_label')
             );
         },
-        [apiConfig, loading, refreshApiConfig]
+        [apiConfig, loading, refreshApiConfig, systemPrompt, t]
     );
 
     const send = useCallback(async () => {
@@ -613,7 +615,7 @@ export default function Chat() {
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        {'\u89E3\u91CA'}
+                        {t('chat.title')}
                     </WindowHeaderTitle>
                 }
                 right={
@@ -629,13 +631,13 @@ export default function Chat() {
                     <div style={styles.messageList}>
                         {messages.length === 0 ? (
                             <div style={styles.empty}>
-                                {'\u5212\u8BCD\u3001\u7C98\u8D34\u6216\u8F93\u5165\u6587\u672C\u540E\uFF0C\u89E3\u91CA\u4F1A\u663E\u793A\u5728\u8FD9\u91CC'}
+                                {t('chat.empty_hint')}
                                 <br />
                                 <span style={{ fontSize: '11px' }}>
                                     {apiConfig === undefined
                                         ? ''
                                         : !apiConfig?.apiKey
-                                         ? '\u8BF7\u5148\u5728 AI \u8BBE\u7F6E\u4E2D\u914D\u7F6E API Key'
+                                         ? t('chat.api_key_missing')
                                          : ''}
                                 </span>
                             </div>
@@ -651,12 +653,12 @@ export default function Chat() {
                                 }}
                             >
                                 <div style={styles.roleTag(message.role === 'user')}>
-                                    {message.role === 'user' ? '\u4F60' : 'AI'}
+                                    {message.role === 'user' ? t('chat.you') : 'AI'}
                                 </div>
                                 <div style={styles.bubbleRow(message.role === 'user')}>
                                     <button
                                         type='button'
-                                        title={'\u590D\u5236'}
+                                        title={t('chat.copy')}
                                         style={styles.bubbleActionButton(!String(message.content || '').trim())}
                                         disabled={!String(message.content || '').trim()}
                                         onClick={() => {
@@ -667,7 +669,7 @@ export default function Chat() {
                                     </button>
                                     <button
                                         type='button'
-                                        title={'\u6717\u8BFB'}
+                                        title={t('chat.read_aloud')}
                                         style={styles.bubbleActionButton(!getMessageSpeechText(message.content))}
                                         disabled={!getMessageSpeechText(message.content)}
                                         onClick={() => {
@@ -753,7 +755,7 @@ export default function Chat() {
                                             </div>
                                         ) : message.pending ? (
                                             <span style={{ color: '#94a3b8' }}>
-                                                {'\u6B63\u5728\u751F\u6210...'}
+                                                {t('chat.loading')}
                                             </span>
                                         ) : (
                                             ''
@@ -769,7 +771,7 @@ export default function Chat() {
                         <textarea
                             ref={textareaRef}
                             style={styles.input}
-                            placeholder={'\u8F93\u5165\u6587\u672C\u6216\u7EE7\u7EED\u8FFD\u95EE'}
+                            placeholder={t('chat.input_placeholder')}
                             value={input}
                             rows={1}
                             onChange={(event) => {
@@ -785,7 +787,7 @@ export default function Chat() {
                         <div style={styles.footerTools}>
                             <button
                                 type='button'
-                                title={'\u8FDE\u7EED\u89E3\u91CA'}
+                                title={t('chat.excerpt_mode')}
                                 style={styles.footerIconButton(excerptMode)}
                                 onClick={() => {
                                     setExcerptMode((previous) => !previous);
@@ -795,7 +797,7 @@ export default function Chat() {
                             </button>
                             <button
                                 type='button'
-                                title={'\u6E05\u7A7A\u89E3\u91CA'}
+                                title={t('chat.clear')}
                                 style={{
                                     ...styles.footerIconButton(false),
                                     border: '1px solid rgba(254, 202, 202, 0.95)',
@@ -811,7 +813,7 @@ export default function Chat() {
                         </div>
                         {loading ? (
                             <button type='button' style={styles.footerButton(false)} onClick={stop}>
-                                {'\u505C\u6B62'}
+                                {t('chat.stop')}
                             </button>
                         ) : (
                             <button
@@ -825,7 +827,7 @@ export default function Chat() {
                                 }}
                                 disabled={!input.trim() || !apiConfig}
                             >
-                                {'\u53D1\u9001'}
+                                {t('chat.send')}
                             </button>
                         )}
                     </div>

@@ -379,7 +379,7 @@ function HighlightText({ text, query }) {
 }
 
 function PhraseRow(props) {
-    const { phrase, tag, query, active, hovered, sent, batchMode, last, onHover, onSend, onEdit, onDelete } = props;
+    const { phrase, tag, query, active, hovered, sent, batchMode, last, onHover, onSend, onEdit, onDelete, t } = props;
 
     return (
         <div
@@ -404,8 +404,8 @@ function PhraseRow(props) {
                     />
                 </div>
                 <div style={styles.itemMeta}>
-                    <span>{tag ? tag.name : '未分类'}</span>
-                    <span>已用 {phrase.use_count || 0} 次</span>
+                    <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
+                    <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                 </div>
             </div>
 
@@ -419,7 +419,7 @@ function PhraseRow(props) {
                         style={styles.itemActionButton(sent)}
                         onClick={() => onSend(phrase)}
                     >
-                        {sent ? '已发' : '发送'}
+                        {sent ? t('phrases.sent') : t('phrases.send')}
                     </button>
                 </div>
             ) : hovered || active ? (
@@ -433,7 +433,7 @@ function PhraseRow(props) {
                         onClick={() => onEdit(phrase)}
                     >
                         <HiOutlinePencilAlt />
-                        编辑
+                        {t('phrases.edit')}
                     </button>
                     <button
                         type='button'
@@ -441,7 +441,7 @@ function PhraseRow(props) {
                         onClick={() => onDelete(phrase)}
                     >
                         <HiOutlineTrash />
-                        删除
+                        {t('phrases.delete')}
                     </button>
                 </div>
             ) : null}
@@ -550,7 +550,7 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
                                 void createTag();
                             }}
                         >
-                            保存
+                            {t('phrases.tags_save')}
                         </button>
                         <button
                             type='button'
@@ -623,7 +623,7 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
                                     style={styles.itemActionButton(false)}
                                     onClick={() => startEdit(tag)}
                                 >
-                                    编辑
+                                    {t('phrases.edit')}
                                 </button>
                                 <button
                                     type='button'
@@ -632,7 +632,7 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
                                         void removeTag(tag);
                                     }}
                                 >
-                                    删除
+                                    {t('phrases.delete')}
                                 </button>
                             </div>
                         </div>
@@ -882,15 +882,15 @@ export default function Phrases() {
 
     const tagPills = useMemo(
         () => [
-            { id: null, name: '全部', count: allPhrases.length },
+            { id: null, name: t('phrases.all'), count: allPhrases.length },
             ...tags.map((tag) => ({
                 id: tag.id,
                 name: tag.name,
                 count: tagCounts[tag.id] ?? 0,
             })),
-            { id: '__uncat__', name: '未分类', count: tagCounts.__uncat__ ?? 0 },
+            { id: '__uncat__', name: t('phrases.uncategorized'), count: tagCounts.__uncat__ ?? 0 },
         ],
-        [allPhrases.length, tagCounts, tags]
+        [allPhrases.length, t, tagCounts, tags]
     );
 
     const sendPhrase = useCallback(
@@ -999,7 +999,7 @@ export default function Phrases() {
                             style={TRAY_WINDOW_TITLE_STYLE}
                             textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                         >
-                            常用语
+                            {t('phrases.title')}
                         </WindowHeaderTitle>
                     }
                     right={
@@ -1065,7 +1065,7 @@ export default function Phrases() {
                                 setSentIds(new Set());
                             }}
                         >
-                            {batchMode ? '结束连续发送' : '连续发送'}
+                            {batchMode ? t('phrases.batch_end') : t('phrases.batch_start')}
                         </button>
                     </div>
                 </div>
@@ -1102,6 +1102,7 @@ export default function Phrases() {
                                     onDelete={(item) => {
                                         void deleteCurrentPhrase(item);
                                     }}
+                                    t={t}
                                 />
                             ))}
                         </div>
@@ -1111,10 +1112,12 @@ export default function Phrases() {
                 <div style={styles.statusBar}>
                     <span>
                         {activeTag ? `${activeTag.name} · ` : ''}
-                        {search ? `找到 ${filtered.length} 条` : `共 ${filtered.length} 条`}
+                        {search
+                            ? t('phrases.search_count', { count: filtered.length })
+                            : t('phrases.total_count', { count: filtered.length })}
                     </span>
-                    {batchMode ? <span>连续发送中 · 已发 {sentIds.size} 条</span> : null}
-                    <span style={styles.statusHint}>↑↓ 选择 · Enter {batchMode ? '发送' : '填入'} · Esc 关闭</span>
+                    {batchMode ? <span>{t('phrases.batch_status', { count: sentIds.size })}</span> : null}
+                    <span style={styles.statusHint}>{batchMode ? t('phrases.hint_batch') : t('phrases.hint')}</span>
                     <button
                         type='button'
                         style={{ ...styles.footerButton(true), ...TRAY_WINDOW_PRIMARY_BUTTON_STYLE }}

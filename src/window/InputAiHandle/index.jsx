@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/tauri';
 
 const WRAP_STYLE = {
@@ -132,6 +133,7 @@ function HandleMark() {
 }
 
 export default function InputAiHandle() {
+    const { t } = useTranslation();
     const openingRef = useRef(false);
 
     const openEditor = async () => {
@@ -154,8 +156,8 @@ export default function InputAiHandle() {
             <div style={CARD_STYLE}>
                 <button
                     type='button'
-                    title='文本助手'
-                    aria-label='文本助手'
+                    title={t('light_ai.title')}
+                    aria-label={t('light_ai.title')}
                     style={BUTTON_STYLE}
                     onMouseDown={(event) => {
                         event.preventDefault();
