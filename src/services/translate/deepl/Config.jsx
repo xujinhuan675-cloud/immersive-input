@@ -18,7 +18,7 @@ export function Config(props) {
     const [deeplConfig, setDeeplConfig] = useConfig(
         instanceKey,
         {
-            type: 'free',
+            type: 'api',
             authKey: '',
             customUrl: '',
         },
@@ -27,11 +27,14 @@ export function Config(props) {
     const [isLoading, setIsLoading] = useState(false);
 
     const toastStyle = useToastStyle();
-    const deeplType = deeplConfig?.type ?? 'free';
-    const isFreeMode = deeplType === 'free';
+    const deeplType = deeplConfig?.type === 'deeplx' ? 'deeplx' : 'api';
+
+    function getNormalizedConfig() {
+        return { ...deeplConfig, type: deeplType, instanceName: undefined };
+    }
 
     function saveConfig() {
-        setDeeplConfig({ ...deeplConfig, type: deeplType, instanceName: undefined }, true);
+        setDeeplConfig(getNormalizedConfig(), true);
         updateServiceList(instanceKey);
         onClose();
     }
@@ -42,13 +45,8 @@ export function Config(props) {
                 onSubmit={(e) => {
                     e.preventDefault();
 
-                    if (isFreeMode) {
-                        saveConfig();
-                        return;
-                    }
-
                     setIsLoading(true);
-                    translate('hello', Language.auto, Language.zh_cn, { config: deeplConfig }).then(
+                    translate('hello', Language.auto, Language.zh_cn, { config: getNormalizedConfig() }).then(
                         () => {
                             setIsLoading(false);
                             saveConfig();
@@ -77,14 +75,10 @@ export function Config(props) {
                                 });
                             }}
                         >
-                            <DropdownItem key='free'>{t(`services.translate.deepl.free`)}</DropdownItem>
                             <DropdownItem key='api'>{t(`services.translate.deepl.api`)}</DropdownItem>
                             <DropdownItem key='deeplx'>{t(`services.translate.deepl.deeplx`)}</DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
-                </div>
-                <div className={`config-item ${!isFreeMode && 'hidden'}`}>
-                    <p className='text-[12px] text-default-500'>{t('services.translate.deepl.free_note')}</p>
                 </div>
                 <div className={`config-item ${deeplType !== 'api' && 'hidden'}`}>
                     <Input

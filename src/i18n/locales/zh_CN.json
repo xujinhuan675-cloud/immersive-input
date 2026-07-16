@@ -792,10 +792,8 @@
                     "custom_url": "DeepLX 地址",
                     "auth_key": "API 密钥",
                     "type": "服务类型",
-                    "free": "内置免费",
                     "api": "Auth Key",
-                    "deeplx": "DeepLX",
-                    "free_note": "内置免费模式使用公开网页端接口，可能会被官方限流；因此保存时不做在线校验。若频繁出现 429，请改用 Auth Key 或 DeepLX。"
+                    "deeplx": "DeepLX"
                 },
                 "google": {
                     "title": "谷歌翻译",

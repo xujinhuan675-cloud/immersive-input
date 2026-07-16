@@ -69,7 +69,7 @@ immersive-input/
 │   │   └── lang_detect.js          # 客户端语种检测
 │   │
 │   ├── services/                   # 各类外部服务（每项服务 = index.jsx + Config.jsx + info.ts）
-│   │   ├── translate/              # 20+ 翻译服务（deepl/openai/google/baidu/bing 等）
+│   │   ├── translate/              # 多种翻译服务（deepl/azure/baidu/tencent 等）
 │   │   ├── recognize/              # OCR 服务（system/tesseract/baidu/tencent/iflytek 等）
 │   │   ├── tts/                    # 语音合成服务
 │   │   ├── collection/             # 生词本服务（anki/eudic）
@@ -473,7 +473,7 @@ pnpm test
 ### 翻译功能
 
 - 多接口并行翻译 - 同时使用多个翻译服务，对比结果选择最佳翻译
-- 支持 20+ 翻译接口，包括 OpenAI、DeepL、Google、百度等
+- 支持多种翻译接口，包括 OpenAI、DeepL、Azure、百度等
 - 语言自动检测，智能识别源语言
 - 支持词典查询，提供详细的词汇解释
 
@@ -517,25 +517,31 @@ pnpm test
 
 ## 翻译
 
--   [x] [OpenAI](https://platform.openai.com/)
--   [x] [智谱 AI (ChatGLM)](https://www.zhipuai.cn/)
--   [x] [Gemini Pro](https://gemini.google.com/)
--   [x] [Ollama](https://www.ollama.com/) (离线)
--   [x] [阿里翻译](https://www.aliyun.com/product/ai/alimt)
--   [x] [百度翻译](https://fanyi.baidu.com/)
--   [x] [百度领域翻译](https://fanyi.baidu.com/)
--   [x] [彩云小译](https://fanyi.caiyunapp.com/)
--   [x] [腾讯翻译君](https://fanyi.qq.com/)
--   [x] [腾讯交互翻译](https://transmart.qq.com/)
--   [x] [火山翻译](https://translate.volcengine.com/)
--   [x] [小牛翻译](https://niutrans.com/)
--   [x] [Google](https://translate.google.com)
--   [x] [Bing](https://learn.microsoft.com/zh-cn/azure/cognitive-services/translator/)
--   [x] [Bing 词典](https://www.bing.com/dict)
--   [x] [DeepL](https://www.deepl.com/)
--   [x] [有道翻译](https://ai.youdao.com/)
--   [x] [剑桥词典](https://dictionary.cambridge.org/)
--   [x] [Yandex](https://translate.yandex.com/)
+-   [x] [OpenAI](https://platform.openai.com/) - 需配置 API Key / Base URL / 模型
+-   [x] [智谱 AI (ChatGLM)](https://www.zhipuai.cn/) - 需配置 API Key
+-   [x] [Gemini Pro](https://gemini.google.com/) - 需配置 API Key
+-   [x] [Ollama](https://www.ollama.com/) - 需配置本地或自有 Ollama 服务
+-   [x] [阿里翻译](https://www.aliyun.com/product/ai/alimt) - 需配置 AccessKey
+-   [x] [百度翻译](https://fanyi.baidu.com/) - 需配置 App ID / Secret
+-   [x] [百度领域翻译](https://fanyi.baidu.com/) - 需配置 App ID / Secret / 领域
+-   [x] [彩云小译](https://fanyi.caiyunapp.com/) - 需配置 Token
+-   [x] [腾讯翻译君](https://fanyi.qq.com/) - 需配置 Secret ID / Secret Key
+-   [x] [腾讯交互翻译](https://transmart.qq.com/) - 需配置 Username / Token
+-   [x] [火山翻译](https://translate.volcengine.com/) - 需配置 Access Key / Secret
+-   [x] [小牛翻译](https://niutrans.com/) - 需配置 API Key
+-   [x] [Azure Translator](https://learn.microsoft.com/zh-cn/azure/ai-services/translator/) - 需配置 Region / API Key
+-   [x] [DeepL](https://www.deepl.com/) - 需配置 Auth Key 或 DeepLX URL
+-   [x] [LibreTranslate](https://libretranslate.com/) - 需配置自有服务 URL，可选 API Key
+-   [x] [有道翻译](https://ai.youdao.com/) - 需配置 App Key / Secret
+
+已退役的免配置/匿名翻译入口：
+
+-   [ ] Google 网页翻译接口
+-   [ ] Bing / Edge 临时 Token 翻译接口
+-   [ ] Yandex Android/Web 翻译接口
+-   [ ] DeepL 内置免费网页端模式
+-   [ ] LibreTranslate 默认公共实例
+-   [ ] 腾讯交互翻译空凭据模式
 
 更多接口支持见 [插件系统](#插件系统)
 

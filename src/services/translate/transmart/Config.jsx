@@ -67,6 +67,7 @@ export function Config(props) {
                     <Input
                         label={t('services.translate.transmart.token')}
                         labelPlacement='outside-left'
+                        type='password'
                         value={config['token']}
                         variant='bordered'
                         classNames={{

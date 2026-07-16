@@ -17,7 +17,7 @@ import { getServiceName, getServiceSouceType, ServiceSourceType } from '../../..
 import { store } from '../../../../../../utils/store';
 import { TranslateConfigPanel } from '../ConfigModal';
 
-const BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG = new Set(['bing', 'yandex']);
+const BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG = new Set();
 
 export default function ServiceItem(props) {
     const { serviceInstanceKey, pluginList, deleteServiceInstance, updateServiceInstanceList, ...drag } = props;

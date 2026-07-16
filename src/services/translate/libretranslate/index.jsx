@@ -4,10 +4,11 @@ export async function translate(text, from, to, options = {}) {
     const { config } = options;
     let { url, apiKey } = config;
 
-    if (!url || url.trim() === '') {
-        url = 'https://translate.atomjump.com/';
+    if (!url?.trim()) {
+        throw 'LibreTranslate URL is required. Configure your own LibreTranslate endpoint before using this service.';
     }
 
+    url = url.trim();
     if (!/^https?:\/\//.test(url)) {
         url = `https://${url}`;
     }

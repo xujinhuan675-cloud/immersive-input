@@ -4,6 +4,10 @@ export async function translate(text, from, to, options = {}) {
     const { config } = options;
     const { region, apiKey } = config;
 
+    if (!region?.trim() || !apiKey?.trim()) {
+        throw 'Azure Translator region and API key are required. Configure your own Azure Translator resource before using this service.';
+    }
+
     const query = new URLSearchParams({
         'api-version': '3.0',
         to,
@@ -16,8 +20,8 @@ export async function translate(text, from, to, options = {}) {
     const res = await fetch(`https://api.cognitive.microsofttranslator.com/translate?${query.toString()}`, {
         method: 'POST',
         headers: {
-            'Ocp-Apim-Subscription-Key': apiKey,
-            'Ocp-Apim-Subscription-Region': region,
+            'Ocp-Apim-Subscription-Key': apiKey.trim(),
+            'Ocp-Apim-Subscription-Region': region.trim(),
             'Content-Type': 'application/json',
             'X-ClientTraceId': crypto.randomUUID(),
         },

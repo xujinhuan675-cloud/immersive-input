@@ -3,12 +3,11 @@ import { fetch, Body } from '@tauri-apps/api/http';
 export async function translate(text, from, to, options = {}) {
     const { config } = options;
 
-    const { username: user, token } = config;
+    const user = String(config.username || '').trim();
+    const token = String(config.token || '').trim();
 
-    let header = {};
-    if (user !== '' && token !== '') {
-        header['user'] = user;
-        header['token'] = token;
+    if (!user || !token) {
+        throw 'Tencent Transmart username and token are required. Configure your own credentials before using this service.';
     }
 
     const url = 'https://transmart.qq.com/api/imt';
@@ -18,7 +17,8 @@ export async function translate(text, from, to, options = {}) {
         body: Body.json({
             header: {
                 fn: 'auto_translation',
-                ...header,
+                user,
+                token,
             },
             type: 'plain',
             source: {

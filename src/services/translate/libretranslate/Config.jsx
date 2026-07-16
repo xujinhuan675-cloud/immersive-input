@@ -14,7 +14,7 @@ export function Config(props) {
     const [config, setConfig] = useConfig(
         instanceKey,
         {
-            url: 'https://translate.atomjump.com/',
+            url: '',
             apiKey: '',
         },
         { sync: false }

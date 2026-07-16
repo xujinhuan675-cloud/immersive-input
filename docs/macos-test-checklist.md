@@ -86,10 +86,14 @@ pnpm tauri build --target x86_64-apple-darwin
 - [ ] Main translate window opens
 - [ ] Source text can be entered manually
 - [ ] Default visible translation services render correctly
-- [ ] Google translation succeeds
-- [ ] Bing translation succeeds
-- [ ] DeepL free mode can be saved without forced validation
-- [ ] DeepL free mode can translate at least one short sentence
+- [ ] Google/Bing/Yandex retired services do not appear in the built-in translate selector
+- [ ] DeepL built-in free mode does not appear in the DeepL service type selector
+- [ ] Azure translation shows a clear configuration error when credentials are missing
+- [ ] Azure translation succeeds when region and API key are configured
+- [ ] DeepL Auth Key mode rejects missing credentials with a clear error
+- [ ] DeepL Auth Key or DeepLX mode can translate at least one short sentence when configured
+- [ ] LibreTranslate rejects missing custom URL with a clear error
+- [ ] Tencent Transmart rejects missing username/token with a clear error
 - [ ] OpenAI translation works when API key is configured
 - [ ] Changing source/target language works
 - [ ] Dynamic translation does not freeze the UI

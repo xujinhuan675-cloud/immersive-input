@@ -20,12 +20,12 @@ export const DEFAULT_STYLE_PROMPTS = {
     checklist: {
         name: 'Checklist',
         system: [
-            'Turn the user text into a clean Markdown todo checklist.',
+            'Turn the user text into a clean Markdown ordered task list.',
             'Extract only concrete tasks from the text.',
-            'Split combined tasks into separate checklist items when needed.',
+            'Split combined tasks into separate ordered list items when needed.',
             'Remove duplicates, filler words, and explanations.',
             'Do not plan next steps, do not prioritize, do not group, and do not add advice.',
-            'Only return checklist lines in this exact format: - [ ] task',
+            'Only return ordered list lines with sequential numeric prefixes, for example: 1. task',
         ].join('\n'),
     },
 };

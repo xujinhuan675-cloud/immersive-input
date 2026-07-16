@@ -1,13 +1,13 @@
 import { isAiTranslateServiceKey } from '../../../../utils/aiTranslate';
 import { ServiceSourceType, getServiceName, getServiceSouceType } from '../../../../utils/service_instance';
 
-export const TRANSLATE_SERVICE_PRIORITY = [
-    'google',
+// Built-in translate services must require user-owned credentials, a local
+// runtime, or a user-provided endpoint before they can translate.
+export const TRANSLATE_SELF_CONFIGURED_SERVICES = [
     'deepl',
-    'bing',
+    'azure',
     'baidu',
     'libretranslate',
-    'azure',
     'volcengine',
     'tencent',
     'caiyun',
@@ -17,18 +17,27 @@ export const TRANSLATE_SERVICE_PRIORITY = [
     'ollama',
     'geminipro',
     'chatglm',
-    'yandex',
     'niutrans',
 ];
 
-export const TRANSLATE_DEFAULT_VISIBLE = ['google', 'deepl', 'bing'];
+export const TRANSLATE_SERVICE_PRIORITY = [...TRANSLATE_SELF_CONFIGURED_SERVICES];
 
-export const TRANSLATE_SERVICE_CATALOG_VERSION = 5;
+// Retired anonymous or zero-config web endpoints. Keep these names for
+// migration only; do not expose them as built-in translate services.
+export const TRANSLATE_RETIRED_ANONYMOUS_SERVICES = ['google', 'bing', 'yandex', 'deepl_free'];
+
+export const TRANSLATE_DEFAULT_VISIBLE = ['deepl', 'azure'];
+
+export const TRANSLATE_SERVICE_CATALOG_VERSION = 6;
+// Historical defaults are retained only so old configs can be migrated away
+// from retired anonymous services.
 export const TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS = [
     ['google', 'deepl', 'bing', 'openai'],
     ['deepl', 'google', 'bing', 'openai', 'libretranslate', 'azure'],
     ['google', 'deepl', 'bing', 'openai', 'baidu'],
     ['deepl', 'bing', 'yandex', 'google'],
+    ['google', 'deepl', 'bing'],
+    ['deepl', 'azure', 'yandex'],
 ];
 
 export const RECOGNIZE_SERVICE_PRIORITY = [
@@ -137,16 +146,26 @@ export function migrateServiceInstanceList(instanceKeys, { priorityList, recomme
 }
 
 export function migrateTranslateRecommendedServices(instanceKeys) {
+    if (Array.isArray(instanceKeys)) {
+        const originalServiceNames = instanceKeys.map((instanceKey) => getServiceName(instanceKey));
+        const matchesPreviousDefault = TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some((visibleList) =>
+            matchesServiceNameList(originalServiceNames, visibleList)
+        );
+        if (matchesPreviousDefault) {
+            return [...TRANSLATE_DEFAULT_VISIBLE];
+        }
+    }
+
     const filteredInstanceKeys = filterKnownServiceInstanceKeys(instanceKeys, TRANSLATE_SERVICE_PRIORITY);
     if (filteredInstanceKeys.length === 0) {
         return [...TRANSLATE_DEFAULT_VISIBLE];
     }
 
     const serviceNames = filteredInstanceKeys.map((instanceKey) => getServiceName(instanceKey));
-    const matchesPreviousDefault = TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some((visibleList) =>
+    const matchesFilteredPreviousDefault = TRANSLATE_PREVIOUS_DEFAULT_VISIBLE_LISTS.some((visibleList) =>
         matchesServiceNameList(serviceNames, visibleList)
     );
-    if (matchesPreviousDefault) {
+    if (matchesFilteredPreviousDefault) {
         return [...TRANSLATE_DEFAULT_VISIBLE];
     }
 

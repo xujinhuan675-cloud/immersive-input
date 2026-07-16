@@ -1,95 +1,27 @@
 import { fetch, Body } from '@tauri-apps/api/http';
 
-const DEEPL_FREE_MIN_INTERVAL_MS = 1200;
-const DEEPL_FREE_RETRY_DELAY_MS = 2500;
-
-let deeplFreeLastRequestAt = 0;
-let deeplFreeQueue = Promise.resolve();
-
 export async function translate(text, from, to, options = {}) {
     const { config } = options;
 
-    const serviceType = config['type'];
-    if (serviceType === 'free') {
-        return translate_by_free(text, from, to);
-    } else if (serviceType === 'api') {
-        return translate_by_key(text, from, to, config.authKey);
-    } else if (serviceType === 'deeplx') {
+    const serviceType = config['type'] === 'deeplx' ? 'deeplx' : 'api';
+    if (serviceType === 'deeplx') {
         return translate_by_deeplx(text, from, to, config.customUrl);
-    } else {
-        return translate_by_free(text, from, to);
-    }
-}
-
-async function translate_by_free(text, from, to) {
-    return enqueueDeepLFreeRequest(async () => {
-        try {
-            return await requestDeepLFreeTranslation(text, from, to);
-        } catch (error) {
-            if (!isDeepLRateLimitError(error)) {
-                throw error;
-            }
-
-            await sleep(DEEPL_FREE_RETRY_DELAY_MS);
-            return requestDeepLFreeTranslation(text, from, to);
-        }
-    });
-}
-
-async function requestDeepLFreeTranslation(text, from, to) {
-    const url = 'https://www2.deepl.com/jsonrpc';
-    const rand = getRandomNumber();
-    const body = {
-        jsonrpc: '2.0',
-        method: 'LMT_handle_texts',
-        params: {
-            splitting: 'newlines',
-            lang: {
-                source_lang_user_selected: from !== 'auto' ? from.slice(0, 2) : 'auto',
-                target_lang: to.slice(0, 2),
-            },
-            texts: [{ text, requestAlternatives: 3 }],
-            timestamp: getTimeStamp(getICount(text)),
-        },
-        id: rand,
-    };
-
-    let body_str = JSON.stringify(body);
-
-    if ((rand + 5) % 29 === 0 || (rand + 3) % 13 === 0) {
-        body_str = body_str.replace('"method":"', '"method" : "');
-    } else {
-        body_str = body_str.replace('"method":"', '"method": "');
     }
 
-    const res = await fetch(url, {
-        method: 'POST',
-        body: Body.text(body_str),
-        headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (res.ok) {
-        let result = res.data;
-        if (result && result.result && result.result.texts) {
-            return result.result.texts[0].text.trim();
-        } else {
-            throw JSON.stringify(result);
-        }
-    } else {
-        if (res.status === 429) {
-            throw buildDeepLRateLimitError(res.data);
-        }
-
-        if (res.data.error) {
-            throw `Status Code: ${res.status}\n${res.data.error.message}`;
-        } else {
-            throw `Http Request Error\nHttp Status: ${res.status}\n${JSON.stringify(res.data)}`;
-        }
-    }
+    return translate_by_key(text, from, to, config.authKey);
 }
 
 async function translate_by_deeplx(text, from, to, url) {
-    let res = await fetch(url, {
+    if (!url?.trim()) {
+        throw 'DeepLX URL is required. Configure your own DeepLX endpoint before using this service.';
+    }
+
+    let requestUrl = url.trim();
+    if (!/^https?:\/\//.test(requestUrl)) {
+        requestUrl = `https://${requestUrl}`;
+    }
+
+    let res = await fetch(requestUrl, {
         method: 'POST',
         body: Body.json({
             source_lang: from,
@@ -111,9 +43,14 @@ async function translate_by_deeplx(text, from, to, url) {
 }
 
 async function translate_by_key(text, from, to, key) {
+    if (!key?.trim()) {
+        throw 'DeepL Auth Key is required. Built-in free mode has been removed; configure an Auth Key or a DeepLX URL.';
+    }
+
+    const authKey = key.trim();
     const headers = {
         'Content-Type': 'application/json',
-        Authorization: `DeepL-Auth-Key ${key}`,
+        Authorization: `DeepL-Auth-Key ${authKey}`,
     };
     let body = {
         text: [text],
@@ -123,9 +60,9 @@ async function translate_by_key(text, from, to, key) {
         body['source_lang'] = from;
     }
     let url;
-    if (key.endsWith(':fx')) {
+    if (authKey.endsWith(':fx')) {
         url = 'https://api-free.deepl.com/v2/translate';
-    } else if (key.endsWith(':dp')) {
+    } else if (authKey.endsWith(':dp')) {
         url = 'https://api.deepl-pro.com/v2/translate';
     } else {
         url = 'https://api.deepl.com/v2/translate';
@@ -150,62 +87,6 @@ async function translate_by_key(text, from, to, key) {
             throw `Http Request Error\nHttp Status: ${res.status}\n${JSON.stringify(res.data)}`;
         }
     }
-}
-
-function getTimeStamp(iCount) {
-    const ts = Date.now();
-    if (iCount !== 0) {
-        iCount = iCount + 1;
-        return ts - (ts % iCount) + iCount;
-    } else {
-        return ts;
-    }
-}
-
-function getICount(translate_text) {
-    return translate_text.split('i').length - 1;
-}
-
-function getRandomNumber() {
-    const rand = Math.floor(Math.random() * 99999) + 100000;
-    return rand * 1000;
-}
-
-async function enqueueDeepLFreeRequest(task) {
-    const previous = deeplFreeQueue;
-    let releaseCurrentRequest;
-    deeplFreeQueue = new Promise((resolve) => {
-        releaseCurrentRequest = resolve;
-    });
-
-    await previous;
-
-    try {
-        const waitMs = Math.max(0, DEEPL_FREE_MIN_INTERVAL_MS - (Date.now() - deeplFreeLastRequestAt));
-        if (waitMs > 0) {
-            await sleep(waitMs);
-        }
-
-        const result = await task();
-        deeplFreeLastRequestAt = Date.now();
-        return result;
-    } finally {
-        releaseCurrentRequest();
-    }
-}
-
-function buildDeepLRateLimitError(data) {
-    return `DeepL Free endpoint is temporarily rate limited. Please try again later, or switch to Auth Key / DeepLX.\nHttp Status: 429\n${JSON.stringify(data)}`;
-}
-
-function isDeepLRateLimitError(error) {
-    return String(error).includes('Http Status: 429') || String(error).includes('Status Code: 429');
-}
-
-function sleep(ms) {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
 }
 
 export * from './Config';
