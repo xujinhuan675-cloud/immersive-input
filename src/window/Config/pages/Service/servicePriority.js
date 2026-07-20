@@ -27,6 +27,11 @@ export const TRANSLATE_SERVICE_PRIORITY = [...TRANSLATE_SELF_CONFIGURED_SERVICES
 export const TRANSLATE_RETIRED_ANONYMOUS_SERVICES = ['google', 'bing', 'yandex', 'deepl_free'];
 
 export const TRANSLATE_DEFAULT_VISIBLE = ['deepl', 'azure'];
+export const TRANSLATE_DEFAULT_DISABLED_SERVICES = ['azure'];
+
+export function isTranslateServiceEnabledByDefault(serviceInstanceKey) {
+    return !TRANSLATE_DEFAULT_DISABLED_SERVICES.includes(getServiceName(serviceInstanceKey));
+}
 
 export const TRANSLATE_SERVICE_CATALOG_VERSION = 6;
 // Historical defaults are retained only so old configs can be migrated away

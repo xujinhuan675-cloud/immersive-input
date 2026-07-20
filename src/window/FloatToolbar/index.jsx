@@ -38,7 +38,7 @@ import {
     TOOLBAR_BUTTON_ACTION_BEHAVIORS,
 } from '../../utils/textSelectionToolbar';
 import { calculateExpr, detectType } from '../../utils/textAnalyzer';
-import { TRANSLATE_DEFAULT_VISIBLE } from '../Config/pages/Service/servicePriority';
+import { TRANSLATE_DEFAULT_VISIBLE, isTranslateServiceEnabledByDefault } from '../Config/pages/Service/servicePriority';
 import { FloatToolbarStatusPanel } from './StatusPanel';
 import {
     applyStatusUpdate,
@@ -392,7 +392,8 @@ async function resolveTranslateQuickResult(text, options = {}) {
     let lastError = null;
     for (const serviceInstanceKey of nextList) {
         const instanceConfig = serviceInstanceConfigMap[serviceInstanceKey] ?? {};
-        if (instanceConfig.enable === false) {
+        const enable = instanceConfig.enable ?? isTranslateServiceEnabledByDefault(serviceInstanceKey);
+        if (!enable) {
             continue;
         }
 
@@ -928,12 +929,12 @@ export default function FloatToolbar() {
             timerRef.current = null;
         }
 
-        if (hasStickyExtraPanel || pendingSelection || hasWaitingChip) {
+        if (hasStickyExtraPanel || hasWaitingChip) {
             return;
         }
 
         timerRef.current = setTimeout(hide, autoHideMs);
-    }, [hide, autoHideMs, hasStickyExtraPanel, pendingSelection, hasWaitingChip]);
+    }, [hide, autoHideMs, hasStickyExtraPanel, hasWaitingChip]);
 
     const handleClick = useCallback(
         async (id, overrideText, options = {}) => {
@@ -1009,9 +1010,6 @@ export default function FloatToolbar() {
             if (hasStickyExtraPanel) {
                 return;
             }
-            if (pendingSelection) {
-                return;
-            }
             if (hasWaitingChip) {
                 return;
             }
@@ -1041,7 +1039,7 @@ export default function FloatToolbar() {
             unlistenFocus.then((fn) => fn());
             unlistenSelectionUpdate.then((fn) => fn());
         };
-    }, [hasStickyExtraPanel, hasWaitingChip, hide, isActionHost, pendingSelection, refreshSelectionState, resetTimer]);
+    }, [hasStickyExtraPanel, hasWaitingChip, hide, isActionHost, refreshSelectionState, resetTimer]);
 
     const renderToolbarButton = useCallback(
         (button) => {

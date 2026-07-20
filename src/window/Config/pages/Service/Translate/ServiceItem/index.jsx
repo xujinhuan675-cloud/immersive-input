@@ -15,6 +15,7 @@ import {
 } from '../../../../../../utils/aiTranslate';
 import { getServiceName, getServiceSouceType, ServiceSourceType } from '../../../../../../utils/service_instance';
 import { store } from '../../../../../../utils/store';
+import { isTranslateServiceEnabledByDefault } from '../../servicePriority';
 import { TranslateConfigPanel } from '../ConfigModal';
 
 const BUILTIN_TRANSLATE_SERVICES_WITHOUT_CONFIG = new Set();
@@ -192,9 +193,12 @@ export default function ServiceItem(props) {
             description={isBuiltin ? null : t('common.plugin')}
             expanded={expanded}
             onPress={toggleExpanded}
-            actions={renderActions(serviceInstanceConfig.enable ?? true, (value) => {
-                setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
-            })}
+            actions={renderActions(
+                serviceInstanceConfig.enable ?? isTranslateServiceEnabledByDefault(serviceInstanceKey),
+                (value) => {
+                    setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
+                }
+            )}
         >
             {expanded ? renderExpandedContent(canEditConfig) : null}
         </SortableConfigRow>

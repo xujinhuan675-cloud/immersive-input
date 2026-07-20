@@ -1,8 +1,8 @@
 use crate::config::{get, reload};
 use crate::crash_log;
 use crate::window::{
-    auto_selection_explain, auto_selection_light_ai, auto_selection_translate, float_toolbar_window,
-    save_foreground_window,
+    auto_selection_explain, auto_selection_light_ai, auto_selection_translate,
+    float_toolbar_window, save_foreground_window,
 };
 use crate::StringWrapper;
 use crate::APP;
@@ -116,9 +116,7 @@ fn handle_event(event: Event) {
             PRESS_Y.store(press_y, Ordering::SeqCst);
             FLOAT_TOOLBAR_PRESS_ACTIVE.store(pressed_toolbar, Ordering::SeqCst);
 
-            if crate::selection_capture::has_auto_toolbar_pending_selection()
-                && !pressed_toolbar
-            {
+            if crate::selection_capture::has_auto_toolbar_pending_selection() && !pressed_toolbar {
                 MOVE_INTENT_PRESS_ACTIVE.store(true, Ordering::SeqCst);
                 MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.store(false, Ordering::SeqCst);
                 MOVE_INTENT_PRESS_X.store(press_x, Ordering::SeqCst);
@@ -136,9 +134,8 @@ fn handle_event(event: Event) {
             }
             MOVE_INTENT_PRESS_ACTIVE.store(false, Ordering::SeqCst);
             let was_toolbar_press = FLOAT_TOOLBAR_PRESS_ACTIVE.swap(false, Ordering::SeqCst);
-            if MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.swap(false, Ordering::SeqCst) {
-                return;
-            }
+            let suppress_current_release =
+                MOVE_INTENT_SUPPRESS_CURRENT_RELEASE.swap(false, Ordering::SeqCst);
 
             // Calculate drag distance (squared, avoid sqrt for perf)
             let dx = LAST_X.load(Ordering::Relaxed) - PRESS_X.load(Ordering::SeqCst);
@@ -148,8 +145,13 @@ fn handle_event(event: Event) {
             let click_y = LAST_Y.load(Ordering::Relaxed);
             let selection_marker = crate::selection_capture::current_marker();
             let mut move_guard_id = 0;
+            let is_selection_drag = drag_sq >= MIN_DRAG_SQ && !was_toolbar_press;
 
-            if drag_sq >= MIN_DRAG_SQ && !was_toolbar_press {
+            if suppress_current_release && !is_selection_drag {
+                return;
+            }
+
+            if is_selection_drag {
                 move_guard_id = MOVE_INTENT_NEXT_GUARD_ID.fetch_add(1, Ordering::SeqCst);
                 MOVE_INTENT_ACTIVE_GUARD_ID.store(move_guard_id, Ordering::SeqCst);
                 MOVE_INTENT_PRESS_ACTIVE.store(false, Ordering::SeqCst);

@@ -31,7 +31,6 @@ import {
     ServiceType,
     getServiceName,
     getServiceSouceType,
-    whetherAvailableService,
 } from '../../../../utils/service_instance';
 import { store } from '../../../../utils/store';
 
@@ -519,13 +518,7 @@ export default function History() {
     };
 
     const isAiTab = activeTab !== 'translate' && Boolean(AI_TYPE_LABELS[activeTab]);
-    const translateItems = items.filter((item) =>
-        whetherAvailableService(item.service, {
-            [ServiceSourceType.BUILDIN]: builtinServices,
-            [ServiceSourceType.PLUGIN]: pluginList?.[ServiceType.TRANSLATE],
-        })
-    );
-    const visibleItems = isAiTab ? aiItems : translateItems;
+    const visibleItems = isAiTab ? aiItems : items;
     const currentTotal = activeTab === 'translate' ? total : aiTotal;
     const totalPages = Math.ceil((activeTab === 'translate' ? total : aiTotal) / pageSize);
     const currentPage = activeTab === 'translate' ? page : aiPage;

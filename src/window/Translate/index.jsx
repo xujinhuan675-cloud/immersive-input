@@ -36,6 +36,7 @@ import {
     RECOGNIZE_DEFAULT_VISIBLE,
     TRANSLATE_DEFAULT_VISIBLE,
     TRANSLATE_SERVICE_CATALOG_VERSION,
+    isTranslateServiceEnabledByDefault,
     migrateTranslateRecommendedServices,
 } from '../Config/pages/Service/servicePriority';
 
@@ -364,7 +365,9 @@ export default function Translate() {
                                             serviceInstanceConfigMap !== null &&
                                             translateServiceInstanceList.map((serviceInstanceKey, index) => {
                                                 const config = serviceInstanceConfigMap[serviceInstanceKey] ?? {};
-                                                const enable = config['enable'] ?? true;
+                                                const enable =
+                                                    config['enable'] ??
+                                                    isTranslateServiceEnabledByDefault(serviceInstanceKey);
 
                                                 return enable ? (
                                                     <Draggable
