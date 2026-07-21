@@ -158,6 +158,7 @@ export default function Updater() {
     const isInstalling = isBusy && total > 0 && downloaded > total;
     const progressValue = total > 0 ? Math.min((downloaded / total) * 100, 100) : 0;
     const isLatestState = !isChecking && !errorMessage && !hasUpdate && !restartReady;
+    const displayReleaseVersion = releaseVersion ? `v${releaseVersion}` : '';
     const closeButtonLabel = t('common.close', {
         defaultValue: getLocalizedDefaultValue(isChineseUI, '关闭', 'Close'),
     });
@@ -267,6 +268,50 @@ export default function Updater() {
         };
     }, [errorMessage, hasUpdate, isChecking, isChineseUI, restartReady]);
 
+    const windowTitle = useMemo(() => {
+        if (isChecking) {
+            return t('updater.title');
+        }
+
+        if (errorMessage) {
+            return getLocalizedDefaultValue(isChineseUI, '检查更新失败', 'Update check failed');
+        }
+
+        if (restartReady) {
+            return getLocalizedDefaultValue(isChineseUI, '重启完成更新', 'Restart to finish updating');
+        }
+
+        if (hasUpdate) {
+            if (!displayReleaseVersion) {
+                return getLocalizedDefaultValue(isChineseUI, '新版本可用', 'New version available');
+            }
+
+            if (isInstalling) {
+                return getLocalizedDefaultValue(
+                    isChineseUI,
+                    `正在安装 ${displayReleaseVersion}`,
+                    `Installing ${displayReleaseVersion}`
+                );
+            }
+
+            if (isBusy) {
+                return getLocalizedDefaultValue(
+                    isChineseUI,
+                    `正在下载 ${displayReleaseVersion}`,
+                    `Downloading ${displayReleaseVersion}`
+                );
+            }
+
+            return getLocalizedDefaultValue(
+                isChineseUI,
+                `新版本 ${displayReleaseVersion} 可用`,
+                `New version ${displayReleaseVersion} available`
+            );
+        }
+
+        return getLocalizedDefaultValue(isChineseUI, '已是最新版本', 'Up to date');
+    }, [displayReleaseVersion, errorMessage, hasUpdate, isBusy, isChecking, isChineseUI, isInstalling, restartReady, t]);
+
     const panelTitle = useMemo(() => {
         if (errorMessage) {
             return getLocalizedDefaultValue(isChineseUI, '错误详情', 'Error details');
@@ -276,12 +321,8 @@ export default function Updater() {
             return getLocalizedDefaultValue(isChineseUI, '更新状态', 'Update status');
         }
 
-        if (hasUpdate) {
-            return getLocalizedDefaultValue(isChineseUI, '版本说明', 'Release notes');
-        }
-
         return '';
-    }, [errorMessage, hasUpdate, isChineseUI, restartReady]);
+    }, [errorMessage, isChineseUI, restartReady]);
 
     const panelContent = useMemo(() => {
         if (errorMessage) {
@@ -342,7 +383,7 @@ export default function Updater() {
                         style={TRAY_WINDOW_TITLE_STYLE}
                         textStyle={TRAY_WINDOW_TITLE_TEXT_STYLE}
                     >
-                        {t('updater.title')}
+                        {windowTitle}
                     </WindowHeaderTitle>
                 )}
                 right={<WindowHeaderCloseButton />}
@@ -405,33 +446,7 @@ export default function Updater() {
                         </div>
                     ) : (
                         <div className='flex h-full min-h-0 flex-col overflow-hidden'>
-                            <div className='shrink-0 border-b border-default-200/70 px-6 py-3'>
-                                <div className='flex min-h-[40px] items-center justify-between gap-4'>
-                                    <div className='flex min-w-0 flex-1 items-center gap-3'>
-                                        <div className='shrink-0 rounded-full border border-default-200/80 bg-default-50/80 px-3 py-1 text-[11px] font-medium text-default-500'>
-                                            {statusCopy.badge}
-                                        </div>
-                                        <div className='min-w-0 flex flex-1 items-baseline gap-3'>
-                                            <div className='truncate text-[15px] font-semibold tracking-normal text-foreground'>
-                                                {statusCopy.headline}
-                                            </div>
-                                            {hasUpdate ? (
-                                                <div className='hidden min-w-0 flex-1 truncate text-[12px] text-default-500 sm:block'>
-                                                    {statusCopy.description}
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    </div>
-
-                                    {hasUpdate && releaseVersion ? (
-                                        <div className='shrink-0 rounded-full bg-default-100 px-3 py-1 text-[12px] font-medium text-default-600'>
-                                            v{releaseVersion}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
-
-                            <div className='min-h-0 flex-1 px-6 py-4'>
+                            <div className='min-h-0 flex-1 px-6 py-5'>
                                 <div className='flex h-full min-h-0 flex-col overflow-hidden'>
                                     {panelTitle ? (
                                         <div className='mb-2 text-[12px] font-medium text-default-500'>
