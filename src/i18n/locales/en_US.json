@@ -9,6 +9,7 @@
             "plugin": "Plugin",
             "coming": "Coming soon…",
             "clear": "Clear",
+            "copy": "Copy",
             "delete": "Delete",
             "expand": "Expand",
             "collapse": "Collapse"
@@ -575,7 +576,29 @@
                 "btn_format": "Format",
                 "btn_lightai": "AI Polish",
                 "btn_todo": "Save Todo",
-                "smart_title": "Smart Buttons"
+                "smart_title": "Smart Buttons",
+                "smart": {
+                    "url": {
+                        "title": "Open Link",
+                        "match": "Appears automatically when a URL or domain is selected"
+                    },
+                    "email": {
+                        "title": "Send Email",
+                        "match": "Appears automatically when an email address is selected"
+                    },
+                    "filepath": {
+                        "title": "Open Path",
+                        "match": "Appears automatically when a file or folder path is selected"
+                    },
+                    "number": {
+                        "title": "Calculate",
+                        "match": "Appears automatically when an expression or number is selected"
+                    },
+                    "color": {
+                        "title": "Color Preview",
+                        "match": "Appears automatically when a HEX color is selected"
+                    }
+                }
             },
             "about": {
                 "label": "About",

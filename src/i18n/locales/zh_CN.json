@@ -9,6 +9,7 @@
             "plugin": "插件",
             "coming": "敬请期待…",
             "clear": "清空",
+            "copy": "复制",
             "delete": "删除",
             "expand": "展开",
             "collapse": "收起"
@@ -574,7 +575,29 @@
                 "btn_format": "格式化",
                 "btn_lightai": "文本助手",
                 "btn_todo": "记待办",
-                "smart_title": "智能按钮"
+                "smart_title": "智能按钮",
+                "smart": {
+                    "url": {
+                        "title": "打开链接",
+                        "match": "选中 URL 或域名时自动出现"
+                    },
+                    "email": {
+                        "title": "发送邮件",
+                        "match": "选中邮箱地址时自动出现"
+                    },
+                    "filepath": {
+                        "title": "打开路径",
+                        "match": "选中文件或文件夹路径时自动出现"
+                    },
+                    "number": {
+                        "title": "计算",
+                        "match": "选中算式或数值时自动出现"
+                    },
+                    "color": {
+                        "title": "颜色预览",
+                        "match": "选中 HEX 颜色值时自动出现"
+                    }
+                }
             },
             "about": {
                 "label": "关于",
