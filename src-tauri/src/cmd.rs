@@ -259,9 +259,22 @@ pub fn font_list() -> Result<Vec<String>, Error> {
 fn set_internal_clipboard_text(text: &str) -> Result<(), String> {
     use arboard::Clipboard;
     let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-    cb.set_text(text).map_err(|e| e.to_string())?;
-    remember_internal_clipboard_write(text);
+    let text = normalize_clipboard_text(text);
+    cb.set_text(text.as_str()).map_err(|e| e.to_string())?;
+    remember_internal_clipboard_write(text.as_str());
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_clipboard_text(text: &str) -> String {
+    text.replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\n', "\r\n")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn normalize_clipboard_text(text: &str) -> String {
+    text.to_string()
 }
 
 /// Write text to clipboard
@@ -337,6 +350,7 @@ fn send_windows_unicode_text(text: &str) {
         KEYEVENTF_UNICODE, VIRTUAL_KEY,
     };
 
+    let text = normalize_keyboard_text(text);
     let encoded: Vec<u16> = text.encode_utf16().collect();
     if encoded.is_empty() {
         return;
@@ -373,6 +387,13 @@ fn send_windows_unicode_text(text: &str) {
     unsafe {
         SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn normalize_keyboard_text(text: &str) -> String {
+    text.replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\n', "\r")
 }
 
 /// Write text to clipboard, restore previous window focus, then simulate Ctrl+V

@@ -4,8 +4,22 @@ const DEFAULT_FLUSH_MS = 40;
 const DEFAULT_BUFFER_LIMIT = 24;
 const DEFAULT_TEXT_CHUNK_SIZE = 10;
 const DEFAULT_TEXT_CHUNK_DELAY_MS = 18;
+const DEFAULT_PASTE_ON_MULTILINE = true;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function normalizeInputTextLineEndings(text) {
+    return String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+export function shouldPasteInputText(text, options = {}) {
+    if (options.pasteOnWrite) {
+        return true;
+    }
+
+    const pasteOnMultiline = options.pasteOnMultiline ?? DEFAULT_PASTE_ON_MULTILINE;
+    return Boolean(pasteOnMultiline && /[\r\n]/.test(String(text || '')));
+}
 
 export function createStreamInputWriter(options = {}) {
     const {
@@ -146,8 +160,24 @@ export function createCumulativeStreamInputAdapter(writer) {
 }
 
 export async function streamTextToInput(text, options = {}) {
-    const sourceText = String(text || '');
-    const writer = createStreamInputWriter(options);
+    const sourceText = normalizeInputTextLineEndings(text);
+    const usePaste = shouldPasteInputText(sourceText, options);
+    const writer = createStreamInputWriter({
+        ...options,
+        pasteOnWrite: usePaste,
+    });
+
+    if (usePaste) {
+        try {
+            writer.enqueue(sourceText);
+            await writer.finish();
+        } catch (error) {
+            throw createPartialAppliedError(error, writer);
+        }
+
+        return sourceText;
+    }
+
     const characters = Array.from(sourceText);
     const chunkSize = options.chunkSize ?? DEFAULT_TEXT_CHUNK_SIZE;
     const chunkDelayMs = options.chunkDelayMs ?? DEFAULT_TEXT_CHUNK_DELAY_MS;
