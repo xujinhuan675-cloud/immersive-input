@@ -18,6 +18,7 @@ mod rapid_ocr;
 mod screenshot;
 mod selection_capture;
 mod server;
+mod single_instance;
 mod system_ocr;
 mod tray;
 mod updater;
@@ -124,6 +125,19 @@ fn main() {
     crash_log::record("startup", "main entry");
     let context = tauri::generate_context!();
     configure_windows_app_id(&context.config().tauri.bundle.identifier);
+
+    let _single_instance_guard = match single_instance::acquire(&context.config().tauri.bundle.identifier) {
+        Ok(guard) => guard,
+        Err(single_instance::SingleInstanceError::AlreadyRunning) => {
+            crash_log::record("startup", "duplicate instance exit");
+            single_instance::notify_existing_instance(server::DEFAULT_SERVER_PORT);
+            return;
+        }
+        Err(e) => {
+            crash_log::record("startup", format!("single instance guard failed: {e}"));
+            return;
+        }
+    };
 
     tauri::Builder::default()
         // tauri-plugin-single-instance has a null-pointer crash on some Windows configs.

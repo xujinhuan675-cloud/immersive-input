@@ -8,7 +8,7 @@ use tauri::api::notification;
 use tauri::Manager;
 use tiny_http::{Method, Request, Response, Server, StatusCode};
 
-const DEFAULT_SERVER_PORT: u16 = 60828;
+pub const DEFAULT_SERVER_PORT: u16 = 60828;
 const FIRST_NON_SYSTEM_PORT: u16 = 1024;
 
 pub fn start_server() {
