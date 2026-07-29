@@ -12,6 +12,8 @@ const STORAGE_KEYS = {
     LANGUAGE_PREFERENCE: 'auth_language_preference',
 };
 
+const TOKEN_REFRESH_SKEW_MS = 60 * 1000;
+
 let refreshTokenPromise = null;
 
 function pickFirst(...values) {
@@ -25,7 +27,16 @@ function getPayloadRoot(payload) {
 function buildStoredUser(user, root = {}) {
     const source = user || root.user || root.account || root.profile || {};
     const email = pickFirst(source.email, root.email, root.userEmail);
-    const id = pickFirst(source.id, source.user_id, source.userId, root.userId, root.sub, email);
+    const id = pickFirst(
+        source.id,
+        source.user_id,
+        source.userId,
+        root.id,
+        root.user_id,
+        root.userId,
+        root.sub,
+        email
+    );
 
     if (!id && !email) return null;
 
@@ -121,13 +132,23 @@ function normalizeAuthPayload(payload, fallback = {}) {
     };
 }
 
-function persistStoredSession(user, token, { refreshToken = '', expiresAt = null } = {}) {
+function persistStoredSession(user, token, { refreshToken, expiresAt = null } = {}) {
     const storedUser = buildStoredUser(user);
     if (!storedUser || !token) return;
     localStorage.setItem(STORAGE_KEYS.TOKEN, String(token));
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(storedUser));
-    if (refreshToken) localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, String(refreshToken));
-    if (expiresAt) localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, String(expiresAt));
+    if (refreshToken !== undefined) {
+        if (refreshToken) {
+            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, String(refreshToken));
+        } else {
+            localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        }
+    }
+    if (expiresAt) {
+        localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, String(expiresAt));
+    } else {
+        localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT);
+    }
 }
 
 function persistCurrentUser(user) {
@@ -147,6 +168,24 @@ function clearStoredSession() {
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT);
+}
+
+function getStoredTokenExpiresAt() {
+    const raw = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRES_AT);
+    const expiresAt = Number(raw);
+    return Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : null;
+}
+
+function shouldRefreshStoredToken() {
+    const expiresAt = getStoredTokenExpiresAt();
+    return Boolean(expiresAt && Date.now() + TOKEN_REFRESH_SKEW_MS >= expiresAt);
+}
+
+function isInvalidRefreshError(error) {
+    const status = Number(error?.status);
+    if (status === 401 || status === 403) return true;
+    if (status !== 400) return false;
+    return /token|session|expired|refresh/i.test(String(error?.message || ''));
 }
 
 function encryptPassword(password) {
@@ -315,7 +354,7 @@ export async function refreshAccessToken() {
             });
             return result.token;
         } catch (error) {
-            if (error?.status === 401 || error?.status === 403) {
+            if (isInvalidRefreshError(error)) {
                 clearStoredSession();
             }
             throw error;
@@ -330,6 +369,17 @@ export async function refreshAccessToken() {
 export async function requireAccessToken() {
     const token = await getAccessToken();
     if (!token) {
+        throw new Error('Login expired. Please sign in again.');
+    }
+    if (shouldRefreshStoredToken()) {
+        const refreshedToken = await refreshAccessToken().catch(() => null);
+        if (refreshedToken) return refreshedToken;
+
+        const latestToken = await getAccessToken();
+        const latestExpiresAt = getStoredTokenExpiresAt();
+        if (latestToken && (!latestExpiresAt || Date.now() < latestExpiresAt)) {
+            return latestToken;
+        }
         throw new Error('Login expired. Please sign in again.');
     }
     return token;

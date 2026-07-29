@@ -362,6 +362,20 @@ function persistAccountViewCache() {
     }
 }
 
+function clearAccountViewCache() {
+    ACCOUNT_VIEW_CACHE.paymentConfig = null;
+    ACCOUNT_VIEW_CACHE.billingProfilesByUserId.clear();
+    ACCOUNT_VIEW_CACHE.billingCatalogsByKey.clear();
+    ACCOUNT_VIEW_CACHE.lastBillingCatalogKey = '';
+    ACCOUNT_VIEW_CACHE.lastSelectedPaymentProvider = '';
+    if (typeof window === 'undefined') return;
+    try {
+        window.sessionStorage.removeItem(ACCOUNT_VIEW_CACHE_STORAGE_KEY);
+    } catch {
+        // ignore storage failures and keep clearing the in-memory cache
+    }
+}
+
 function areDataEqual(currentValue, nextValue) {
     if (currentValue === nextValue) return true;
     try {
@@ -1247,12 +1261,13 @@ export default function Account() {
 
     async function handleLogout() {
         await logout();
+        clearAccountViewCache();
         setUserInfo(null);
         setPaymentConfig(null);
         setBillingProfile(null);
         setBillingCatalog(null);
         setLatestOrder(null);
-        updateSelectedPaymentProvider('');
+        setSelectedPaymentProvider('');
         toast.success(t('config.account.logout_success'));
     }
 

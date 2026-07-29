@@ -105,6 +105,35 @@ function unwrapSub2Payload(payload) {
     return Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
 }
 
+function hasAuthorizationHeader(headers = {}) {
+    return Boolean(headers.Authorization || headers.authorization);
+}
+
+function isTokenAuthErrorPayload(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const code = String(payload.code ?? payload.error?.code ?? payload.reason ?? '')
+        .trim()
+        .toLowerCase();
+    const message = String(parseFlowGuideErrorPayload(payload, ''))
+        .trim()
+        .toLowerCase();
+
+    return (
+        code === '401' ||
+        code === '403' ||
+        code === 'invalid_token' ||
+        code === 'token_expired' ||
+        /token\s+(has\s+)?expired/.test(message) ||
+        /jwt\s+expired/.test(message) ||
+        /invalid\s+(or\s+expired\s+)?token/.test(message) ||
+        /invalid\s+or\s+expired\s+session/.test(message)
+    );
+}
+
+function shouldRefreshAuth(response, payload) {
+    return response.status === 401 || response.status === 403 || isTokenAuthErrorPayload(payload);
+}
+
 export async function requestSub2Api(
     path,
     { method = 'GET', headers = {}, body, query, token } = {}
@@ -116,7 +145,7 @@ export async function requestSub2Api(
 
     const explicitToken = String(token || '').trim();
     const authToken = explicitToken;
-    if (authToken && !requestHeaders.Authorization && !requestHeaders.authorization) {
+    if (authToken && !hasAuthorizationHeader(requestHeaders)) {
         requestHeaders.Authorization = `Bearer ${authToken}`;
     }
 
@@ -132,18 +161,20 @@ export async function requestSub2Api(
         headers: requestHeaders,
         body: requestBody,
     });
-    if (response.status === 401 && explicitToken && !headers.Authorization && !headers.authorization) {
+    let payload = await parseResponsePayload(response);
+
+    if (shouldRefreshAuth(response, payload) && explicitToken && !hasAuthorizationHeader(headers)) {
         const refreshedToken = await refreshAccessToken().catch(() => null);
-        if (refreshedToken && refreshedToken !== explicitToken) {
+        if (refreshedToken) {
             requestHeaders.Authorization = `Bearer ${refreshedToken}`;
             response = await fetch(url, {
                 method,
                 headers: requestHeaders,
                 body: requestBody,
             });
+            payload = await parseResponsePayload(response);
         }
     }
-    const payload = await parseResponsePayload(response);
 
     if (!response.ok) {
         const error = new Error(parseFlowGuideErrorPayload(payload, `Request failed (${response.status})`));
