@@ -497,6 +497,8 @@ pub fn config_window() {
     // 如果窗口已存在，直接激活
     if let Some(w) = app_handle.get_window("config") {
         apply_default_window_icon(&w);
+        // Config is a normal preferences window and must not remain above other apps.
+        w.set_always_on_top(false).unwrap_or_default();
         show_app_window(&w);
         w.set_focus().unwrap_or_default();
         return;
@@ -513,6 +515,7 @@ pub fn config_window() {
     .focused(true)
     .title("Config")
     .inner_size(800.0, 600.0)
+    .always_on_top(false)
     .visible(false);
 
     #[cfg(target_os = "macos")]
@@ -532,6 +535,7 @@ pub fn config_window() {
 
     let window = builder.build().unwrap();
     apply_default_window_icon(&window);
+    window.set_always_on_top(false).unwrap_or_default();
 
     #[cfg(not(target_os = "linux"))]
     set_shadow(&window, true).unwrap_or_default();
