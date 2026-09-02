@@ -40,6 +40,7 @@ import {
     updatePhrase,
     updateTag,
 } from './phrasesDb';
+import { getPhraseTagLabel } from './tagLabels';
 
 const styles = {
     view: {
@@ -332,6 +333,18 @@ const styles = {
         color: '#0f172a',
         fontWeight: 500,
     },
+    tagOpenButton: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '10px',
+        flex: 1,
+        minWidth: 0,
+        border: 'none',
+        background: 'transparent',
+        padding: 0,
+        color: 'inherit',
+        textAlign: 'left',
+    },
     tagEditInput: {
         flex: 1,
         minWidth: 0,
@@ -380,6 +393,7 @@ function HighlightText({ text, query }) {
 
 function PhraseRow(props) {
     const { phrase, tag, query, active, hovered, sent, batchMode, last, onHover, onSend, onEdit, onDelete, t } = props;
+    const tagLabel = tag ? getPhraseTagLabel(tag, t) : t('phrases.uncategorized');
 
     return (
         <div
@@ -404,7 +418,7 @@ function PhraseRow(props) {
                     />
                 </div>
                 <div style={styles.itemMeta}>
-                    <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
+                    <span>{tagLabel}</span>
                     <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                 </div>
             </div>
@@ -449,7 +463,7 @@ function PhraseRow(props) {
     );
 }
 
-function TagsView({ onBack, onChanged, pined, onTogglePin }) {
+function TagsView({ onBack, onChanged, onSelectTag, pined, onTogglePin }) {
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [editingId, setEditingId] = useState(null);
@@ -494,7 +508,7 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
     };
 
     const removeTag = async (tag) => {
-        if (!window.confirm(t('phrases.confirm_delete_tag', { name: tag.name }))) return;
+        if (!window.confirm(t('phrases.confirm_delete_tag', { name: getPhraseTagLabel(tag, t) }))) return;
         await deleteTag(tag.id);
         await loadTags();
         await onChanged();
@@ -615,8 +629,16 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
                             key={tag.id}
                             style={styles.tagRow}
                         >
-                            <span style={styles.tagDot(tag.color)} />
-                            <span style={styles.tagName}>{tag.name}</span>
+                            <button
+                                type='button'
+                                style={styles.tagOpenButton}
+                                title={t('phrases.view_tag', { name: getPhraseTagLabel(tag, t) })}
+                                aria-label={t('phrases.view_tag', { name: getPhraseTagLabel(tag, t) })}
+                                onClick={() => onSelectTag(tag.id)}
+                            >
+                                <span style={styles.tagDot(tag.color)} />
+                                <span style={styles.tagName}>{getPhraseTagLabel(tag, t)}</span>
+                            </button>
                             <div style={styles.itemActions}>
                                 <button
                                     type='button'
@@ -643,12 +665,12 @@ function TagsView({ onBack, onChanged, pined, onTogglePin }) {
     );
 }
 
-function EditView({ phrase, allTags, onSaved, onCancel, pined, onTogglePin }) {
+function EditView({ phrase, allTags, initialTagId = null, onSaved, onCancel, pined, onTogglePin }) {
     const { t } = useTranslation();
     const isNew = !phrase;
     const [title, setTitle] = useState(phrase?.title ?? '');
     const [content, setContent] = useState(phrase?.content ?? '');
-    const [tagId, setTagId] = useState(phrase?.tag_id ?? null);
+    const [tagId, setTagId] = useState(phrase?.tag_id ?? initialTagId ?? null);
     const [newTagMode, setNewTagMode] = useState(false);
     const [newTagName, setNewTagName] = useState('');
     const [saving, setSaving] = useState(false);
@@ -754,7 +776,7 @@ function EditView({ phrase, allTags, onSaved, onCancel, pined, onTogglePin }) {
                                     key={tag.id}
                                     value={tag.id}
                                 >
-                                    {tag.name}
+                                    {getPhraseTagLabel(tag, t)}
                                 </option>
                             ))}
                             <option value='__new__'>{t('phrases.new_tag_option')}</option>
@@ -885,7 +907,7 @@ export default function Phrases() {
             { id: null, name: t('phrases.all'), count: allPhrases.length },
             ...tags.map((tag) => ({
                 id: tag.id,
-                name: tag.name,
+                name: getPhraseTagLabel(tag, t),
                 count: tagCounts[tag.id] ?? 0,
             })),
             { id: '__uncat__', name: t('phrases.uncategorized'), count: tagCounts.__uncat__ ?? 0 },
@@ -962,6 +984,7 @@ export default function Phrases() {
             <EditView
                 phrase={editPhrase}
                 allTags={tags}
+                initialTagId={selectedTagId === '__uncat__' ? null : selectedTagId}
                 onSaved={async () => {
                     await reload();
                     setView('list');
@@ -980,6 +1003,11 @@ export default function Phrases() {
             <TagsView
                 onBack={() => setView('list')}
                 onChanged={reload}
+                onSelectTag={(tagId) => {
+                    setSelectedTagId(tagId);
+                    setSearch('');
+                    setView('list');
+                }}
                 pined={pined}
                 onTogglePin={togglePin}
             />
@@ -1041,7 +1069,7 @@ export default function Phrases() {
                                     setSentIds(new Set());
                                 }}
                             >
-                                <span>{tag.name}</span>
+                                <span>{getPhraseTagLabel(tag, t)}</span>
                                 <span style={{ opacity: 0.7 }}>{tag.count}</span>
                             </button>
                         ))}
@@ -1111,7 +1139,7 @@ export default function Phrases() {
 
                 <div style={styles.statusBar}>
                     <span>
-                        {activeTag ? `${activeTag.name} · ` : ''}
+                        {activeTag ? `${getPhraseTagLabel(activeTag, t)} · ` : ''}
                         {search
                             ? t('phrases.search_count', { count: filtered.length })
                             : t('phrases.total_count', { count: filtered.length })}

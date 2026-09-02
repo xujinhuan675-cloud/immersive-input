@@ -42,6 +42,7 @@ import {
     updatePhrase,
     updateTag,
 } from '../Phrases/phrasesDb';
+import { getPhraseTagLabel } from '../Phrases/tagLabels';
 
 const QUICK_COLLAPSED_HEIGHT = 75;
 const QUICK_MAX_HEIGHT = 408;
@@ -575,6 +576,7 @@ function HighlightText({ text, query }) {
 function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }) {
     const primaryText = phrase.title || phrase.content;
     const secondaryText = phrase.title ? phrase.content : null;
+    const tagLabel = tag ? getPhraseTagLabel(tag, t) : t('phrases.uncategorized');
 
     return (
         <div
@@ -603,7 +605,7 @@ function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }
                 ) : null}
                 {false ? (
                     <div style={styles.quickItemMeta}>
-                        <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
+                        <span>{tagLabel}</span>
                         <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                     </div>
                 ) : null}
@@ -613,6 +615,8 @@ function QuickPhraseRow({ phrase, tag, query, active, last, onHover, onSend, t }
 }
 
 function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrimary, onEdit, onDelete, t }) {
+    const tagLabel = tag ? getPhraseTagLabel(tag, t) : t('phrases.uncategorized');
+
     return (
         <div
             data-clickable='true'
@@ -636,7 +640,7 @@ function PhraseRow({ phrase, tag, query, active, hovered, last, onHover, onPrima
                     />
                 </div>
                 <div style={styles.itemMeta}>
-                    <span>{tag ? tag.name : t('phrases.uncategorized')}</span>
+                    <span>{tagLabel}</span>
                     <span>{t('phrases.use_count', { count: phrase.use_count || 0 })}</span>
                 </div>
             </div>
@@ -708,7 +712,7 @@ function TagsView({ onBack, onChanged, onClose, onSelectTag, pined, onTogglePin 
     };
 
     const removeTag = async (tag) => {
-        if (!window.confirm(t('phrases.confirm_delete_tag', { name: tag.name }))) return;
+        if (!window.confirm(t('phrases.confirm_delete_tag', { name: getPhraseTagLabel(tag, t) }))) return;
         await deleteTag(tag.id);
         await loadTags();
         await onChanged();
@@ -815,12 +819,12 @@ function TagsView({ onBack, onChanged, onClose, onSelectTag, pined, onTogglePin 
                             <button
                                 type='button'
                                 style={styles.tagOpenButton}
-                                title={t('phrases.view_tag', { name: tag.name })}
-                                aria-label={t('phrases.view_tag', { name: tag.name })}
+                                title={t('phrases.view_tag', { name: getPhraseTagLabel(tag, t) })}
+                                aria-label={t('phrases.view_tag', { name: getPhraseTagLabel(tag, t) })}
                                 onClick={() => onSelectTag(tag.id)}
                             >
                                 <span style={styles.tagDot(tag.color)} />
-                                <span style={styles.tagName}>{tag.name}</span>
+                                <span style={styles.tagName}>{getPhraseTagLabel(tag, t)}</span>
                             </button>
                             <div style={styles.itemActions}>
                                 <button
@@ -878,12 +882,12 @@ function TagsView({ onBack, onChanged, onClose, onSelectTag, pined, onTogglePin 
     );
 }
 
-function EditView({ phrase, allTags, onSaved, onCancel, onClose, pined, onTogglePin }) {
+function EditView({ phrase, allTags, initialTagId = null, onSaved, onCancel, onClose, pined, onTogglePin }) {
     const { t } = useTranslation();
     const isNew = !phrase;
     const [title, setTitle] = useState(phrase?.title ?? '');
     const [content, setContent] = useState(phrase?.content ?? '');
-    const [tagId, setTagId] = useState(phrase?.tag_id ?? null);
+    const [tagId, setTagId] = useState(phrase?.tag_id ?? initialTagId ?? null);
     const [newTagMode, setNewTagMode] = useState(false);
     const [newTagName, setNewTagName] = useState('');
     const [saving, setSaving] = useState(false);
@@ -987,7 +991,7 @@ function EditView({ phrase, allTags, onSaved, onCancel, onClose, pined, onToggle
                                     key={tag.id}
                                     value={tag.id}
                                 >
-                                    {tag.name}
+                                    {getPhraseTagLabel(tag, t)}
                                 </option>
                             ))}
                             <option value='__new__'>{t('phrases.new_tag_option')}</option>
@@ -1231,7 +1235,7 @@ export default function PhrasesInline() {
             { id: null, name: t('phrases.all'), count: allPhrases.length },
             ...sortedTags.map((tag) => ({
                 id: tag.id,
-                name: tag.name,
+                name: getPhraseTagLabel(tag, t),
                 count: Number(tagCounts[tag.id] ?? 0),
             })),
             { id: '__uncat__', name: t('phrases.uncategorized'), count: Number(tagCounts.__uncat__ ?? 0) },
@@ -1428,6 +1432,7 @@ export default function PhrasesInline() {
             <EditView
                 phrase={editPhrase}
                 allTags={tags}
+                initialTagId={selectedTagId === '__uncat__' ? null : selectedTagId}
                 onSaved={async () => {
                     await reload();
                     setView('manage');
@@ -1501,7 +1506,7 @@ export default function PhrasesInline() {
                                 style={styles.pill(selectedTagId === tag.id)}
                                 onClick={() => setSelectedTagId(tag.id)}
                             >
-                                <span>{tag.name}</span>
+                                <span>{getPhraseTagLabel(tag, t)}</span>
                                 <span style={{ opacity: 0.7 }}>{tag.count}</span>
                             </button>
                         ))}
@@ -1555,7 +1560,7 @@ export default function PhrasesInline() {
 
                 <div style={styles.statusBar}>
                     <span>
-                        {activeTag ? `${activeTag.name} · ` : ''}
+                        {activeTag ? `${getPhraseTagLabel(activeTag, t)} · ` : ''}
                         {search
                             ? t('phrases.search_count', { count: managePhrases.length })
                             : t('phrases.total_count', { count: managePhrases.length })}
@@ -1641,7 +1646,7 @@ export default function PhrasesInline() {
                                         setActiveIdx(0);
                                     }}
                                 >
-                                    {tag.name}
+                                    {getPhraseTagLabel(tag, t)}
                                 </button>
                             ))}
                         </div>
