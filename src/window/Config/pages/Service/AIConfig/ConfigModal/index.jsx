@@ -266,7 +266,6 @@ export default function ConfigModal(props) {
         onOpenChange,
         updateServiceInstanceList,
         deleteServiceInstance,
-        customServicesAllowed = true,
     } = props;
     const { t } = useTranslation();
 
@@ -285,47 +284,27 @@ export default function ConfigModal(props) {
                                     <LuBrainCircuit className='text-[16px]' />
                                 </div>
                                 <Spacer x={2} />
-                                {t('ai_config.title', { defaultValue: 'AI Services' })}
+                                {t('ai_config.custom_model_title', { defaultValue: 'Custom AI Model' })}
                             </div>
                         </ModalHeader>
                         <ModalBody>
-                            {customServicesAllowed ? (
-                                <AIApiConfigForm
-                                    instanceKey={serviceInstanceKey}
-                                    updateServiceInstanceList={updateServiceInstanceList}
-                                    onClose={onClose}
-                                    onDelete={() => {
-                                        const deleted = deleteServiceInstance?.(serviceInstanceKey);
-                                        if (deleted) {
-                                            onClose();
-                                        }
-                                    }}
-                                />
-                            ) : (
-                                <div className='pb-5'>
-                                    <div className='rounded-[12px] border border-default-200/70 bg-default-50 px-4 py-3'>
-                                        <div className='text-sm font-semibold text-foreground'>
-                                            {t('ai_config.custom_locked_title', {
-                                                defaultValue: 'Custom AI services are locked',
-                                            })}
-                                        </div>
-                                        <div className='mt-1 text-xs leading-5 text-default-500'>
-                                            {t('ai_config.custom_locked_desc', {
-                                                defaultValue:
-                                                    'Your current plan uses the FlowGuide AI gateway. Upgrade to Pro to edit custom API services.',
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div className='mt-5 flex justify-end'>
-                                        <Button
-                                            color='primary'
-                                            onPress={onClose}
-                                        >
-                                            {t('common.confirm', { defaultValue: 'OK' })}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
+                            <p className='mb-4 text-xs leading-5 text-default-500'>
+                                {t('ai_config.custom_model_desc', {
+                                    defaultValue:
+                                        'Free users can use their own API key without buying a subscription. A complete URL and key bypass FlowGuide AI subscription and balance usage.',
+                                })}
+                            </p>
+                            <AIApiConfigForm
+                                instanceKey={serviceInstanceKey}
+                                updateServiceInstanceList={updateServiceInstanceList}
+                                onClose={onClose}
+                                onDelete={() => {
+                                    const deleted = deleteServiceInstance?.(serviceInstanceKey);
+                                    if (deleted) {
+                                        onClose();
+                                    }
+                                }}
+                            />
                         </ModalBody>
                     </>
                 )}

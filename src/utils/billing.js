@@ -106,6 +106,22 @@ function inferProfileTier(groupName) {
     return 'free';
 }
 
+function profileTierRank(subscription, summarySubscription = null) {
+    const tierRanks = { free: 100, basic: 200, pro: 300, enterprise: 400 };
+    return Math.max(
+        ...[
+            subscription?.tier,
+            subscription?.group?.name,
+            subscription?.group_name,
+            subscription?.plan?.name,
+            subscription?.plan_name,
+            summarySubscription?.tier,
+            summarySubscription?.group_name,
+            summarySubscription?.plan_name,
+        ].map((value) => tierRanks[inferProfileTier(value)] || 0)
+    );
+}
+
 function inferBillingCycle(plan) {
     const unit = String(plan?.validity_unit || '').trim().toLowerCase();
     const days = toNumber(plan?.validity_days, 0);
@@ -147,12 +163,21 @@ function makeTopupPresets(currency, multiplier = 1, minAmount = 0, balanceCurren
         }));
 }
 
-function getBestActiveSubscription(subscriptions = []) {
+function getBestActiveSubscription(subscriptions = [], summarySubscriptions = []) {
     const active = subscriptions.filter(
         (item) => String(item?.status || '').trim().toLowerCase() === 'active'
     );
+    const summaryById = new Map(
+        toArray(summarySubscriptions)
+            .map((item) => [Number(item?.id), item])
+            .filter(([id]) => Number.isFinite(id))
+    );
     return (
         active.sort((left, right) => {
+            const tierDelta =
+                profileTierRank(right, summaryById.get(Number(right?.id))) -
+                profileTierRank(left, summaryById.get(Number(left?.id)));
+            if (tierDelta !== 0) return tierDelta;
             const leftTime = left?.expires_at ? new Date(left.expires_at).getTime() : Number.MAX_SAFE_INTEGER;
             const rightTime = right?.expires_at ? new Date(right.expires_at).getTime() : Number.MAX_SAFE_INTEGER;
             return rightTime - leftTime;
@@ -168,11 +193,12 @@ function secondsToFutureIso(seconds) {
 
 function normalizeProfile({ user, affiliate, activeSubscriptions, progress, summary }) {
     const subscriptions = toArray(activeSubscriptions);
-    const activeSubscription = getBestActiveSubscription(subscriptions);
+    const summarySubscriptions = toArray(summary?.subscriptions);
+    const activeSubscription = getBestActiveSubscription(subscriptions, summarySubscriptions);
     const progressItem = toArray(progress).find(
         (item) => Number(item?.subscription_id) === Number(activeSubscription?.id)
     ) || toArray(progress)[0] || null;
-    const summaryItem = toArray(summary?.subscriptions).find(
+    const summaryItem = summarySubscriptions.find(
         (item) => Number(item?.id) === Number(activeSubscription?.id)
     ) || toArray(summary?.subscriptions)[0] || null;
     const group = activeSubscription?.group || {};

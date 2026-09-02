@@ -26,6 +26,8 @@ import {
     transferInviteRebateToBalance,
     updateAdminMembership,
 } from '../../../../utils/billing';
+import { clearAiServiceEntitlementCache } from '../../../../utils/aiEntitlements';
+import { clearSub2ApiGatewayKeyCache } from '../../../../utils/sub2apiAiKey';
 import { getSub2WebBase } from '../../../../utils/sub2api';
 import {
     cancelPaymentOrder,
@@ -41,6 +43,7 @@ const TIER_KEYS = {
     pro: { key: 'pro', color: 'secondary' },
     enterprise: { key: 'enterprise', color: 'warning' },
 };
+const TIER_RANKS = Object.freeze({ free: 0, basic: 1, pro: 2, enterprise: 3 });
 
 const TERMINAL_ORDER_STATUSES = new Set([
     'COMPLETED',
@@ -876,6 +879,16 @@ export default function Account() {
         return user;
     }
 
+    function invalidateBillingRuntimeCaches() {
+        clearAiServiceEntitlementCache();
+        clearSub2ApiGatewayKeyCache();
+        const userId = String(userInfo?.id || '').trim();
+        if (userId) {
+            ACCOUNT_VIEW_CACHE.billingProfilesByUserId.delete(userId);
+        }
+        persistAccountViewCache();
+    }
+
     function updateSelectedPaymentProvider(nextValue) {
         const normalizedValue = String(nextValue || '').trim();
         ACCOUNT_VIEW_CACHE.lastSelectedPaymentProvider = normalizedValue;
@@ -1101,6 +1114,7 @@ export default function Account() {
             const successKey = `${orderId}:success`;
             if (successNoticeRef.current.has(successKey)) return;
             successNoticeRef.current.add(successKey);
+            invalidateBillingRuntimeCaches();
             setQrModalOpen(false);
             triggerAccountRefresh({
                 includeUser: false,
@@ -1123,6 +1137,7 @@ export default function Account() {
         } else if (status === 'CANCELED') {
             toast(t('config.account.payment_status_canceled_notice'));
         } else if (status === 'REFUNDED') {
+            invalidateBillingRuntimeCaches();
             triggerAccountRefresh({
                 includeUser: false,
                 includePaymentConfig: false,
@@ -2010,6 +2025,17 @@ export default function Account() {
                 const planTierConfig = TIER_KEYS[plan.tier] ?? TIER_KEYS.free;
                 const planCardStyle = PLAN_CARD_STYLES[plan.tier] || PLAN_CARD_STYLES.basic;
                 const isFreePlan = plan.tier === 'free' || plan.isIncludedPlan;
+                const planTierRank = TIER_RANKS[plan.tier];
+                const currentTierRank = TIER_RANKS[currentBillingTierKey];
+                const isCurrentPlan = plan.tier === currentBillingTierKey;
+                const isCoveredByCurrentPlan =
+                    Number.isInteger(planTierRank) &&
+                    Number.isInteger(currentTierRank) &&
+                    planTierRank <= currentTierRank;
+                const isUpgradePlan =
+                    Number.isInteger(planTierRank) &&
+                    Number.isInteger(currentTierRank) &&
+                    planTierRank > currentTierRank;
                 const isPlaceholder = Boolean(plan.isPlaceholder);
                 const isRecommendedPlan = Boolean(plan.isRecommended) || plan.tier === 'pro';
                 const durationLabel = isFreePlan
@@ -2043,7 +2069,10 @@ export default function Account() {
                     surfaceClass: planCardStyle.surface,
                     accentClass: planCardStyle.accent,
                     badgeClass: planCardStyle.badge,
-                    tierLabel: plan.planName || t(`config.account.tier_${planTierConfig.key}`),
+                    // Keep the account badge and plan cards on the same localized tier name.
+                    // Provider-supplied plan names can use a different naming scheme (for
+                    // example, "Input Basic" vs the app's "Standard" label).
+                    tierLabel: t(`config.account.tier_${planTierConfig.key}`),
                     isRecommended: isRecommendedPlan,
                     recommendedLabel: t('config.account.subscription_recommended'),
                     currentPlanLabel: t('config.account.subscription_current_plan'),
@@ -2064,15 +2093,25 @@ export default function Account() {
                     isFreePlan,
                     ctaLabel: isFreePlan
                         ? t('config.account.subscription_free_action')
-                        : t('config.account.subscription_buy'),
+                        : isCurrentPlan
+                          ? t('config.account.subscription_current_plan')
+                          : isCoveredByCurrentPlan
+                            ? t('config.account.subscription_included_action')
+                            : isUpgradePlan
+                              ? t('config.account.subscription_upgrade')
+                              : t('config.account.subscription_buy'),
                     ctaToneClass:
                         PLAN_CTA_TONE_STYLES[
-                            isFreePlan ? 'neutral' : 'primary'
+                            isFreePlan || isCoveredByCurrentPlan ? 'neutral' : 'primary'
                         ] || PLAN_CTA_TONE_STYLES.primary,
-                    ctaDisabled: isFreePlan || isPlaceholder || !hasReadyPaymentProvider,
+                    ctaDisabled:
+                        isFreePlan ||
+                        isCoveredByCurrentPlan ||
+                        isPlaceholder ||
+                        !hasReadyPaymentProvider,
                 };
             }),
-        [hasReadyPaymentProvider, subscriptionPlanCards, subscriptionPlans, t]
+        [currentBillingTierKey, hasReadyPaymentProvider, subscriptionPlanCards, subscriptionPlans, t]
     );
 
     useEffect(() => {

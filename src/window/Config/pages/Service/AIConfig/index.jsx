@@ -2,7 +2,6 @@ import { DragDropContext, Draggable, Droppable } from 'react-beautiful-dnd';
 import { Button, Switch, useDisclosure } from '@nextui-org/react';
 import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { LuVolume2 } from 'react-icons/lu';
 import { MdKeyboardArrowDown } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +25,6 @@ import {
     getActiveReadAloudProviderId,
     getMergedBuiltInTtsConfig,
 } from '../../../../../utils/aiConfig';
-import { getAiServiceEntitlement } from '../../../../../utils/aiEntitlements';
 import { store } from '../../../../../utils/store';
 import AddServiceModal from '../AddServiceModal';
 import ConfigModal from './ConfigModal';
@@ -167,7 +165,6 @@ function SpeechProviderItem(props) {
 
 export default function AIConfig() {
     const { t, i18n } = useTranslation();
-    const navigate = useNavigate();
     const isChineseUI = i18n.language?.startsWith('zh');
     const toastStyle = useToastStyle();
     const { isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange } = useDisclosure();
@@ -183,7 +180,6 @@ export default function AIConfig() {
     const [speechConfig, setSpeechConfig] = useConfig(BUILTIN_TTS_CONFIG_KEY, createDefaultBuiltInTtsConfig(), {
         sync: false,
     });
-    const [customAiServicesAllowed, setCustomAiServicesAllowed] = useState(null);
 
     useEffect(() => {
         let mounted = true;
@@ -198,24 +194,6 @@ export default function AIConfig() {
                 }
             }
         );
-
-        return () => {
-            mounted = false;
-        };
-    }, []);
-
-    useEffect(() => {
-        let mounted = true;
-
-        getAiServiceEntitlement({ forceRefresh: true })
-            .then((entitlement) => {
-                if (!mounted) return;
-                setCustomAiServicesAllowed(Boolean(entitlement?.canUseCustomAiServices));
-            })
-            .catch(() => {
-                if (!mounted) return;
-                setCustomAiServicesAllowed(false);
-            });
 
         return () => {
             mounted = false;
@@ -263,16 +241,6 @@ export default function AIConfig() {
         setCurrentConfigKey(instanceKey);
     };
 
-    const customAiServicesLocked = customAiServicesAllowed === false;
-    const showCustomLockedToast = () => {
-        toast.error(
-            t('ai_config.custom_locked_add', { defaultValue: 'Pro plan is required for custom AI services.' }),
-            {
-                style: toastStyle,
-            }
-        );
-    };
-
     const builtinServiceItems = AI_PROVIDER_PRIORITY.map((providerId) => {
         const preset = AI_PROVIDER_PRESETS[providerId];
 
@@ -288,10 +256,6 @@ export default function AIConfig() {
                 />
             ),
             onSelect: async () => {
-                if (customAiServicesLocked) {
-                    showCustomLockedToast();
-                    return;
-                }
                 const instanceKey = createAiApiInstanceKey();
                 await store.load();
                 await store.set(instanceKey, createAiApiConfigForProvider(providerId));
@@ -350,45 +314,25 @@ export default function AIConfig() {
     return (
         <>
             <SettingsSection
-                title={t('ai_config.title', { defaultValue: 'AI Services' })}
+                title={t('ai_config.custom_service_title', { defaultValue: 'Custom AI Services' })}
                 action={
                     <Button
                         size='sm'
                         variant='flat'
                         className='h-8 rounded-md px-3 text-[13px] font-medium'
-                        isDisabled={customAiServicesAllowed !== true}
-                        onPress={() => {
-                            if (customAiServicesAllowed !== true) {
-                                showCustomLockedToast();
-                                return;
-                            }
-                            onAddOpen();
-                        }}
+                        onPress={onAddOpen}
                     >
-                        {t('config.service.add_service')}
+                        {t('ai_config.add_custom_service', { defaultValue: 'Add Custom Service' })}
                     </Button>
                 }
             >
                 <div className='p-4'>
-                    {customAiServicesLocked ? (
-                        <div className='mb-4 flex flex-col gap-2 rounded-[10px] border border-default-200 bg-default-50 px-3 py-2 text-xs leading-5 text-default-500 sm:flex-row sm:items-center sm:justify-between'>
-                            <span className='min-w-0'>
-                                {t('ai_config.custom_locked_desc', {
-                                    defaultValue:
-                                        'Your current plan uses the FlowGuide AI gateway. Upgrade to Pro to edit custom API services.',
-                                })}
-                            </span>
-                            <Button
-                                size='sm'
-                                color='primary'
-                                variant='flat'
-                                className='h-7 shrink-0 px-3 text-xs font-medium'
-                                onPress={() => navigate('/account#subscription-plans')}
-                            >
-                                {t('ai_config.custom_locked_upgrade', { defaultValue: 'View Plans' })}
-                            </Button>
-                        </div>
-                    ) : null}
+                    <p className='mb-3 text-xs leading-5 text-default-500'>
+                        {t('ai_config.custom_service_desc', {
+                            defaultValue:
+                                'Use your own API key without a subscription. The FlowGuide AI gateway is used only when no custom service is configured.',
+                        })}
+                    </p>
                     <DragDropContext onDragEnd={onAiDragEnd}>
                         <Droppable
                             droppableId='ai-api-droppable'
@@ -417,7 +361,6 @@ export default function AIConfig() {
                                                             serviceInstanceKey={instanceKey}
                                                             setCurrentConfigKey={setCurrentConfigKey}
                                                             onConfigOpen={onConfigOpen}
-                                                            customServicesAllowed={customAiServicesAllowed === true}
                                                         />
                                                     </div>
                                                 )}
@@ -484,6 +427,7 @@ export default function AIConfig() {
             <AddServiceModal
                 isOpen={isAddOpen}
                 onOpenChange={onAddOpenChange}
+                modalTitle={t('ai_config.add_custom_service', { defaultValue: 'Add Custom Service' })}
                 setCurrentConfigKey={setCurrentConfigKey}
                 onConfigOpen={onConfigOpen}
                 builtinServices={builtinServiceItems}
@@ -494,7 +438,6 @@ export default function AIConfig() {
                 onOpenChange={onConfigOpenChange}
                 updateServiceInstanceList={updateServiceInstanceList}
                 deleteServiceInstance={deleteServiceInstance}
-                customServicesAllowed={customAiServicesAllowed === true}
             />
             <SpeechConfigModal
                 isOpen={isSpeechConfigOpen}

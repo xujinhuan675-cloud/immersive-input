@@ -14,7 +14,7 @@ import {
 import { ConfigServiceListRow } from './ServiceRow';
 
 export default function ServiceItem(props) {
-    const { serviceInstanceKey, setCurrentConfigKey, onConfigOpen, customServicesAllowed = true, ...drag } = props;
+    const { serviceInstanceKey, setCurrentConfigKey, onConfigOpen, ...drag } = props;
     const { t } = useTranslation();
     const [serviceInstanceConfig, setServiceInstanceConfig] = useConfig(serviceInstanceKey, {});
 
@@ -29,7 +29,6 @@ export default function ServiceItem(props) {
     });
     const displayName = getAiApiDisplayName(mergedConfig, providerTitle);
     const openConfig = () => {
-        if (!customServicesAllowed) return;
         setCurrentConfigKey(serviceInstanceKey);
         onConfigOpen();
     };
@@ -51,7 +50,6 @@ export default function ServiceItem(props) {
                 <>
                     <Switch
                         size='sm'
-                        isDisabled={!customServicesAllowed}
                         isSelected={mergedConfig.enable ?? true}
                         onValueChange={(value) => {
                             setServiceInstanceConfig({ ...serviceInstanceConfig, enable: value });
@@ -62,7 +60,6 @@ export default function ServiceItem(props) {
                         size='sm'
                         variant='light'
                         className='h-8 w-8 min-w-8 rounded-md text-default-500'
-                        isDisabled={!customServicesAllowed}
                         onPress={openConfig}
                     >
                         <MdKeyboardArrowDown className='rotate-[-90deg] text-[20px]' />

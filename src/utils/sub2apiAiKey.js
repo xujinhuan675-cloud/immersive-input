@@ -1,12 +1,20 @@
 import { getCurrentUser, requireAccessToken } from './auth';
 import { requestSub2Api } from './sub2api';
+import {
+    getInputFreeTargetIds,
+    getConfiguredBalanceGroupId,
+    isInputFreeGatewayForced,
+    resolveBalanceGroupId,
+    resolveInputFreeGroupId,
+} from './inputSubscriptionPolicy';
 
 const AUTO_KEY_NAME = 'Immersive Input Gateway';
 const CACHE_STORAGE_KEY = 'sub2api_gateway_user_api_key';
 const CACHE_TTL_MS = 60 * 1000;
 
 let memoryCache = null;
-let pendingKeyPromise = null;
+const memoryGroupCaches = new Map();
+const pendingKeyPromises = new Map();
 
 function now() {
     return Date.now();
@@ -65,39 +73,67 @@ function getUserId() {
     return String(user?.id || user?.email || '').trim();
 }
 
-function readCachedKey() {
-    if (memoryCache) return memoryCache;
+function cacheStorageKey(groupId = null) {
+    const normalizedGroupId = normalizeId(groupId);
+    return normalizedGroupId ? `${CACHE_STORAGE_KEY}:group:${normalizedGroupId}` : CACHE_STORAGE_KEY;
+}
+
+function readCachedKey(groupId = null) {
+    const normalizedGroupId = normalizeId(groupId);
+    if (normalizedGroupId && memoryGroupCaches.has(normalizedGroupId)) {
+        return memoryGroupCaches.get(normalizedGroupId);
+    }
+    if (!normalizedGroupId && memoryCache) return memoryCache;
     try {
-        const parsed = JSON.parse(localStorage.getItem(CACHE_STORAGE_KEY) || 'null');
+        const parsed = JSON.parse(localStorage.getItem(cacheStorageKey(normalizedGroupId)) || 'null');
         if (parsed && typeof parsed === 'object') {
-            memoryCache = parsed;
+            if (normalizedGroupId) memoryGroupCaches.set(normalizedGroupId, parsed);
+            else memoryCache = parsed;
             return parsed;
         }
     } catch {}
     return null;
 }
 
-function writeCachedKey(entry) {
-    memoryCache = entry;
+function writeCachedKey(entry, groupId = null) {
+    const normalizedGroupId = normalizeId(groupId);
+    if (normalizedGroupId) memoryGroupCaches.set(normalizedGroupId, entry);
+    else memoryCache = entry;
     try {
-        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(entry));
+        localStorage.setItem(cacheStorageKey(normalizedGroupId), JSON.stringify(entry));
     } catch {}
 }
 
 export function clearSub2ApiGatewayKeyCache() {
     memoryCache = null;
-    pendingKeyPromise = null;
+    memoryGroupCaches.clear();
+    pendingKeyPromises.clear();
     try {
         localStorage.removeItem(CACHE_STORAGE_KEY);
+        const keysToRemove = [];
+        for (let index = 0; index < localStorage.length; index += 1) {
+            const key = localStorage.key(index);
+            if (key?.startsWith(`${CACHE_STORAGE_KEY}:group:`)) keysToRemove.push(key);
+        }
+        keysToRemove.forEach((key) => localStorage.removeItem(key));
     } catch {}
 }
 
-function isFreshCache(entry, userId) {
+function isFreshCache(entry, userId, requestedGroupId = null) {
+    const { planId, groupId } = getInputFreeTargetIds();
+    const normalizedRequestedGroupId = normalizeId(requestedGroupId);
+    const matchesForcedTarget =
+        Boolean(normalizedRequestedGroupId) ||
+        !isInputFreeGatewayForced() ||
+        (entry?.targetPlanId === planId && (!groupId || entry?.groupId === groupId));
+
     return (
         entry &&
         entry.userId === userId &&
+        (!normalizedRequestedGroupId || entry.groupId === normalizedRequestedGroupId) &&
         String(entry.key || '').trim() &&
-        Number(entry.expiresAt || 0) > now()
+        Number(entry.expiresAt || 0) > now() &&
+        matchesForcedTarget
     );
 }
 
@@ -191,10 +227,59 @@ function resolveDefaultGroupIds(defaultPlanIds = [], availablePlans = [], subscr
     return Array.from(new Set(resolvedGroupIds));
 }
 
+function inferTierRank(value) {
+    const text = String(value || '')
+        .trim()
+        .toLowerCase();
+    if (!text) return 0;
+    if (text.includes('enterprise') || text.includes('team') || text.includes('企业') || text.includes('团队'))
+        return 400;
+    if (
+        text.includes('pro') ||
+        text.includes('plus') ||
+        text.includes('premium') ||
+        text.includes('professional') ||
+        text.includes('专业') ||
+        text.includes('高级')
+    )
+        return 300;
+    if (text.includes('basic') || text.includes('standard') || text.includes('基础') || text.includes('标准'))
+        return 200;
+    if (text.includes('free') || text.includes('trial') || text.includes('免费') || text.includes('试用')) return 100;
+    return 0;
+}
+
+function subscriptionTierRank(subscription, group, plan) {
+    return Math.max(
+        inferTierRank(subscription?.tier),
+        inferTierRank(subscription?.plan?.tier),
+        inferTierRank(subscription?.plan?.name),
+        inferTierRank(plan?.tier),
+        inferTierRank(plan?.name),
+        inferTierRank(group?.name),
+        inferTierRank(subscription?.group?.name)
+    );
+}
+
 function choosePreferredGroupId(activeSubscriptions = [], availableGroups = [], availablePlans = []) {
     const groups = unwrapItems(availableGroups).filter((group) => getGroupId(group) && isGroupActive(group));
     const groupById = new Map(groups.map((group) => [getGroupId(group), group]));
     const subscriptions = unwrapItems(activeSubscriptions);
+
+    if (isInputFreeGatewayForced()) {
+        const targetGroupId = resolveInputFreeGroupId({
+            subscriptions,
+            availablePlans: unwrapItems(availablePlans),
+        });
+        if (!targetGroupId) return null;
+
+        const targetIsKnown =
+            groupById.has(targetGroupId) ||
+            subscriptions.some((subscription) => getSubscriptionGroupId(subscription) === targetGroupId) ||
+            unwrapItems(availablePlans).some((plan) => getPlanGroupId(plan) === targetGroupId);
+        return targetIsKnown ? targetGroupId : null;
+    }
+
     const defaultPlanIds = getConfiguredDefaultAiPlanIds();
     const subscriptionGroupIds = subscriptions.map(getSubscriptionGroupId).filter(Boolean);
     const defaultGroupIds = Array.from(
@@ -204,29 +289,71 @@ function choosePreferredGroupId(activeSubscriptions = [], availableGroups = [], 
         ])
     );
 
-    const paidSubscribedOpenAiGroupId = subscriptions.find((subscription) => {
-        const groupId = getSubscriptionGroupId(subscription);
-        const planId = getSubscriptionPlanId(subscription);
-        const group = groupById.get(groupId) || getSubscriptionGroup(subscription);
-        return (
-            groupId &&
-            isOpenAiLikeGroup(group) &&
-            !isConfiguredDefaultAiGroupId(groupId, defaultGroupIds) &&
-            !isConfiguredDefaultAiPlanId(planId, defaultPlanIds)
-        );
-    });
+    const planByGroupId = new Map(
+        unwrapItems(availablePlans)
+            .map((plan) => [getPlanGroupId(plan), plan])
+            .filter(([id]) => Boolean(id))
+    );
+    const paidSubscribedOpenAiGroupId = subscriptions
+        .filter((subscription) => {
+            const groupId = getSubscriptionGroupId(subscription);
+            const planId = getSubscriptionPlanId(subscription);
+            const group = groupById.get(groupId) || getSubscriptionGroup(subscription);
+            return (
+                groupId &&
+                isOpenAiLikeGroup(group) &&
+                !isConfiguredDefaultAiGroupId(groupId, defaultGroupIds) &&
+                !isConfiguredDefaultAiPlanId(planId, defaultPlanIds)
+            );
+        })
+        .sort((left, right) => {
+            const leftGroupId = getSubscriptionGroupId(left);
+            const rightGroupId = getSubscriptionGroupId(right);
+            const leftGroup = groupById.get(leftGroupId) || getSubscriptionGroup(left);
+            const rightGroup = groupById.get(rightGroupId) || getSubscriptionGroup(right);
+            const leftPlan = planByGroupId.get(leftGroupId);
+            const rightPlan = planByGroupId.get(rightGroupId);
+            return (
+                subscriptionTierRank(right, rightGroup, rightPlan) - subscriptionTierRank(left, leftGroup, leftPlan) ||
+                new Date(right?.expires_at || 0).getTime() - new Date(left?.expires_at || 0).getTime() ||
+                new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime()
+            );
+        })[0];
     if (paidSubscribedOpenAiGroupId) return getSubscriptionGroupId(paidSubscribedOpenAiGroupId);
+
+    const hasOpenAiSubscription = subscriptions.some((subscription) => {
+        const groupId = getSubscriptionGroupId(subscription);
+        const group = groupById.get(groupId) || getSubscriptionGroup(subscription);
+        return groupId && isOpenAiLikeGroup(group);
+    });
+    if (!hasOpenAiSubscription) {
+        const balanceGroupId = resolveBalanceGroupId({ availableGroups: groups });
+        if (getConfiguredBalanceGroupId()) return balanceGroupId;
+    }
 
     const allowedDefaultGroupId =
         defaultGroupIds.find((groupId) => subscriptionGroupIds.includes(groupId) || groupById.has(groupId)) ||
         defaultGroupIds[0];
     if (allowedDefaultGroupId) return allowedDefaultGroupId;
 
-    const subscribedOpenAiGroupId = subscriptions.find((subscription) => {
-        const groupId = getSubscriptionGroupId(subscription);
-        const group = groupById.get(groupId) || getSubscriptionGroup(subscription);
-        return groupId && isOpenAiLikeGroup(group);
-    });
+    const subscribedOpenAiGroupId = subscriptions
+        .filter((subscription) => {
+            const groupId = getSubscriptionGroupId(subscription);
+            const group = groupById.get(groupId) || getSubscriptionGroup(subscription);
+            return groupId && isOpenAiLikeGroup(group);
+        })
+        .sort((left, right) => {
+            const leftGroupId = getSubscriptionGroupId(left);
+            const rightGroupId = getSubscriptionGroupId(right);
+            const leftGroup = groupById.get(leftGroupId) || getSubscriptionGroup(left);
+            const rightGroup = groupById.get(rightGroupId) || getSubscriptionGroup(right);
+            const leftPlan = planByGroupId.get(leftGroupId);
+            const rightPlan = planByGroupId.get(rightGroupId);
+            return (
+                subscriptionTierRank(right, rightGroup, rightPlan) - subscriptionTierRank(left, leftGroup, leftPlan) ||
+                new Date(right?.expires_at || 0).getTime() - new Date(left?.expires_at || 0).getTime()
+            );
+        })[0];
     if (subscribedOpenAiGroupId) return getSubscriptionGroupId(subscribedOpenAiGroupId);
 
     if (subscriptionGroupIds[0]) return subscriptionGroupIds[0];
@@ -265,6 +392,7 @@ function cacheEntryFromKey(userId, key) {
         key: apiKey,
         keyId: normalizeId(key?.id),
         groupId: getKeyGroupId(key),
+        targetPlanId: getInputFreeTargetIds().planId,
         name: String(key?.name || AUTO_KEY_NAME),
         expiresAt: now() + CACHE_TTL_MS,
     };
@@ -307,44 +435,66 @@ async function createUserGatewayKey(token, groupId) {
     });
 }
 
-async function resolveSub2ApiGatewayKey() {
-    const token = await requireAccessToken();
+export async function getSub2ApiGatewayKey({ forceRefresh = false, groupId = null, cacheAsPreferred = false } = {}) {
     const userId = getUserId();
     if (!userId) {
         throw new Error('Please sign in to use FlowGuide AI.');
     }
 
-    const { keys, subscriptions, groups, plans } = await requestUserKeyData(token);
-    const preferredGroupId = choosePreferredGroupId(subscriptions, groups, plans);
-    const reusableKey = findReusableKey(keys, preferredGroupId);
-    const key = reusableKey || (await createUserGatewayKey(token, preferredGroupId));
-    const entry = cacheEntryFromKey(userId, key);
-    if (!entry) {
-        throw new Error('Sub2API did not return a usable API key.');
-    }
-
-    writeCachedKey(entry);
-    return entry.key;
-}
-
-export async function getSub2ApiGatewayKey({ forceRefresh = false } = {}) {
-    const userId = getUserId();
-    if (!userId) {
-        throw new Error('Please sign in to use FlowGuide AI.');
-    }
-
+    const requestedGroupId = normalizeId(groupId);
     if (!forceRefresh) {
-        const cached = readCachedKey();
-        if (isFreshCache(cached, userId)) {
+        const cached = readCachedKey(requestedGroupId);
+        if (isFreshCache(cached, userId, requestedGroupId)) {
             return cached.key;
         }
     }
 
-    if (!pendingKeyPromise || forceRefresh) {
-        pendingKeyPromise = resolveSub2ApiGatewayKey().finally(() => {
-            pendingKeyPromise = null;
+    const pendingKey = requestedGroupId || 'preferred';
+    if (!pendingKeyPromises.has(pendingKey) || forceRefresh) {
+        const pendingPromise = (async () => {
+            const token = await requireAccessToken();
+            const resolvedUserId = getUserId();
+            if (!resolvedUserId) {
+                throw new Error('Please sign in to use FlowGuide AI.');
+            }
+
+            const { keys, subscriptions, groups, plans } = await requestUserKeyData(token);
+            const preferredGroupId = requestedGroupId || choosePreferredGroupId(subscriptions, groups, plans);
+            if (!preferredGroupId) {
+                if (isInputFreeGatewayForced()) {
+                    throw new Error('Configured Input free subscription group is unavailable.');
+                }
+                throw new Error('No usable FlowGuide AI gateway group is available.');
+            }
+            if (
+                requestedGroupId &&
+                !resolveBalanceGroupId({ availableGroups: groups }) &&
+                requestedGroupId === getConfiguredBalanceGroupId()
+            ) {
+                throw new Error('Configured FlowGuide balance gateway group is unavailable.');
+            }
+            const reusableKey = findReusableKey(keys, preferredGroupId);
+            const key = reusableKey || (await createUserGatewayKey(token, preferredGroupId));
+            if (isInputFreeGatewayForced() && !requestedGroupId && getKeyGroupId(key) !== preferredGroupId) {
+                throw new Error('Input free gateway key was not bound to the configured group.');
+            }
+            const entry = cacheEntryFromKey(resolvedUserId, key);
+            if (!entry) {
+                throw new Error('Sub2API did not return a usable API key.');
+            }
+            writeCachedKey(entry, requestedGroupId);
+            if (cacheAsPreferred && requestedGroupId) {
+                writeCachedKey(entry);
+            }
+            return entry.key;
+        })();
+        const trackedPromise = pendingPromise.finally(() => {
+            if (pendingKeyPromises.get(pendingKey) === trackedPromise) {
+                pendingKeyPromises.delete(pendingKey);
+            }
         });
+        pendingKeyPromises.set(pendingKey, trackedPromise);
     }
 
-    return pendingKeyPromise;
+    return pendingKeyPromises.get(pendingKey);
 }

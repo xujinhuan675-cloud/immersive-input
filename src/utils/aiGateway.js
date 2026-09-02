@@ -1,15 +1,19 @@
 import {
-    getFlowGuideAudioSpeechUrl,
     getFlowGuideChatCompletionsUrl,
     isFlowGuideUrl,
 } from './flowguide';
 import { DEFAULT_CHAT_MODEL } from './aiModels';
-import { getAiServiceEntitlement } from './aiEntitlements';
 import { clearSub2ApiGatewayKeyCache, getSub2ApiGatewayKey } from './sub2apiAiKey';
+import { getConfiguredBalanceGroupId } from './inputSubscriptionPolicy';
 
 const DEFAULT_AI_MODEL = DEFAULT_CHAT_MODEL;
-const DEFAULT_GATEWAY_CHAT_MODEL = DEFAULT_CHAT_MODEL;
 const SUB2API_USER_KEY_AUTH_SOURCE = 'sub2api_user_key';
+const SUBSCRIPTION_EXHAUSTION_CODES = new Set([
+    'SUBSCRIPTION_NOT_FOUND',
+    'SUBSCRIPTION_EXPIRED',
+    'SUBSCRIPTION_INVALID',
+    'SUBSCRIPTION_SUSPENDED',
+]);
 
 export async function resolveAiGatewayConfig(apiConfig = {}) {
     let apiUrl = String(apiConfig.apiUrl || '').trim();
@@ -19,22 +23,6 @@ export async function resolveAiGatewayConfig(apiConfig = {}) {
 
     let apiKey = String(apiConfig.apiKey || '').trim();
     let model = String(apiConfig.model || '').trim();
-    const purpose = String(apiConfig.purpose || 'chat')
-        .trim()
-        .toLowerCase();
-    if (purpose === 'chat' || purpose === 'speech') {
-        const entitlement = await getAiServiceEntitlement().catch(() => ({
-            canUseCustomAiServices: false,
-        }));
-        if (!entitlement.canUseCustomAiServices) {
-            apiUrl = purpose === 'speech' ? getFlowGuideAudioSpeechUrl() : getFlowGuideChatCompletionsUrl();
-            apiKey = '';
-            if (purpose === 'chat') {
-                model = DEFAULT_GATEWAY_CHAT_MODEL;
-            }
-        }
-    }
-
     return {
         ...apiConfig,
         apiUrl,
@@ -49,7 +37,7 @@ export async function requireAiGatewayConfig(apiConfig = {}) {
     if (!resolved.apiUrl || !resolved.model) {
         throw new Error('Please configure AI API URL, API Key, and model first.');
     }
-    if (!resolved.apiKey && isFlowGuideUrl(resolved.apiUrl)) {
+    if (isFlowGuideUrl(resolved.apiUrl)) {
         const gatewayKey = await getSub2ApiGatewayKey();
         return {
             ...resolved,
@@ -98,6 +86,31 @@ function isAuthFailureStatus(status) {
     return status === 401 || status === 403;
 }
 
+async function readGatewayErrorCode(response) {
+    if (!response) return '';
+    try {
+        const payload = await response.clone().json();
+        const candidates = [payload?.code, payload?.error?.code, payload?.error?.type, payload?.data?.code];
+        return (
+            candidates
+                .map((value) =>
+                    String(value || '')
+                        .trim()
+                        .toUpperCase()
+                )
+                .find(Boolean) || ''
+        );
+    } catch {
+        return '';
+    }
+}
+
+function isSubscriptionExhaustionCode(status, code) {
+    if (status === 429) return code === 'USAGE_LIMIT_EXCEEDED';
+    if (status !== 403) return false;
+    return SUBSCRIPTION_EXHAUSTION_CODES.has(code);
+}
+
 export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retryOptions = {}) {
     const resolvedConfig = await requireAiGatewayConfig(apiConfig);
     const doFetch = getFetch();
@@ -114,7 +127,42 @@ export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retr
 
     const request = (config) => doFetch(config.apiUrl, createRequestOptions(config));
     let currentConfig = resolvedConfig;
+
+    const tryBalanceFallback = async (response) => {
+        const gatewayErrorCode = await readGatewayErrorCode(response);
+        const balanceGroupId = getConfiguredBalanceGroupId();
+        if (
+            !isFlowGuideUrl(currentConfig.apiUrl) ||
+            currentConfig.authSource !== SUB2API_USER_KEY_AUTH_SOURCE ||
+            !balanceGroupId ||
+            !isSubscriptionExhaustionCode(response.status, gatewayErrorCode)
+        ) {
+            return null;
+        }
+
+        const balanceGatewayKey = await getSub2ApiGatewayKey({
+            forceRefresh: true,
+            groupId: balanceGroupId,
+            cacheAsPreferred: true,
+        }).catch(() => null);
+        if (!balanceGatewayKey || balanceGatewayKey === currentConfig.apiKey) {
+            return null;
+        }
+
+        await closeResponseBody(response);
+        currentConfig = {
+            ...currentConfig,
+            apiKey: balanceGatewayKey,
+            billingSource: 'balance',
+        };
+        return request(currentConfig);
+    };
+
     let response = await request(currentConfig);
+    const balanceResponse = await tryBalanceFallback(response);
+    if (balanceResponse) {
+        return { response: balanceResponse, config: currentConfig };
+    }
 
     if (!isAuthFailureStatus(response.status)) {
         return { response, config: currentConfig };
@@ -158,6 +206,11 @@ export async function fetchAiGateway(apiConfig = {}, optionsOrFactory = {}, retr
                 return { response, config: currentConfig };
             }
         }
+    }
+
+    const refreshedBalanceResponse = await tryBalanceFallback(response);
+    if (refreshedBalanceResponse) {
+        return { response: refreshedBalanceResponse, config: currentConfig };
     }
 
     if (typeof retryOptions.refreshConfig === 'function') {

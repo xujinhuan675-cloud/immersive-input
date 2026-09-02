@@ -4,7 +4,6 @@ import {
     getFlowGuideChatCompletionsUrl,
     isFlowGuideUrl,
 } from './flowguide';
-import { getAiServiceEntitlement } from './aiEntitlements';
 import { DEFAULT_CHAT_MODEL } from './aiModels';
 import { store } from './store';
 
@@ -503,16 +502,6 @@ export async function getBuiltInTtsConfig() {
 }
 
 export async function getPreferredAiApiConfig({ includeDisabled = false } = {}) {
-    const entitlement = await getAiServiceEntitlement().catch(() => ({
-        canUseCustomAiServices: false,
-    }));
-    if (!entitlement.canUseCustomAiServices) {
-        return getMergedAiApiConfig({
-            ...createGatewayAiApiConfig(),
-            instanceKey: AI_API_GATEWAY_INSTANCE_KEY,
-        });
-    }
-
     const instanceList = await ensureAiApiConfigMigration();
     let firstConfig = null;
 

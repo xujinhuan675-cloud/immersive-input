@@ -114,7 +114,7 @@ export default function Service() {
                     title={
                         <ServiceTabTitle
                             icon={LuBrainCircuit}
-                            label={t('ai_config.title', { defaultValue: 'AI Services' })}
+                            label={t('ai_config.custom_service_title', { defaultValue: 'Custom AI Services' })}
                         />
                     }
                 >

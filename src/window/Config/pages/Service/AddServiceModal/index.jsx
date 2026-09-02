@@ -99,6 +99,7 @@ export default function AddServiceModal(props) {
         deletePluginServices,
         inlineConfig = false,
         updateServiceInstanceList,
+        modalTitle = null,
     } = props;
     const [installing, setInstalling] = useState(false);
     const [expandedService, setExpandedService] = useState(null);
@@ -261,7 +262,7 @@ export default function AddServiceModal(props) {
             <ModalContent className='max-h-[80vh]'>
                 {(onClose) => (
                     <>
-                        <ModalHeader>{t('config.service.add_service')}</ModalHeader>
+                        <ModalHeader>{modalTitle || t('config.service.add_service')}</ModalHeader>
                         <ModalBody>
                             {renderServiceSection(
                                 t('config.service.builtin_services', { defaultValue: 'Built-in Services' }),
