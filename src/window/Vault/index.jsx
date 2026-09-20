@@ -1,9 +1,10 @@
 import { appWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/shell';
 import { listen } from '@tauri-apps/api/event';
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FiEdit3, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-icons/fi';
+import { FiEdit3, FiExternalLink, FiGlobe, FiKey, FiLock, FiPlus, FiSearch, FiZap } from 'react-icons/fi';
 import WindowHeader, {
     WindowHeaderButton,
     WindowHeaderCloseButton,
@@ -72,6 +73,22 @@ const STRENGTH_KEYS = [
     'vault.strength_very_strong',
 ];
 const STRENGTH_COLOR = ['#ccc', '#e53935', '#fb8c00', '#fdd835', '#7cb342', '#43a047'];
+
+function normalizeWebsiteUrl(value) {
+    const website = String(value ?? '').trim();
+    if (!website) return '';
+
+    const explicitProtocol = website.match(/^([a-z][a-z\d+.-]*):/i)?.[1]?.toLowerCase();
+    if (explicitProtocol && !['http', 'https'].includes(explicitProtocol)) return '';
+
+    const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(website) ? website : `https://${website}`;
+    try {
+        const url = new URL(withProtocol);
+        return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+    } catch {
+        return '';
+    }
+}
 
 // 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
 // 閺嶅嘲绱＄敮鎼佸櫤
@@ -904,6 +921,22 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed, pined, onToggl
         showToast(t('vault.copied', { label }));
     };
 
+    const handleOpenWebsite = async (website) => {
+        const url = normalizeWebsiteUrl(website);
+        if (!url) {
+            showToast(t('vault.website_invalid'));
+            return;
+        }
+        try {
+            await open(url);
+            // Hide the vault after navigation so the opened page is immediately usable.
+            await appWindow.hide();
+        } catch (e) {
+            console.error('open website error:', e);
+            showToast(t('vault.website_open_failed'));
+        }
+    };
+
     const handleFill = async (text) => {
         if (!text) return;
         try {
@@ -1136,6 +1169,17 @@ function ListView({ onEdit, pendingMode = 'idle', onModeConsumed, pined, onToggl
                                     style={S.cardActions}
                                     onClick={(e) => e.stopPropagation()}
                                 >
+                                    {r.website && (
+                                        <button
+                                            style={S.btn('', true)}
+                                            onClick={() => handleOpenWebsite(r.website)}
+                                            title={t('vault.open_website_tip')}
+                                            aria-label={t('vault.open_website')}
+                                        >
+                                            <FiExternalLink size={13} aria-hidden='true' />
+                                            <span className='sr-only'>{t('vault.open_website')}</span>
+                                        </button>
+                                    )}
                                     <button
                                         style={S.btn('', true)}
                                         onClick={() => copyText(r.account, t('vault.account_short'))}

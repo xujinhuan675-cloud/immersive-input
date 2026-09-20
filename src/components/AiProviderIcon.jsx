@@ -1,12 +1,12 @@
 import React from 'react';
 import { LuBot } from 'react-icons/lu';
-import { SiAnthropic, SiGooglegemini, SiOpenai } from 'react-icons/si';
+import { SiAnthropic, SiGooglegemini } from 'react-icons/si';
 
 import { AI_PROVIDER_IDS, getAiProviderId } from '../utils/aiConfig';
 
 const PROVIDER_ICON_MAP = {
     [AI_PROVIDER_IDS.OPENAI]: {
-        Icon: SiOpenai,
+        Icon: LuBot,
         className: 'text-emerald-600',
     },
     [AI_PROVIDER_IDS.CLAUDE]: {
